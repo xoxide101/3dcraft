@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3DCraft</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/3dcraft.css">
+</head>
+<body>
+<div class="app" id="app">
+  <main class="work">
+    <aside class="side left" id="left">
+      <div class="tabs" role="tablist" aria-label="Side panel">
+        <button class="tab" data-tab="layers" role="tab" aria-selected="true">Layers</button>
+        <button class="tab" data-tab="add" role="tab">Add</button>
+        <button class="tab" data-tab="symbols" role="tab" title="3D dingbats and 3D emoji">Symbols</button>
+      </div>
+      <div class="tabbody" id="tab-layers"><div class="layers" id="layers"></div><div class="pad" id="layer-tools"></div></div>
+      <div class="tabbody" id="tab-add" hidden><div class="addgrid" id="addgrid"></div><p class="hint pad">Click to add it to the scene. Then drag the arrows to move it, or use the corner dial to turn it.</p></div>
+      <div class="tabbody" id="tab-symbols" hidden><div id="sym-panel" class="sym-panel"></div></div>
+    </aside>
+
+    <section class="desk3d" id="desk" aria-label="3D view">
+      <div class="stage checker" id="stage"></div>
+      <div class="rotator" id="rotator" aria-label="Turn">
+        <canvas id="rot-canvas" width="132" height="132" aria-label="Turn dial: drag a ring to turn around X, Y or Z, or drag the ball to turn freely"></canvas>
+        <div class="rot-target seg" role="group" aria-label="What the dial turns"><button class="btn" data-rt="all" title="Turn the whole scene (the view goes round it)">All</button><button class="btn" data-rt="selected" title="Turn only the selected object">Selected</button></div>
+      </div>
+    </section>
+
+    <aside class="side right" id="props" aria-label="Properties"></aside>
+  </main>
+  <footer class="statusbar" id="status"></footer>
+</div>
+
+<!-- Start screen -->
+<div class="start" id="start" hidden>
+  <div class="start-in">
+    <div class="start-head"><div class="start-logo" id="start-logo"></div><div><h1>3DCraft</h1><p>3D titles, logos and scenes: shapes, 3D text, pictures turned into 3D, materials and lights.</p></div></div>
+    <h2>Start a new scene</h2>
+    <div class="kinds" id="kinds"></div>
+    <div class="start-foot"><button class="btn outline" id="start-open">Open a saved scene…</button><button class="btn" id="start-resume" hidden>Back to my last scene</button></div>
+  </div>
+</div>
+
+<!-- Picture to 3D -->
+<div class="backdrop" id="tracedlg" hidden>
+  <div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="trace-title">
+    <h2 id="trace-title">Picture to 3D</h2>
+    <div class="trace-grid">
+      <div><div class="trace-prev checker" id="trace-src"></div><p class="hint">Your picture</p></div>
+      <div><div class="trace-prev checker" id="trace-out"></div><p class="hint" id="trace-info">The outlines</p></div>
+      <div class="trace-opts">
+        <div class="field"><span>Colours</span><div class="seg" id="tr-mode"><button class="btn" data-m="auto">Best match</button><button class="btn" data-m="n">Choose</button></div></div>
+        <label class="field" id="tr-n-f"><span>How many colours: <b id="tr-n-v">4</b></span><input type="range" id="tr-n" min="2" max="16" value="4"></label>
+        <label class="field"><span>Detail: <b id="tr-detail-v">6</b></span><input type="range" id="tr-detail" min="1" max="10" value="6"></label>
+        <label class="field"><span>Smoothing: <b id="tr-smooth-v">1</b></span><input type="range" id="tr-smooth" min="0" max="5" value="1"></label>
+        <label class="check"><input type="checkbox" id="tr-bg" checked> Leave out the background colour</label>
+        <label class="field"><span>Depth: <b id="tr-depth-v">0.4</b></span><input type="range" id="tr-depth" min="0.05" max="3" step="0.05" value="0.4"></label>
+        <label class="check"><input type="checkbox" id="tr-step"> Stepped (each colour at a different height)</label>
+        <label class="check"><input type="checkbox" id="tr-own" checked> Keep the picture's colours</label>
+      </div>
+    </div>
+    <div class="dialog-actions"><button class="btn" id="tr-pick">Choose another picture…</button><span style="flex:1"></span><button class="btn" id="tr-cancel">Cancel</button><button class="btn primary" id="tr-go">Make it 3D</button></div>
+  </div>
+</div>
+
+<!-- Export a picture or a 3D file -->
+<div class="backdrop" id="exportdlg" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="ex-title">
+    <h2 id="ex-title">Export</h2>
+    <div class="field"><span>Picture of the scene</span>
+      <div class="row"><select class="input" id="ex-size"></select><select class="input" id="ex-fmt"><option value="png">PNG</option><option value="jpg">JPG</option></select></div>
+    </div>
+    <label class="check"><input type="checkbox" id="ex-transp"> See-through background (PNG)</label>
+    <div class="row"><button class="btn primary" id="ex-pic">Save the picture</button></div>
+    <div class="field" style="margin-top:12px"><span>3D model (for other 3D programs and 3D printers)</span>
+      <div class="row"><button class="btn outline" data-x3="glb" title="GLB: colours and materials, for web and most 3D programs">GLB</button><button class="btn outline" data-x3="obj" title="OBJ: shapes only, opens almost everywhere">OBJ</button><button class="btn outline" data-x3="stl" title="STL: for 3D printing">STL</button></div>
+    </div>
+    <label class="check"><input type="checkbox" id="ex-only"> Only the selected object</label>
+    <p class="hint" id="ex-note"></p>
+    <div class="dialog-actions"><button class="btn" id="ex-close">Close</button></div>
+  </div>
+</div>
+
+<!-- Render (ray-traced) -->
+<div class="backdrop" id="renderdlg" hidden>
+  <div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="rd-title">
+    <h2 id="rd-title">Render (ray-traced)</h2>
+    <div class="render-grid">
+      <div class="render-view checker" id="rd-view"><p class="hint">Pick a size and quality, then Render.</p></div>
+      <div class="render-opts">
+        <label class="field"><span>Size</span><select class="input" id="rd-size"></select></label>
+        <div class="field"><span>Quality</span><div class="seg" id="rd-q"></div></div>
+        <p class="hint" id="rd-q-tip"></p>
+        <label class="check"><input type="checkbox" id="rd-transp"> See-through background (shadows stay)</label>
+        <div class="rd-bar"><i id="rd-bar"></i></div>
+        <p class="hint" id="rd-status">Not started.</p>
+        <div class="row"><button class="btn primary" id="rd-go">Render</button><button class="btn" id="rd-stop" disabled>Stop here</button></div>
+        <div class="row"><button class="btn outline" id="rd-png" disabled>Save PNG</button><button class="btn outline" id="rd-jpg" disabled>Save JPG</button></div>
+      </div>
+    </div>
+    <div class="dialog-actions"><button class="btn" id="rd-close">Close</button></div>
+  </div>
+</div>
+
+<!-- Messages -->
+<div class="backdrop" id="info" hidden>
+  <div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="info-title">
+    <h2 id="info-title"></h2>
+    <div class="help" id="info-body"></div>
+    <div class="dialog-actions"><button class="btn primary" id="info-close">Close</button></div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+<input type="file" id="open-input" accept=".json,.3dcraft,application/json" hidden>
+<input type="file" id="image-input" accept="image/*" hidden>
+<input type="file" id="model-input" accept=".glb,.gltf,.obj,.stl" hidden>
+
+<script src="lib/craft3d-libs.js"></script>
+<script src="fonts/fonts3d.js"></script>
+<script src="js/craft-titlebar.js"></script>
+<script src="js/fills.js"></script>
+<script src="js/tracer.js"></script>
+<script src="js/craft-symbols.js"></script>
+<script src="js/scene.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/range-type.js"></script>
+</body>
+</html>

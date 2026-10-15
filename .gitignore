@@ -1,0 +1,3 @@
+__pycache__/
+*.bak
+lib/build/node_modules/

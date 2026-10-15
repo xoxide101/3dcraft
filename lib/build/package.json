@@ -1,0 +1,18 @@
+{
+  "name": "3dcraft-libs",
+  "private": true,
+  "description": "Bundles the open-source libraries 3DCraft uses into lib/craft3d-libs.js: npm install, then npm run build",
+  "scripts": {
+    "build": "esbuild entry.js --bundle --minify --format=iife --legal-comments=eof --outfile=../craft3d-libs.js"
+  },
+  "dependencies": {
+    "three": "0.186.1",
+    "opentype.js": "2.0.0",
+    "imagetracerjs": "1.2.6",
+    "three-gpu-pathtracer": "0.0.27",
+    "three-mesh-bvh": "0.9.16"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

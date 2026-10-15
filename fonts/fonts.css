@@ -1,0 +1,96 @@
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(InstrumentSans-400-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(InstrumentSans-400-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(InstrumentSans-500-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(InstrumentSans-500-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(InstrumentSans-600-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(InstrumentSans-600-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face { font-family: 'Archivo Black'; src: url(3d/ArchivoBlack-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Anton'; src: url(3d/Anton-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Bebas Neue'; src: url(3d/BebasNeue-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Bungee'; src: url(3d/Bungee-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Alfa Slab One'; src: url(3d/AlfaSlabOne-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Black Ops One'; src: url(3d/BlackOpsOne-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Russo One'; src: url(3d/RussoOne-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Ultra'; src: url(3d/Ultra-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Sigmar'; src: url(3d/Sigmar-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Rubik Mono One'; src: url(3d/RubikMonoOne-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Luckiest Guy'; src: url(3d/LuckiestGuy-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Bangers'; src: url(3d/Bangers-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Shrikhand'; src: url(3d/Shrikhand-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Montserrat'; src: url(3d/Montserrat-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Poppins'; src: url(3d/Poppins-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Oswald'; src: url(3d/Oswald-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Roboto Slab'; src: url(3d/RobotoSlab-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Fredoka'; src: url(3d/Fredoka-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Comfortaa'; src: url(3d/Comfortaa-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Playfair Display'; src: url(3d/PlayfairDisplay-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Merriweather'; src: url(3d/Merriweather-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Cinzel'; src: url(3d/Cinzel-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Abril Fatface'; src: url(3d/AbrilFatface-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Rye'; src: url(3d/Rye-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'UnifrakturMaguntia'; src: url(3d/UnifrakturMaguntia-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Lobster'; src: url(3d/Lobster-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Pacifico'; src: url(3d/Pacifico-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Great Vibes'; src: url(3d/GreatVibes-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Permanent Marker'; src: url(3d/PermanentMarker-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Dancing Script'; src: url(3d/DancingScript-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Orbitron'; src: url(3d/Orbitron-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Audiowide'; src: url(3d/Audiowide-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Righteous'; src: url(3d/Righteous-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Press Start 2P'; src: url(3d/PressStart2P-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Silkscreen'; src: url(3d/Silkscreen-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Bitcount Single'; src: url(3d/BitcountSingle-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Monoton'; src: url(3d/Monoton-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Creepster'; src: url(3d/Creepster-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Fascinate'; src: url(3d/Fascinate-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Special Elite'; src: url(3d/SpecialElite-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Noto Sans Symbols 2'; src: url(3d/NotoSansSymbols2-400.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Noto Emoji'; src: url(3d/NotoEmoji-400.ttf) format('truetype'); font-weight: 400; }

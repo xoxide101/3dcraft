@@ -1,0 +1,6 @@
+@font-face {
+  font-family: 'Yarndings 12';
+  font-style: normal;
+  font-weight: 400;
+  src: url(https://fonts.gstatic.com/s/yarndings12/v4/55xreyp2N8T5P2LJbZAlkY9c8Q.ttf) format('truetype');
+}

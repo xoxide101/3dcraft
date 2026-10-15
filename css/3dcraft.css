@@ -1,0 +1,70 @@
+/* 3DCraft: on top of the shared Craft styles (base.css) */
+:root { --accent: #e8590c; --accent-ink: #ffffff; --accent-soft: #e8590c1f; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --accent: #ff8f3f; --accent-ink: #1d1b18; --accent-soft: #ff8f3f26; } }
+:root[data-theme="dark"] { --accent: #ff8f3f; --accent-ink: #1d1b18; --accent-soft: #ff8f3f26; }
+
+/* the 3D view */
+.desk3d { position: relative; overflow: hidden; background: var(--desk); min-width: 0; min-height: 0; }
+.stage { position: absolute; inset: 0; }
+.stage .gl { position: absolute; inset: 0; display: block; }
+.views { position: absolute; inset: 0; }
+.views.one .view { position: absolute; inset: 0; }
+.views.four { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 2px; background: transparent; }
+.views.four .view { position: relative; outline: 1px solid var(--line); }
+.view { touch-action: none; }
+.view-name { position: absolute; left: 8px; top: 6px; font-size: 11px; font-weight: 600; color: var(--muted); background: color-mix(in srgb, var(--panel) 80%, transparent); padding: 1px 6px; border-radius: 4px; pointer-events: none; }
+.views.one .view-name { display: none; }
+.checker { background-color: #ffffff; background-image: linear-gradient(45deg, #e4e4e4 25%, transparent 25%), linear-gradient(-45deg, #e4e4e4 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e4e4e4 75%), linear-gradient(-45deg, transparent 75%, #e4e4e4 75%); background-size: 16px 16px; background-position: 0 0, 0 8px, 8px -8px, -8px 0; }
+
+/* the corner dial: turn the scene or the selection */
+.rotator { position: absolute; right: 12px; bottom: 12px; display: grid; justify-items: center; gap: 4px; z-index: 5; user-select: none; }
+.rotator canvas { width: 132px; height: 132px; cursor: grab; border-radius: 50%; background: color-mix(in srgb, var(--panel) 70%, transparent); box-shadow: 0 2px 10px rgba(0,0,0,.18); touch-action: none; }
+.rotator canvas:active { cursor: grabbing; }
+.rot-target { background: var(--panel); }
+.rot-target .btn { height: 22px; font-size: 11.5px; padding: 0 8px; }
+
+/* layers */
+.layers { display: grid; gap: 2px; padding: 8px; overflow: auto; }
+.layer { display: grid; grid-template-columns: 24px 22px 1fr 20px 20px; align-items: center; gap: 2px; padding: 3px 4px; border-radius: 6px; border: 1px solid transparent; }
+.layer:hover { background: var(--panel-2); }
+.layer.on { background: var(--accent-soft); border-color: var(--accent); }
+.layer.off .ln { opacity: .45; }
+.layer .lb { border: 0; background: transparent; cursor: pointer; color: var(--fg); padding: 2px; border-radius: 4px; display: grid; place-items: center; font-size: 10px; }
+.layer .lb:hover { background: var(--line); }
+.layer .ln { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; padding: 3px 2px; font-size: 12.5px; }
+.layer .input { height: 24px; }
+.layer.child { margin-left: 16px; }
+
+/* the Add tab */
+.addgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 10px; }
+.addgrid button { display: grid; justify-items: center; gap: 3px; padding: 8px 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--fg); cursor: pointer; font: inherit; font-size: 11.5px; }
+.addgrid button:hover { border-color: var(--accent); background: var(--accent-soft); }
+.addgrid svg { width: 34px; height: 34px; }
+.addgrid h4 { grid-column: 1 / -1; margin: 6px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+#tab-symbols:not([hidden]) { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.sym-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 8px; }
+
+/* Picture to 3D */
+.trace-grid { display: grid; grid-template-columns: 1fr 1fr 240px; gap: 14px; align-items: start; }
+.trace-prev { aspect-ratio: 1; border: 1px solid var(--line); border-radius: 8px; display: grid; place-items: center; overflow: hidden; }
+.trace-prev img, .trace-prev svg { max-width: 100%; max-height: 100%; }
+.trace-opts { display: grid; gap: 8px; }
+@media (max-width: 820px) { .trace-grid { grid-template-columns: 1fr 1fr; } .trace-opts { grid-column: 1 / -1; } }
+
+/* face pictures in the Material panel */
+.facepick { display: grid; gap: 6px; }
+.seg { flex-wrap: wrap; } .seg .btn { min-width: 0; flex: 1 1 auto; white-space: nowrap; } .side.right { overflow-x: hidden; }
+.xyz { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.xyz label span { font-weight: 600; }
+.mat-presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.mat-presets button { aspect-ratio: 1; border-radius: 50%; border: 2px solid var(--line); cursor: pointer; padding: 0; }
+.mat-presets button[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+
+/* Render (ray-traced) */
+.render-grid { display: grid; grid-template-columns: 1fr 250px; gap: 14px; align-items: start; }
+.render-view { aspect-ratio: 16 / 9; border: 1px solid var(--line); border-radius: 8px; display: grid; place-items: center; overflow: hidden; }
+.render-view canvas { max-width: 100%; max-height: 100%; display: block; }
+.render-opts { display: grid; gap: 8px; }
+.rd-bar { height: 8px; border-radius: 4px; background: var(--panel-2); overflow: hidden; border: 1px solid var(--line); }
+.rd-bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+@media (max-width: 820px) { .render-grid { grid-template-columns: 1fr; } }
