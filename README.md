@@ -2,7 +2,7 @@
 
 # 3DCraft
 
-**3D titles, logos and scenes in your browser: shapes, 3D text, pictures turned into 3D, materials, lights, ray-traced renders, and 3D models in and out.**
+**3D titles, logos and scenes in your browser: shapes, 3D text, pictures turned into 3D, materials, lights, animation with a timeline, ray-traced renders, and 3D models in and out.**
 
 3DCraft brings back the easy 3D title and logo programs of the 1990s, rebuilt for today. Type a word and it stands up in 3D gold; drop a logo in and it is traced into colours and pulled out into a solid; pick plastic, chrome or glass; turn it all with the dial in the corner; then render a photo-real picture or save a model for a 3D printer. Everything works offline from this folder.
 
@@ -67,13 +67,23 @@ Background (see-through, colour, gradient, pattern or picture), ground (none, sh
 | W / E / R | Move / turn / size |
 | F | See everything |
 | 1 / 3 / 7 / 5 | Front / right / top / ¾ view |
+| Space / Home / End | Play or pause / start / end |
+| , / . | One frame back / on |
 | Ctrl+G | Group |
 | Esc | Deselect |
 | Alt+Q / F10 | Search commands / all menus |
 
-## Coming next
+### Animation
 
-- **Phase 2: animation**, with the feel of a motion graphics timeline (like EffectCraft and After Effects): a timeline with a track per layer, timers (start and length), keyframes for move, turn, size, colour and fade with easing, ready-made moves (spin, bounce, fly in, fade), play, pause, rewind and loop, and export as animated **GIF**, **AVI** (motion JPEG), **WebM** or numbered PNG frames.
+![The timeline: layers with timer bars, properties with stopwatches and keyframes](docs/animate.png)
+
+The **Timeline** under the 3D view works like a motion-graphics timeline:
+- Each layer has a **timer bar**: drag its ends to set when it appears and disappears, or drag the middle to slide it.
+- Twirl a layer open (▸) for **Position, Turn, Size, Colour and Opacity**. Click a **stopwatch** to animate one: from then on, moving, turning or sizing the object (with the handles, the dial, middle-mouse dragging or the numbers) makes a **keyframe** ◆ at the current time. ◆ adds or removes a keyframe at the current time.
+- **Drag keyframes** to retime them; **double-click** one for how it moves on: linear, ease, ease in, ease out, hold or bounce. Delete removes the selected keyframe.
+- **Ready-made moves** for the selected object: spin, flip, bounce, fly in, rise up, fade in, fade out, grow in, pulse, float, wobble and colour cycle. The **camera** can stay still, go round on a **turntable** or **swing** to and fro.
+- **Play** (Space), back to the start (Home), to the end (End), one frame back or on (, and .), **loop**, and drag the playhead to scrub. Set the length (up to 2 minutes) and 12 to 60 frames a second.
+- **Export the animation** as an animated **GIF** (loops, see-through if you like), **MP4** (H.264), **WebM** (VP9), **AVI** (motion JPEG, the classic way) or a .zip of numbered **PNG frames**, from 480 × 270 up to 4K, square or upright for phones. Frames are drawn one at a time at exact times, so the result is smooth on any computer.
 
 ## Requirements
 
@@ -86,7 +96,7 @@ This app is **vibe coded**: its author designed and directed it in plain convers
 It is a **genuine clean-room build**, not a decompiled or AI-rebuilt copy of anything:
 - Nothing was decompiled, disassembled or reverse-engineered, in whole or in part.
 - No code, artwork, fonts, icons or data files from any original program were used, and none were given to the AI to work from.
-- 3DCraft is inspired by the 3D title and logo programs of the 1990s (such as Asymetrix Web 3D and 3D F/X); only publicly known features and general ideas guided the design. Every line of code and every starter scene here was made new.
+- 3DCraft is inspired by the 3D title and logo programs of the 1990s (such as Asymetrix Web 3D and 3D F/X), and its timeline by motion-graphics tools; only publicly known features and general ideas guided the design. Every line of code and every starter scene here was made new.
 
 Open-source libraries it uses are listed with their licences in Credits.
 
@@ -95,6 +105,7 @@ Open-source libraries it uses are listed with their licences in Credits.
 - [three.js](https://threejs.org) 0.186 (MIT) for 3D, with its add-ons for controls, loaders and exporters.
 - [three-gpu-pathtracer](https://github.com/gkjohnson/three-gpu-pathtracer) and [three-mesh-bvh](https://github.com/gkjohnson/three-mesh-bvh) (MIT) for ray-traced renders.
 - [opentype.js](https://opentype.js.org) (MIT) for 3D text from fonts.
+- [gifenc](https://github.com/mattdesl/gifenc), [webm-muxer](https://github.com/Vanilagy/webm-muxer) and [mp4-muxer](https://github.com/Vanilagy/mp4-muxer) (MIT) for animated GIF, WebM and MP4.
 - [ImageTracer](https://github.com/jankovicsandras/imagetracerjs) (public domain) for tracing pictures.
 - Fonts from Google Fonts under the SIL Open Font License or the Apache License, stored in `fonts/` (run `python fetch_fonts.py` to download them again).
 - Emoji and symbol names from Unicode data (Unicode License).

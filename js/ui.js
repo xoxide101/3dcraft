@@ -31,7 +31,7 @@
       try { localStorage.setItem(AUTOSAVE, s); autosaveFailed = false; } catch (e) { autosaveFailed = true; }
       status(); tb && tb.update();
     }, 350);
-    renderLayers(); status(); tb && tb.update();
+    renderLayers(); status(); tb && tb.update(); if (window.TL3 && !TL3.playing()) TL3.render();
   }
   async function restore(s) { E.doc = JSON.parse(s); E.applyCamera(); await E.rebuild(); renderLayers(); showProps(); status(); }
   const undo = () => { if (hIndex > 0) { hIndex--; restore(history[hIndex]); } };
@@ -235,8 +235,9 @@
 
   // what the selected object is made of
   function materialSection(m) {
-    const mat = m.mat, set = (patch) => { Object.assign(mat, patch); changed(m.id); showProps(); };
-    const live = (patch) => { Object.assign(mat, patch); E.rebuildOne(m.id); };
+    const put = (patch) => Object.entries(patch).forEach(([k, v]) => { if ((k === 'color' || k === 'opacity') && E.isAnimated(m, k)) E.setValue(m, k, v); else mat[k] = v; });
+    const mat = m.mat, set = (patch) => { put(patch); changed(m.id); showProps(); if (window.TL3) TL3.render(); };
+    const live = (patch) => { put(patch); E.rebuildOne(m.id); };
     const slots = E.slotsFor(m);
     let face = materialSection.face && (slots.includes(materialSection.face) || materialSection.face === 'all') ? materialSection.face : 'all';
     const swatch = (k) => { const p = E.MATERIALS[k][1], c = p.color || mat.color; return p.glass ? 'linear-gradient(135deg,#e8f4ff,#9fc3e0 60%,#fff)' : p.metal ? `radial-gradient(circle at 35% 30%,#fff,${c} 45%,#333)` : p.glow ? `radial-gradient(circle,#fff,${c} 60%)` : `radial-gradient(circle at 35% 30%,#fff8,${c} 55%,${c})`; };
@@ -253,13 +254,14 @@
     ] };
   }
   function transformSection(m) {
-    const set = (k, v) => { m[k] = v; E.placeOne(m.id); changed(); };
-    const uni = m.scale[0] === m.scale[1] && m.scale[1] === m.scale[2];
+    const set = (k, v) => { E.setValue(m, k, v); E.placeOne(m.id); changed(); if (window.TL3) TL3.render(); };
+    const cur = (k) => E.valueAt(m, k, E.time), anim = (k) => (E.isAnimated(m, k) ? ' ◆' : '');
+    const uni = cur('scale')[0] === cur('scale')[1] && cur('scale')[1] === cur('scale')[2];
     return { title: 'Position, turn and size', items: [
-      { t: 'xyz', label: 'Position', value: m.pos.map(r2), on: (v) => set('pos', v) },
-      { t: 'xyz', label: 'Turn (degrees)', value: m.rot.map((x) => Math.round(x)), step: 5, on: (v) => set('rot', v) },
-      uni ? { t: 'range', label: 'Size', value: Math.round(m.scale[0] * 100), min: 5, max: 500, show: (v) => v + '%', on: (v) => set('scale', [v / 100, v / 100, v / 100]) } : null,
-      { t: 'xyz', label: 'Stretch', value: m.scale.map(r2), on: (v) => set('scale', v.map((x) => Math.max(0.01, x))) },
+      { t: 'xyz', label: 'Position' + anim('pos'), value: cur('pos').map(r2), on: (v) => set('pos', v) },
+      { t: 'xyz', label: 'Turn (degrees)' + anim('rot'), value: cur('rot').map((x) => Math.round(x)), step: 5, on: (v) => set('rot', v) },
+      uni ? { t: 'range', label: 'Size' + anim('scale'), value: Math.round(cur('scale')[0] * 100), min: 5, max: 500, show: (v) => v + '%', on: (v) => set('scale', [v / 100, v / 100, v / 100]) } : null,
+      { t: 'xyz', label: 'Stretch' + anim('scale'), value: cur('scale').map(r2), on: (v) => set('scale', v.map((x) => Math.max(0.01, x))) },
       { t: 'btns', buttons: [{ label: 'Stand on the ground', on: dropToGround }, { label: 'Centre', on: () => { m.pos = [0, m.pos[1], 0]; E.placeOne(m.id); changed(); showProps(); } }, { label: 'Reset turn', on: () => set('rot', [0, 0, 0]) }] },
     ] };
   }
@@ -509,7 +511,7 @@
   // ------------------------------------------------------------------ files
   async function openDoc(d) {
     if (!d || d.app !== '3DCraft' || !Array.isArray(d.objects)) throw new Error('This is not a 3DCraft scene.');
-    E.doc = d; E.applyCamera(); await E.rebuild(); resetHistory(); fileName = null;
+    E.doc = d; E.time = 0; E.applyCamera(); await E.rebuild(); resetHistory(); fileName = null; if (window.TL3) TL3.render();
     $('start').hidden = true; renderLayers(); showProps(); status(); tb && tb.update();
   }
   $('open-input').onchange = async (e) => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { await openDoc(JSON.parse(await f.text())); fileName = f.name; } catch (err) { info('Could not open that file', esc(err.message)); } };
@@ -637,10 +639,18 @@
       { label: 'Front', key: '1', run: () => E.viewFrom('front') }, { label: 'Right side', key: '3', run: () => E.viewFrom('right') }, { label: 'Top', key: '7', run: () => E.viewFrom('top') }, { label: '¾ view', key: '5', run: () => E.viewFrom('three') },
       '-',
       { label: 'Show the grid', run: () => { E.showGrid = E.showGrid === false; E.redraw(); }, checked: () => E.showGrid !== false },
+      { label: 'Show the timeline', run: () => toggleTimeline(), checked: () => !$('timeline').classList.contains('closed') },
       { heading: 'Theme' },
       { label: 'Match system', run: () => { setTheme('system'); paintTheme(); }, checked: () => getTheme() === 'system' },
       { label: 'Light', run: () => { setTheme('light'); paintTheme(); }, checked: () => getTheme() === 'light' },
       { label: 'Dark', run: () => { setTheme('dark'); paintTheme(); }, checked: () => getTheme() === 'dark' },
+    ]],
+    ['Animate', [
+      { label: 'Play / pause', key: 'Space', run: () => TL3.play(), disabled: () => !E.doc },
+      { label: 'Back to the start', key: 'Home', run: () => TL3.seek(0), disabled: () => !E.doc },
+      { label: 'Export the animation…', run: () => ANIM3.open(), disabled: () => !E.doc },
+      '-',
+      { label: 'Loop', run: () => { const a = E.anim(); a.loop = !a.loop; changed(); TL3.render(); }, checked: () => !!E.doc && E.anim().loop },
     ]],
     ['Help', [
       { label: 'How to use 3DCraft', run: () => help() },
@@ -653,9 +663,10 @@
     <h3>3. Move, turn and size</h3><p>Click something, then drag its arrows (W), rings (E) or boxes (R). The <b>dial in the corner</b> turns the whole scene, or just the selected object: drag a coloured ring to turn around X, Y or Z, drag the ball to turn freely, click a letter to look along that axis. Drag in the view to look around, wheel to zoom.</p>
     <h3>4. Materials</h3><p>Pick plastic, gloss, matte, gold, silver, chrome, copper, glass, glow or rubber, then change colour, shine, metal, glass and glow. Put a picture, gradient or pattern on every face, or only the front, back, sides, top or bottom.</p>
     <h3>5. Layers and views</h3><p>The <b>Layers</b> list hides, locks, renames and groups things. View › Four views shows top, front, right and 3D at once.</p>
-    <h3>6. Export</h3><p>Save a picture (up to 4K, or print sizes, see-through if you like) or a 3D model (GLB, OBJ, or STL for 3D printing).</p>`);
-  const keysHtml = `<table class="keys">${[['New / Open / Save', 'Ctrl+N / O / S'], ['Export', 'Ctrl+E'], ['Undo / Redo', 'Ctrl+Z / Ctrl+Y'], ['Copy / Paste / Duplicate', 'Ctrl+C / V / D'], ['Delete', 'Delete'], ['Move / Turn / Size', 'W / E / R'], ['See everything', 'F'], ['Front / Right / Top / ¾ view', '1 / 3 / 7 / 5'], ['Group', 'Ctrl+G'], ['Deselect', 'Esc'], ['Search commands', 'Alt+Q']].map(([a, b]) => `<tr><td>${a}</td><td style="text-align:right;padding-left:20px">${b}</td></tr>`).join('')}</table>`;
-  const aboutHtml = `<p><b>3DCraft</b> · version 0.1 (phase 1)</p><p>3D titles, logos and scenes in your browser: shapes, 3D text, pictures turned into 3D, materials, lights, pictures of the scene and 3D models in and out. Works offline.</p><p>Built with <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> (MIT), <a href="https://opentype.js.org" target="_blank" rel="noopener">opentype.js</a> (MIT) and ImageTracer (public domain). Fonts from Google Fonts (SIL Open Font License or Apache License), stored with the app.</p>`;
+    <h3>6. Animate</h3><p>The <b>Timeline</b> under the view: pick a ready-made move (spin, bounce, fly in, fade…) for the selected object, or twirl a layer open (▸) and click a <b>stopwatch</b>; then move the playhead and change the object: each change becomes a keyframe ◆. Drag the timer bar's ends to set when a layer shows. Space plays. Export the animation as GIF, MP4, WebM, AVI or PNG frames.</p>
+    <h3>7. Export</h3><p>Save a picture (up to 4K, or print sizes, see-through if you like) or a 3D model (GLB, OBJ, or STL for 3D printing).</p>`);
+  const keysHtml = `<table class="keys">${[['New / Open / Save', 'Ctrl+N / O / S'], ['Export', 'Ctrl+E'], ['Undo / Redo', 'Ctrl+Z / Ctrl+Y'], ['Copy / Paste / Duplicate', 'Ctrl+C / V / D'], ['Delete', 'Delete'], ['Move / Turn / Size', 'W / E / R'], ['See everything', 'F'], ['Front / Right / Top / ¾ view', '1 / 3 / 7 / 5'], ['Play / pause', 'Space'], ['Start / end', 'Home / End'], ['Frame back / on', ', / .'], ['Group', 'Ctrl+G'], ['Deselect', 'Esc'], ['Search commands', 'Alt+Q']].map(([a, b]) => `<tr><td>${a}</td><td style="text-align:right;padding-left:20px">${b}</td></tr>`).join('')}</table>`;
+  const aboutHtml = `<p><b>3DCraft</b> · version 0.2 (animation)</p><p>3D titles, logos and scenes in your browser: shapes, 3D text, pictures turned into 3D, materials, lights, pictures of the scene and 3D models in and out. Works offline.</p><p>Built with <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> (MIT), <a href="https://opentype.js.org" target="_blank" rel="noopener">opentype.js</a> (MIT) and ImageTracer (public domain). Fonts from Google Fonts (SIL Open Font License or Apache License), stored with the app.</p>`;
   const LOGO = `<svg viewBox="0 0 40 40" aria-hidden="true"><defs><linearGradient id="t3-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff922b"/><stop offset="1" stop-color="#7048e8"/></linearGradient></defs><rect x="1" y="1" width="38" height="38" rx="11" fill="url(#t3-g)"/><path d="M20 8l11 6v12l-11 6-11-6V14z" fill="none" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/><path d="M9 14l11 6 11-6M20 20v12" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round" opacity=".85"/></svg>`;
   $('start-logo').innerHTML = LOGO;
   const I = window.CraftIcons;
@@ -694,8 +705,16 @@
         ['Look from', [{ col: [C('Front', 'Front', I.screen), C('Right side', 'Right side', I.screen), C('Top', 'Top', I.screen)] }, { col: [C('¾ view', '¾ view', I.screen), C('See everything', 'See everything', I.fit), C('Zoom to the selection', 'Selection', I.zoomIn)] }]],
         ['Dial', [{ col: [C('Dial turns the whole scene', 'Dial turns all', MI.turn), C('Dial turns the selection', 'Dial turns selected', MI.turn)] }]],
       ] },
+      { id: 'animate', label: 'Animate', hue: '#d6336c', groups: [
+        ['Play', [{ label: 'Play', icon: '<path d="M7 5l12 7-12 7z" class="hue"/>', big: true, title: 'Play / pause (Space)', run: () => TL3.play() }, { col: [{ label: 'To the start', icon: '<path d="M6 5v14M18 5L8 12l10 7z"/>', run: () => TL3.seek(0) }, { label: 'Loop', icon: '<path d="M4 12a6 6 0 0 1 10-4.5L17 10M20 12a6 6 0 0 1-10 4.5L7 14"/><path d="M17 5v5h-5M7 19v-5h5" class="hue"/>', run: () => { const a = E.anim(); a.loop = !a.loop; changed(); TL3.render(); }, pressed: () => !!E.doc && E.anim().loop }] }]],
+        ['Moves', [{ col: [['spin', 'Spin'], ['bounce', 'Bounce'], ['flyin', 'Fly in']].map(([k, n]) => ({ label: n, icon: MI.turn, run: () => TL3.preset(k) })) }, { col: [['fadein', 'Fade in'], ['grow', 'Grow in'], ['float', 'Float']].map(([k, n]) => ({ label: n, icon: MI.turn, run: () => TL3.preset(k) })) }]],
+        ['Camera', [{ col: [{ label: 'Camera still', icon: I.screen, run: () => TL3.camera('none') }, { label: 'Turntable', icon: MI.turn, run: () => TL3.camera('turntable') }, { label: 'Swing', icon: MI.turn, run: () => TL3.camera('swing') }] }]],
+        ['Timeline', [{ label: 'Timeline', icon: '<rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M3 10h18M8 14h6" class="hue"/>', big: true, title: 'Show or hide the timeline', run: () => toggleTimeline(), pressed: () => !$('timeline').classList.contains('closed') }]],
+        ['Save', [{ label: 'Export animation', icon: I.exportUp, big: true, title: 'GIF, MP4, WebM, AVI or PNG frames', run: () => ANIM3.open() }]],
+      ] },
       { id: 'output', label: 'Export', hue: '#1c7ed6', groups: [
         ['Render', [C('Render', 'Render (ray-traced)', MI.render, { big: true, title: 'A photo-real picture: real reflections, soft shadows and glass. Pick a size and quality.' })]],
+        ['Animation', [{ label: 'Export animation', icon: I.exportUp, big: true, title: 'GIF, MP4, WebM, AVI or PNG frames', run: () => ANIM3.open() }]],
         ['Export', [C('Export', 'Picture or 3D model…', I.exportUp, { big: true }), C('Bring in', 'Bring in a 3D model', I.import, { big: true })]],
         ['File', [C('Save', 'Save', I.save, { big: true }), { col: [C('Save as', 'Save as…', I.save), C('Open', 'Open…', I.folder)] }]],
       ] },
@@ -724,7 +743,7 @@
   // ------------------------------------------------------------------ keyboard
   document.addEventListener('keydown', (e) => {
     const t = e.target; if (t.closest && (t.closest('input, textarea, select, [contenteditable]'))) return;
-    if (!$('start').hidden || !$('tracedlg').hidden || !$('exportdlg').hidden || !$('info').hidden || !$('renderdlg').hidden) return;
+    if (!$('start').hidden || !$('tracedlg').hidden || !$('exportdlg').hidden || !$('info').hidden || !$('renderdlg').hidden || !$('animdlg').hidden) return;
     const k = e.key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
     if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
     else if (mod && k === 'y') { e.preventDefault(); redo(); }
@@ -737,7 +756,9 @@
     else if (mod && k === 'v') { paste(); }
     else if (mod && k === 'g') { e.preventDefault(); groupPicked(); }
     else if (mod) return;
-    else if (k === 'delete' || k === 'backspace') { e.preventDefault(); del(); }
+    else if (k === 'delete' || k === 'backspace') { e.preventDefault(); if (!(window.TL3 && TL3.deleteSelectedKey())) del(); }
+    else if (k === ' ') { e.preventDefault(); TL3.play(); } else if (k === 'home') TL3.seek(0); else if (k === 'end') TL3.seek(E.anim().length);
+    else if (k === ',') TL3.seek(E.time - 1 / E.anim().fps); else if (k === '.') TL3.seek(E.time + 1 / E.anim().fps);
     else if (k === 'w') E.setMode('translate'); else if (k === 'e') E.setMode('rotate'); else if (k === 'r') E.setMode('scale');
     else if (k === 'f') E.fit(); else if (k === 'escape') E.select(null); else if (k === 'f9') { e.preventDefault(); openRender(); }
     else if (k === '1') E.viewFrom('front'); else if (k === '3') E.viewFrom('right'); else if (k === '7') E.viewFrom('top'); else if (k === '5') E.viewFrom('three');
@@ -745,7 +766,9 @@
   addEventListener('beforeunload', (e) => { if (dirty) { E.saveCamera(); try { localStorage.setItem(AUTOSAVE, snapshot()); } catch (er) {} } });
 
   // ------------------------------------------------------------------ start
-  window.UI3 = { openRender, addShape, addText, addSymbol, openTrace, startScene, openDoc, changed, showProps, renderLayers };
+  function toggleTimeline() { $('timeline').classList.toggle('closed'); try { localStorage.setItem('3dcraft-tl', $('timeline').classList.contains('closed') ? '0' : '1'); } catch (e) {} setTimeout(() => { E.redraw(); tb && tb.update(); }, 50); }
+  try { if (localStorage.getItem('3dcraft-tl') === '0') $('timeline').classList.add('closed'); } catch (e) {}
+  window.UI3 = { toast, openRender, addShape, addText, addSymbol, openTrace, startScene, openDoc, changed, showProps, renderLayers };
   (async () => {
     const last = localStorage.getItem(AUTOSAVE);
     if (last) { try { await openDoc(JSON.parse(last)); return; } catch (e) {} }

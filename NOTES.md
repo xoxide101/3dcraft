@@ -4,8 +4,8 @@ How 3DCraft is built and what to keep in mind when changing it. For what it does
 
 ## How it is built
 
-- **No build step for the app.** `index.html` loads `fonts/fonts.css`, `css/base.css` (the shared Craft styles, own copy) and `css/3dcraft.css`, then `lib/craft3d-libs.js`, `fonts/fonts3d.js`, `js/craft-titlebar.js`, `js/fills.js`, `js/tracer.js`, `js/craft-symbols.js`, `js/scene.js`, `js/ui.js` and `js/range-type.js`.
-- **The libraries** are one IIFE bundle (`lib/craft3d-libs.js`) so the app works from `file://` without modules: three.js 0.186 with OrbitControls, TransformControls, SVGLoader, GLTF/OBJ/STL loaders and exporters, RoomEnvironment, RoundedBoxGeometry and BufferGeometryUtils (as `window.THREE`), three-gpu-pathtracer's WebGLPathTracer, opentype.js (`window.opentype`) and ImageTracer (`window.ImageTracer`). To rebuild: `cd lib/build && npm install && npm run build` (`entry.js` lists what goes in).
+- **No build step for the app.** `index.html` loads `fonts/fonts.css`, `css/base.css` (the shared Craft styles, own copy) and `css/3dcraft.css`, then `lib/craft3d-libs.js`, `fonts/fonts3d.js`, `js/craft-titlebar.js`, `js/fills.js`, `js/tracer.js`, `js/craft-symbols.js`, `js/scene.js`, `js/ui.js`, `js/timeline.js`, `js/animexport.js` and `js/range-type.js`.
+- **The libraries** are one IIFE bundle (`lib/craft3d-libs.js`) so the app works from `file://` without modules: three.js 0.186 with OrbitControls, TransformControls, SVGLoader, GLTF/OBJ/STL loaders and exporters, RoomEnvironment, RoundedBoxGeometry and BufferGeometryUtils (as `window.THREE`), three-gpu-pathtracer's WebGLPathTracer, gifenc (`window.Gifenc`), webm-muxer and mp4-muxer (`window.WebMMuxer`, `window.MP4Muxer`), opentype.js (`window.opentype`) and ImageTracer (`window.ImageTracer`). To rebuild: `cd lib/build && npm install && npm run build` (`entry.js` lists what goes in).
 - **Fonts:** `fetch_fonts.py` downloads the 3D fonts as TrueType (`fonts/3d/*.ttf`: opentype.js cannot read woff2) plus the interface font, writes `fonts/fonts.css` (so the font menu shows each font) and `fonts/fonts3d.js` (`window.CRAFT_FONTS3D = [[family, group, { weight: file }]]`), and runs `make_symbols.py` for `fonts/symbols.js` (kept to the sets 3D can draw: Noto Sans Symbols 2 and the emoji).
 - **Title bar, ribbon, fills, symbols picker and slider-typing helper** are own copies of the shared Craft pieces.
 
@@ -15,6 +15,8 @@ How 3DCraft is built and what to keep in mind when changing it. For what it does
 | --- | --- |
 | `js/scene.js` (`window.E3`) | The scene model, geometry and materials, building three.js objects from the model, one or four views, picking, the handles, middle-mouse dragging, the corner dial's maths, lights/background/ground, the camera, quick pictures (`renderImage`), ray-traced renders (`pathRender`), 3D files in and out. |
 | `js/ui.js` | History and autosave, adding things, Layers, the Add and Symbols tabs, the properties panel (a small form builder), the corner dial's drawing and dragging, Picture to 3D, Export, Render, files, starter scenes, menus, ribbon, title bar, keyboard. |
+| `js/timeline.js` (`window.TL3`) | The timeline panel: controls, ruler and playhead, layer rows with timer bars, property rows with stopwatches and keyframes, dragging keys and timers, easing menu, ready-made moves, camera moves, playback. |
+| `js/animexport.js` (`window.ANIM3`) | Animation export: GIF (gifenc, a palette per frame), MP4 and WebM (WebCodecs VideoEncoder with the MP4 or WebM muxer), AVI (motion JPEG, written by hand: RIFF, `hdrl`, `movi`, `idx1`) and PNG frames in a stored .zip. |
 | `js/tracer.js` (`window.CraftTracer`) | Picture to outlines, shared with LogoCraft (own copy in each app). |
 | `js/fills.js` | The shared fill library (gradients, 33 patterns, pictures) and fill picker, as globals. |
 
@@ -36,3 +38,12 @@ How 3DCraft is built and what to keep in mind when changing it. For what it does
 ## Testing
 
 Headless Chrome over the DevTools protocol: starter scenes, adding shapes, text, symbols and emoji, Picture to 3D on a drawn logo, a gradient on a face, the dial turning a selection, middle-mouse dragging, four views, picture export (see-through), GLB/OBJ/STL export and a ray-traced render.
+
+## Animation
+
+- `doc.anim = { length, fps, loop, tracks: { id: { start?, end?, keys: { pos | rot | scale | color | opacity: [{ t, v, ease }] } } }, camera: { move: none | turntable | swing, amount } }`.
+- A property with keys follows them (`E3.valueAt`); without keys it stays at the object's own value (its rest pose: `m.pos`, `m.rot`, `m.scale`, `m.mat.color`, `m.mat.opacity`). `E3.setValue` is the one way to change these: an animated property gets a key at `E3.time`, others change the rest pose. The handles, the dial, middle-mouse dragging and the properties panel all go through it.
+- `E3.evalAt(t)` puts every object (and the camera) where it is at time t, including the timers (`start`/`end` hide a layer outside its bar). Eases: linear, ease (cubic in-out), in, out, hold, bounce; a key's ease applies from it to the next key.
+- The camera move rotates the saved camera around its target; `E3.camAngle` is taken back off when the camera is saved, so orbiting during a turntable does not drift.
+- Export: `E3.beginFrames(w, h)` sizes the renderer once; `frame(t)` evaluates and renders one frame; `end()` puts everything back.
+

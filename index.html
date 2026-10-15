@@ -23,11 +23,14 @@
     </aside>
 
     <section class="desk3d" id="desk" aria-label="3D view">
+      <div class="viewwrap" id="viewwrap">
       <div class="stage checker" id="stage"></div>
       <div class="rotator" id="rotator" aria-label="Turn">
         <canvas id="rot-canvas" width="132" height="132" aria-label="Turn dial: drag a ring to turn around X, Y or Z, or drag the ball to turn freely"></canvas>
         <div class="rot-target seg" role="group" aria-label="What the dial turns"><button class="btn" data-rt="all" title="Turn the whole scene (the view goes round it)">All</button><button class="btn" data-rt="selected" title="Turn only the selected object">Selected</button></div>
       </div>
+      </div>
+      <div class="timeline" id="timeline" aria-label="Timeline"></div>
     </section>
 
     <aside class="side right" id="props" aria-label="Properties"></aside>
@@ -106,6 +109,21 @@
   </div>
 </div>
 
+<!-- Export the animation -->
+<div class="backdrop" id="animdlg" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="an-title">
+    <h2 id="an-title">Export the animation</h2>
+    <label class="field"><span>Save as</span><select class="input" id="an-fmt"></select></label>
+    <p class="hint" id="an-tip"></p>
+    <label class="field"><span>Size</span><select class="input" id="an-size"></select></label>
+    <label class="check" id="an-transp-f"><input type="checkbox" id="an-transp"> See-through background</label>
+    <p class="hint" id="an-info"></p>
+    <div class="rd-bar"><i id="an-bar"></i></div>
+    <p class="hint" id="an-status"></p>
+    <div class="dialog-actions"><button class="btn" id="an-close">Close</button><button class="btn primary" id="an-go">Export</button></div>
+  </div>
+</div>
+
 <!-- Messages -->
 <div class="backdrop" id="info" hidden>
   <div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="info-title">
@@ -127,6 +145,8 @@
 <script src="js/craft-symbols.js"></script>
 <script src="js/scene.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/timeline.js"></script>
+<script src="js/animexport.js"></script>
 <script src="js/range-type.js"></script>
 </body>
 </html>

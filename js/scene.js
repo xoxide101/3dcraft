@@ -210,9 +210,9 @@
   function syncFromObject(o) {
     if (!o) return;
     const m = E.find(o.userData.id); if (!m) return;
-    m.pos = o.position.toArray().map((v) => +v.toFixed(4));
-    m.rot = [o.rotation.x, o.rotation.y, o.rotation.z].map((v) => +r2d(v).toFixed(2));
-    m.scale = o.scale.toArray().map((v) => +v.toFixed(4));
+    E.setValue(m, 'pos', o.position.toArray().map((v) => +v.toFixed(4)));
+    E.setValue(m, 'rot', [o.rotation.x, o.rotation.y, o.rotation.z].map((v) => +r2d(v).toFixed(2)));
+    E.setValue(m, 'scale', o.scale.toArray().map((v) => +v.toFixed(4)));
   }
   E.syncSelected = () => syncFromObject(selected);
 
@@ -383,6 +383,7 @@
       const make = async (parentId, parentObj) => { for (const m of E.children(parentId)) { let o; try { o = await buildOne(m); } catch (e) { console.warn('could not build', m, e); o = new T.Group(); o.userData = { id: m.id, kind: m.kind }; o.uid = m.id; } built.set(m.id, o); parentObj.add(o); if (m.kind === 'group') await make(m.id, o); } };
       await make(null, root);
       applyScene();
+      if (E.doc.anim) E.evalAt(E.time);
       if (sel && built.has(sel)) E.select(sel); else E.select(null);
       needs = true; emit('built');
     });
@@ -397,11 +398,12 @@
       parent.add(o); parent.remove(old); built.set(id, o);
       old.traverse((x) => { if (x.isMesh) x.geometry.dispose(); });
       if (E.selectedId() === id || selected === old) { selected = o; tc.attach(o); }
+      if (E.doc.anim) E.evalAt(E.time);
       needs = true; emit('built');
     });
     return building;
   };
-  E.placeOne = (id) => { const m = E.find(id), o = built.get(id); if (m && o) { place(o, m); needs = true; } };
+  E.placeOne = (id) => { const m = E.find(id), o = built.get(id); if (m && o) { place(o, m); if (E.doc.anim) E.evalAt(E.time); needs = true; } };
   E.object3d = (id) => built.get(id);
 
   // ------------------------------------------------------------------ lights, background, ground
@@ -435,7 +437,12 @@
   // ------------------------------------------------------------------ camera
   function applyCamera() { const v = views.find((x) => !x.ortho); if (!v || !E.doc) return; const c = E.doc.camera; v.cam.position.fromArray(c.pos); v.cam.fov = c.fov || 40; v.orbit.target.fromArray(c.target); v.orbit.update(); needs = true; }
   E.applyCamera = applyCamera;
-  E.saveCamera = () => { const v = views.find((x) => !x.ortho); if (!v || !E.doc) return; E.doc.camera = { pos: v.cam.position.toArray().map((x) => +x.toFixed(3)), target: v.orbit.target.toArray().map((x) => +x.toFixed(3)), fov: v.cam.fov }; };
+  E.saveCamera = () => {
+    if (E.camLock) return; const v = views.find((x) => !x.ortho); if (!v || !E.doc) return;
+    // with a turntable or swing running, keep the camera's rest place (take the turn it has now back off)
+    const tgt = v.orbit.target.clone(), off = v.cam.position.clone().sub(tgt).applyAxisAngle(new T.Vector3(0, 1, 0), -(E.camAngle || 0));
+    E.doc.camera = { pos: tgt.clone().add(off).toArray().map((x) => +x.toFixed(3)), target: tgt.toArray().map((x) => +x.toFixed(3)), fov: v.cam.fov };
+  };
   // Look at everything (or the selection) from the current direction
   E.fit = function (onlySelected) {
     const v = views.find((x) => !x.ortho); if (!v) return;
@@ -571,6 +578,86 @@
     if (fmt === 'obj') return new Blob([new T.OBJExporter().parse(tmp)], { type: 'text/plain' });
     if (fmt === 'stl') return new Blob([new T.STLExporter().parse(tmp, { binary: true })], { type: 'model/stl' });
     throw new Error('Unknown format');
+  };
+  // ------------------------------------------------------------------ animation
+  // doc.anim = { length (s), fps, loop, tracks: { id: { start, end, keys: { pos|rot|scale|color|opacity: [{ t, v, ease }] } } }, camera: { move, amount } }
+  // A property with keyframes follows them; without, it stays at the object's own value (its rest pose).
+  E.ANIM_PROPS = { pos: 'Position', rot: 'Turn', scale: 'Size', color: 'Colour', opacity: 'Opacity' };
+  E.EASES = { linear: 'Linear', ease: 'Ease (in and out)', in: 'Ease in (speed up)', out: 'Ease out (slow down)', hold: 'Hold (jump)', bounce: 'Bounce' };
+  const bounceOut = (x) => { const n = 7.5625, d = 2.75; if (x < 1 / d) return n * x * x; if (x < 2 / d) return n * (x -= 1.5 / d) * x + 0.75; if (x < 2.5 / d) return n * (x -= 2.25 / d) * x + 0.9375; return n * (x -= 2.625 / d) * x + 0.984375; };
+  const EASE = { linear: (x) => x, ease: (x) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2), in: (x) => x * x * x, out: (x) => 1 - (1 - x) ** 3, hold: () => 0, bounce: bounceOut };
+  E.anim = () => { if (!E.doc) return null; if (!E.doc.anim) E.doc.anim = { length: 5, fps: 30, loop: true, tracks: {}, camera: { move: 'none', amount: 360 } }; return E.doc.anim; };
+  E.track = (id, make) => { const a = E.anim(); if (!a.tracks[id] && make) a.tracks[id] = { keys: {} }; return a.tracks[id]; };
+  E.time = 0;
+  const baseOf = (m, prop) => (prop === 'color' ? m.mat && m.mat.color : prop === 'opacity' ? (m.mat ? m.mat.opacity ?? 1 : 1) : m[prop]);
+  function lerp(a, b, u) {
+    if (Array.isArray(a)) return a.map((x, i) => x + (b[i] - x) * u);
+    if (typeof a === 'string') return '#' + new T.Color(a).lerp(new T.Color(b), u).getHexString();
+    return a + (b - a) * u;
+  }
+  E.valueAt = function (m, prop, t) {
+    const tr = E.anim() && E.anim().tracks[m.id], keys = tr && tr.keys[prop];
+    if (!keys || !keys.length) return baseOf(m, prop);
+    if (t <= keys[0].t) return keys[0].v;
+    const last = keys[keys.length - 1]; if (t >= last.t) return last.v;
+    let i = 0; while (i < keys.length - 1 && keys[i + 1].t <= t) i++;
+    const k0 = keys[i], k1 = keys[i + 1], u = (t - k0.t) / Math.max(1e-6, k1.t - k0.t);
+    return lerp(k0.v, k1.v, (EASE[k0.ease || 'ease'] || EASE.ease)(Math.max(0, Math.min(1, u))));
+  };
+  E.isAnimated = (m, prop) => { const tr = E.anim() && E.anim().tracks[m.id]; return !!(tr && tr.keys[prop] && tr.keys[prop].length); };
+  // set a key (replacing one within half a frame)
+  E.setKey = function (m, prop, t, v, ease) {
+    const tr = E.track(m.id, true), keys = (tr.keys[prop] = tr.keys[prop] || []), half = 0.5 / (E.anim().fps || 30);
+    const old = keys.find((k) => Math.abs(k.t - t) < half);
+    if (old) { old.v = v; if (ease) old.ease = ease; } else keys.push({ t: +t.toFixed(4), v, ease: ease || 'ease' });
+    keys.sort((a, b) => a.t - b.t);
+  };
+  E.removeKey = (m, prop, k) => { const tr = E.track(m.id); if (!tr || !tr.keys[prop]) return; tr.keys[prop] = tr.keys[prop].filter((x) => x !== k); if (!tr.keys[prop].length) delete tr.keys[prop]; };
+  // Change a value: animated properties get a key at the current time, others change the rest pose
+  E.setValue = function (m, prop, v) {
+    if (E.isAnimated(m, prop)) E.setKey(m, prop, E.time, v);
+    else if (prop === 'color') m.mat.color = v; else if (prop === 'opacity') m.mat.opacity = v; else m[prop] = v;
+  };
+  // Show the scene as it is at time t (seconds)
+  E.evalAt = function (t) {
+    const a = E.anim(); if (!a) return;
+    E.time = Math.max(0, Math.min(a.length, t));
+    const tt = E.time;
+    E.doc.objects.forEach((m) => {
+      const o = built.get(m.id); if (!o) return;
+      const tr = a.tracks[m.id];
+      o.position.fromArray(E.valueAt(m, 'pos', tt)); o.rotation.set(...E.valueAt(m, 'rot', tt).map(d2r)); o.scale.fromArray(E.valueAt(m, 'scale', tt));
+      const on = m.visible !== false && (!tr || ((tr.start ?? 0) <= tt + 1e-6 && tt <= (tr.end ?? a.length) + 1e-6));
+      o.visible = on;
+      if (m.kind !== 'group' && m.mat && tr && (tr.keys.color || tr.keys.opacity)) {
+        const col = E.valueAt(m, 'color', tt), op = E.valueAt(m, 'opacity', tt);
+        o.traverse((x) => { if (!x.isMesh) return; [].concat(x.material).forEach((mt) => { if (!mt.map && tr.keys.color && !(m.kind === 'trace' && m.trace.ownColours !== false)) mt.color.set(col); mt.opacity = op; mt.transparent = op < 1 || mt.transmission > 0; if (m.mat.glow && tr.keys.color) mt.emissive.set(col); }); });
+      }
+    });
+    // the camera: a turntable all the way round, or a swing to and fro
+    const v = views.find((x) => !x.ortho), cm = a.camera || {};
+    if (v && E.doc.camera) {
+      const base = E.doc.camera, tgt = new T.Vector3().fromArray(base.target), off = new T.Vector3().fromArray(base.pos).sub(tgt);
+      const u = tt / Math.max(0.001, a.length), ang = cm.move === 'turntable' ? d2r(cm.amount ?? 360) * u : cm.move === 'swing' ? d2r((cm.amount ?? 60) / 2) * Math.sin(u * Math.PI * 2) : 0;
+      E.camAngle = cm.move && cm.move !== 'none' ? ang : 0;
+      if (cm.move && cm.move !== 'none') { E.camLock = true; off.applyAxisAngle(new T.Vector3(0, 1, 0), ang); v.cam.position.copy(tgt).add(off); v.orbit.target.copy(tgt); v.orbit.update(); E.camLock = false; }
+    }
+    needs = true; emit('time', tt);
+  };
+  // Frames for export: the renderer is set to the frame size once, then each frame is drawn at its time
+  E.beginFrames = function (w, h, { transparent = false } = {}) {
+    E.busy = true; tc.detach();
+    const keep = { bg: scene.background, grid: grid.visible, ratio: renderer.getPixelRatio(), size: renderer.getSize(new T.Vector2()), helpers: [], time: E.time };
+    scene.traverse((x) => { if (x.userData.helper && x.visible) { keep.helpers.push(x); x.visible = false; } });
+    grid.visible = false; const floor = ground.getObjectByName('floor'); keep.floor = floor.visible;
+    if (transparent) { scene.background = null; floor.visible = false; }
+    renderer.setScissorTest(false); renderer.setPixelRatio(1); renderer.setSize(w, h, false); renderer.setViewport(0, 0, w, h);
+    const v = views.find((x) => !x.ortho);
+    return {
+      canvas: renderer.domElement,
+      frame(t) { E.evalAt(t); const cam = v.cam.clone(); cam.aspect = w / h; cam.updateProjectionMatrix(); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(scene, cam); return renderer.domElement; },
+      end() { scene.background = keep.bg; grid.visible = keep.grid; floor.visible = keep.floor; keep.helpers.forEach((x) => (x.visible = true)); renderer.setPixelRatio(keep.ratio); renderer.setSize(keep.size.x, keep.size.y, false); E.busy = false; E.evalAt(keep.time); if (selected) tc.attach(selected); needs = true; },
+    };
   };
   E.renderer = () => renderer; E.scene = () => scene; E.root = () => root;
 })();
