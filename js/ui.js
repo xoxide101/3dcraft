@@ -677,8 +677,8 @@
       obj({ kind: 'shape', name: 'Rubber mat', shape: { type: 'cylinder', r: 6, h: 0.02 }, mat: E.defaultMat('#495057', 'rubber'), pos: [0, 0.01, 0.6] });
       { const { ball, keys: bk } = bouncingBall({ L, R: 0.9, x0: -4, x1: 4, z: -4, up: 3 }); tracks[ball.id] = { keys: bk }; }
       // a TV at the front, low down, with shaded rainbow bars scrolling down its screen
-      const tvSize = E.shapeSize({ type: 'tv', size: 22 });
-      obj({ kind: 'shape', name: 'TV: colour bars', shape: { type: 'tv', size: 22 }, mat: { ...E.defaultMat('#9aa1ab', 'plastic'), faces: JSON.parse(JSON.stringify(E.PART_COLOURS.tv)), cycle: { preset: 'raster', speed: 2, bands: 12, dir: 'down', part: 'screen' } }, pos: [3.4, tvSize.y / 2, 4.4], rot: [0, -18, 0] });
+      const tvSize = E.shapeSize({ type: 'tv', size: 12 });
+      obj({ kind: 'shape', name: 'TV: colour bars', shape: { type: 'tv', size: 12 }, mat: { ...E.defaultMat('#9aa1ab', 'plastic'), faces: JSON.parse(JSON.stringify(E.PART_COLOURS.tv)), cycle: { preset: 'raster', speed: 2, bands: 12, dir: 'down', part: 'screen' } }, pos: [-0.4, tvSize.y / 2, 6.1], rot: [0, -4, 0] });
       d.anim = { length: L, fps: 30, loop: true, tracks, camera: { move: 'none', amount: 360, keys: [{ t: 0, pos: [-7.5, 1.4, 8.5], target: [0, 1.4, 0], fov: 40, ease: 'ease' }, { t: L, pos: [6.5, 4.2, 9], target: [0, 1.4, 0], fov: 40, ease: 'ease' }] } };
       Object.assign(d.scene, { light: 'studio', bg: { type: 'gradient', c1: '#f4f6f9', c2: '#cfd8e3', angle: 0 }, groundColor: '#e9edf3', reflect: 1.2 });
       d.camera = { pos: [0, 2.6, 10], target: [0, 1.4, 0], fov: 40 };
