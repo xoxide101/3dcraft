@@ -61,6 +61,7 @@ Headless Chrome over the DevTools protocol, opening `index.html` from the folder
 - The group stands at the scene's centre and turns to face the camera (`face`, on `view` and `camera` events).
 - Themes (`BD3.THEMES`: layers and suitable palettes; `BD3.useTheme`). Layers made of separate pieces (islands, playground, circuit, pixels, birds, balloons, rainbow, planets) come from `makeItems` as flat shapes with colours, built per style by `buildItems` (Classic flat with one drop shadow, Modern extruded, Cardboard with stands or sticks; glowing pieces stay flat and unlit).
 - **Picture layers** (`buildPicture`, `cutout`): the picture's mask (its alpha, or the corner colour made see-through) gives a die-cut white border (the mask drawn round in a ring), a blurred drop shadow and an emboss from the slope of a blurred mask; drawn on a canvas and shown on flat cards, repeated along the layer.
+- **Matching ground** (`buildGround`): a ring of radius 140 with a tiling canvas texture (`groundTexture`, drawn wrap-round; about 8 units a tile), plus a ring whose vertex colours fade (alpha) from clear near the scene to the front layer's colour at the layers, so ground and scenery meet without a line. Beaches add a water ring (the shared ripple normal map) and foam. It sits in the scene's `ground` group (Ground: None hides it); `E3.groundOverride` hides the plain floor and, in ray-traced renders, the shadow catcher.
 - `js/backdrop-ui.js` is the Backdrop tab; the sky (`scene.bg`) moved there from the Scene properties.
 
 ## Title bar and starter scenes

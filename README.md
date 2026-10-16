@@ -52,7 +52,8 @@ Scenery in layers behind your scene, like the flats of a stage or the layers of 
 - **Your own picture** as a layer: cut out by its see-through parts or a plain background, with a drop shadow, an embossed edge and an optional white die-cut border; it can repeat along the layer and scroll, and stands on a fold-out stand in Cardboard. Add, hide, reorder and delete them; each has its own height, haze, colour and shape.
 - Three styles, for the whole backdrop or one layer: **Classic** (flat cut-outs with an embossed edge and a drop shadow), **Modern** (soft rounded 3D) and **Cardboard** (cut-outs with cardboard edges, propped up by fold-out stands, clouds on sticks; the stands can be hidden).
 - **Palettes:** Day, Sunset, Night, Desert, Storm, Digital and Rainforest mist, which also set the sky; farther layers come out hazier.
-- Everything stands on the ground (nothing hangs below the horizon; the floor reaches out under the backdrop). All layers stand 75 to 100 units out and stay behind your scene from wherever the camera looks; raise or lower it all to meet the horizon.
+- **Matching ground** that takes the place of the plain floor and fades into the front layer of scenery, so they meet without a line: grass, grass with flowers, forest floor, sand, a beach with reflective rippling water beyond, paving, grass with a play surface, a neon grid or rocky ground. Automatic picks it from the backdrop; the beach or play area size can be set.
+- Everything stands on the ground (nothing hangs below the horizon). All layers stand 75 to 100 units out and stay behind your scene from wherever the camera looks; raise or lower it all to meet the horizon.
 - **Movement:** scroll speed (endless loop or pass by once) with nearer layers faster for depth, bobbing, and per layer **fly in, rise up or slide in**, and out again, at chosen times.
 
 ### Scene

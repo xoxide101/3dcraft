@@ -685,6 +685,7 @@
     waveTex = new T.CanvasTexture(c); waveTex.wrapS = waveTex.wrapT = T.RepeatWrapping; waveTex.repeat.set(3, 3);
     return waveTex;
   }
+  E.waveTexture = () => waveTexture();
   function material(m, face, slot) {
     const glass = m.glass || 0;
     const mat = new T.MeshPhysicalMaterial({
@@ -820,7 +821,7 @@
     scene.environmentIntensity = 0.8 * (s.reflect ?? 1); // for models that bring their own materials
     root.traverse((x) => { if (x.isMesh) [].concat(x.material).forEach((mt) => { if (mt.userData && mt.userData.reflect) mt.envMapIntensity = mt.userData.reflect * (s.reflect ?? 1); }); });
     ground.visible = !!s.ground; ground.position.y = box.isEmpty() ? 0 : Math.min(0, box.min.y);
-    ground.getObjectByName('floor').visible = !!s.groundColor && s.groundStyle !== 'shadow';
+    ground.getObjectByName('floor').visible = !!s.groundColor && s.groundStyle !== 'shadow' && !E.groundOverride; // a backdrop's matching ground replaces the floor
     ground.getObjectByName('floor').material.color.set(s.groundColor || '#e9e6df');
     ground.getObjectByName('shadow').material.opacity = s.shadow ?? 0.35;
     if (bgTex) { bgTex.dispose(); bgTex = null; }
@@ -1005,7 +1006,7 @@
     const floor = ground.getObjectByName('floor'), shadow = ground.getObjectByName('shadow'); keep.floor = floor.visible; keep.shadowMat = shadow.material;
     if (o.transparent) { scene.background = null; floor.visible = false; }
     const matte = new T.MeshStandardMaterial({ color: 0xffffff, roughness: 1 }); matte.matte = true; shadow.material = matte; // shadows only
-    keep.shadowVis = shadow.visible; if (floor.visible && ground.visible) shadow.visible = false; // with a floor, the floor itself catches the shadows
+    keep.shadowVis = shadow.visible; if ((floor.visible || E.groundOverride) && ground.visible) shadow.visible = false; // with a floor, the floor itself catches the shadows
     // the same studio room the editor uses, as an environment the path tracer can sample
     const cubeRT = new T.WebGLCubeRenderTarget(256, { type: T.HalfFloatType }), cubeCam = new T.CubeCamera(0.1, 100, cubeRT), room = new T.RoomEnvironment();
     cubeCam.update(renderer, room); scene.environment = cubeRT.texture; scene.environmentIntensity = 0.8 * ((E.doc && E.doc.scene.reflect) ?? 1);

@@ -34,6 +34,11 @@
       ${(b.style === 'cardboard' || b.layers.some((l) => l.style === 'cardboard')) ? `<label class="check"><input type="checkbox" id="bd-stands" ${b.stands !== false ? 'checked' : ''}> Show the fold-out stands and cloud sticks</label>` : ''}
       <h3>Palette</h3>${seg(Object.entries(BD.PALETTES).map(([k, [n]]) => [k, n]), b.palette, 'data-pal')}
       ${range('bd-y', 'Raise or lower it all (to the horizon)', b.y || 0, -40, 40, 0.5)}
+      <h3>Ground</h3>
+      <label class="check"><input type="checkbox" id="bd-gon" ${b.groundOn !== false ? 'checked' : ''}> Matching ground (instead of the plain floor)</label>
+      ${b.groundOn !== false ? `<label class="field"><span>Ground</span><select class="input" id="bd-gkind">${opts(BD.GROUNDS, b.groundKind || 'auto')}</select></label>
+      <label class="check"><input type="checkbox" id="bd-blend" ${b.blend !== false ? 'checked' : ''}> Blend into the scenery</label>
+      ${range('bd-beach', 'Beach or play area size', b.beach ?? 14, 4, 50, 1)}` : ''}
       <h3>Sky</h3><div id="bd-sky"></div>
       <h3>Movement</h3>
       ${range('bd-speed', 'Scroll speed', b.speed || 0, -20, 20, 0.5, (v) => (+v === 0 ? 'still' : (v > 0 ? 'to the left, ' : 'to the right, ') + Math.abs(v)))}
@@ -81,6 +86,10 @@
     const on = (id, ev, fn) => { const el = $(id); if (el) el[ev] = fn; };
     on('bd-on', 'onchange', (e) => { b.on = e.target.checked; changed(); });
     on('bd-stands', 'onchange', (e) => { b.stands = e.target.checked; changed(); });
+    on('bd-gon', 'onchange', (e) => { b.groundOn = e.target.checked; changed(); });
+    on('bd-gkind', 'onchange', (e) => { b.groundKind = e.target.value; changed(); });
+    on('bd-blend', 'onchange', (e) => { b.blend = e.target.checked; changed(); });
+    on('bd-beach', 'oninput', (e) => { $('bd-beach-v').textContent = e.target.value; }); on('bd-beach', 'onchange', (e) => { b.beach = +e.target.value; changed(); });
     on('bd-speed', 'oninput', (e) => { b.speed = +e.target.value; $('bd-speed-v').textContent = +e.target.value === 0 ? 'still' : (e.target.value > 0 ? 'to the left, ' : 'to the right, ') + Math.abs(e.target.value); BD.pose(E.time); });
     on('bd-speed', 'onchange', () => changed(false));
     on('bd-y', 'oninput', (e) => { b.y = +e.target.value; $('bd-y-v').textContent = e.target.value; BD.pose(E.time); }); on('bd-y', 'onchange', () => changed(false));

@@ -472,6 +472,97 @@
     img.src = l.src;
   }
 
+  // ---------------------------------------------------------------- a ground that matches the backdrop
+  // A big disc of landscape round the scene (grass, sand, paving, forest floor, rock, a neon grid, or a beach with water
+  // beyond), whose colour fades into the front layer's colour where the scenery stands, so the two meet without a line.
+  BD.GROUNDS = { auto: 'Automatic (from the backdrop)', grass: 'Grass', flowers: 'Grass with flowers', forest: 'Forest floor', sand: 'Sand', beach: 'Beach and water', paving: 'Paving', playground: 'Grass and a play surface', grid: 'Neon grid', rock: 'Rocky ground' };
+  const THEME_GROUND = { countryside: 'grass', city: 'paving', seaside: 'beach', islands: 'beach', desert: 'sand', nightcity: 'paving', playground: 'playground', computer: 'grid', rainbow: 'flowers', balloons: 'grass', meadow: 'flowers', pineforest: 'forest', woodland: 'forest', rainforest: 'forest', space: 'rock' };
+  function groundKind(bd) {
+    if (bd.groundKind && bd.groundKind !== 'auto') return bd.groundKind;
+    if (bd.theme && THEME_GROUND[bd.theme]) return THEME_GROUND[bd.theme];
+    const front = [...bd.layers].reverse().find((l) => l.visible !== false && !BD.SKY.includes(l.kind) && !['sun', 'stars', 'planets'].includes(l.kind));
+    const k = front && front.kind;
+    return k === 'sea' || k === 'islands' ? 'beach' : k === 'city' ? 'paving' : k === 'forest' ? 'forest' : k === 'circuit' ? 'grid' : k === 'playground' ? 'playground' : bd.palette === 'desert' ? 'sand' : 'grass';
+  }
+  // a tiling picture for the ground, drawn with wrap-round so its edges join
+  const groundTexCache = new Map();
+  function groundTexture(kind, P) {
+    const key = kind + JSON.stringify(P); if (groundTexCache.has(key)) return groundTexCache.get(key);
+    const N = 512, c = document.createElement('canvas'); c.width = c.height = N; const x = c.getContext('2d'), r = rng(kind.length * 977 + 13);
+    const col = (h, k) => '#' + new T.Color(h).offsetHSL(0, 0, k).getHexString();
+    const wrap = (fn) => { for (const dx of [-N, 0, N]) for (const dy of [-N, 0, N]) fn(dx, dy); };
+    const speck = (n, colours, size) => { for (let i = 0; i < n; i++) { const px = r() * N, py = r() * N, s2 = size * (0.5 + r()), cc = colours[Math.floor(r() * colours.length)]; x.fillStyle = cc; wrap((dx, dy) => x.fillRect(px + dx, py + dy, s2, s2)); } };
+    let base = '#808080';
+    if (kind === 'grass' || kind === 'flowers' || kind === 'playground') {
+      // grass stays green, just tinted by the palette's light
+      base = '#' + new T.Color('#5fa84e').lerp(new T.Color(P.hills), 0.3).lerp(new T.Color(P.haze), 0.1).getHexString(); x.fillStyle = base; x.fillRect(0, 0, N, N);
+      for (let i = 0; i < 9000; i++) { const px = r() * N, py = r() * N, a = r() * Math.PI, l2 = 3 + r() * 6; x.strokeStyle = col(base, (r() - 0.5) * 0.16); x.lineWidth = 1 + r(); wrap((dx, dy) => { x.beginPath(); x.moveTo(px + dx, py + dy); x.lineTo(px + dx + Math.cos(a) * l2, py + dy + Math.sin(a) * l2); x.stroke(); }); }
+      if (kind === 'flowers') speck(500, ['#ffffff', '#ffe066', '#ff8787', '#da77f2', '#ffd8a8'], 3);
+    } else if (kind === 'forest') {
+      base = '#' + new T.Color(P.trees).lerp(new T.Color('#6b4a2e'), 0.45).offsetHSL(0, 0, 0.06).getHexString(); x.fillStyle = base; x.fillRect(0, 0, N, N);
+      for (let i = 0; i < 2600; i++) { const px = r() * N, py = r() * N, a = r() * Math.PI, w = 3 + r() * 5; x.fillStyle = [col(base, 0.05), col(base, -0.05), '#' + new T.Color(base).lerp(new T.Color('#8a5a2b'), 0.4).getHexString(), '#' + new T.Color(base).lerp(new T.Color('#a8742f'), 0.35).getHexString(), '#' + new T.Color(base).lerp(new T.Color(P.trees), 0.4).getHexString()][Math.floor(r() * 5)]; wrap((dx, dy) => { x.save(); x.translate(px + dx, py + dy); x.rotate(a); x.beginPath(); x.ellipse(0, 0, w, w * 0.45, 0, 0, Math.PI * 2); x.fill(); x.restore(); }); }
+    } else if (kind === 'sand' || kind === 'beach') {
+      base = P.sand || '#e9d29a'; x.fillStyle = base; x.fillRect(0, 0, N, N); speck(14000, [col(base, 0.06), col(base, -0.06), col(base, -0.12)], 1.4);
+      x.strokeStyle = col(base, 0.08); x.lineWidth = 3; for (let k = 0; k < 9; k++) { x.beginPath(); for (let i = 0; i <= N; i += 4) { const yy = (k / 9) * N + 10 * Math.sin((i / N) * Math.PI * 2 * 3 + k); i ? x.lineTo(i, yy) : x.moveTo(i, yy); } x.stroke(); }
+    } else if (kind === 'paving') {
+      base = '#' + new T.Color(P.city).lerp(new T.Color('#c9ccd1'), 0.55).getHexString(); x.fillStyle = base; x.fillRect(0, 0, N, N); speck(9000, [col(base, 0.05), col(base, -0.05)], 1.5);
+      x.strokeStyle = col(base, -0.18); x.lineWidth = 3; for (let i = 0; i <= N; i += 128) { x.beginPath(); x.moveTo(i, 0); x.lineTo(i, N); x.stroke(); x.beginPath(); x.moveTo(0, i); x.lineTo(N, i); x.stroke(); }
+    } else if (kind === 'grid') {
+      base = P.sky[0]; x.fillStyle = base; x.fillRect(0, 0, N, N);
+      x.strokeStyle = P.traces || '#39ff88'; x.shadowColor = x.strokeStyle; x.shadowBlur = 10; x.lineWidth = 3;
+      for (let i = 0; i <= N; i += 128) { x.beginPath(); x.moveTo(i, 0); x.lineTo(i, N); x.stroke(); x.beginPath(); x.moveTo(0, i); x.lineTo(N, i); x.stroke(); }
+    } else if (kind === 'rock') {
+      base = P.mountains; x.fillStyle = base; x.fillRect(0, 0, N, N); speck(12000, [col(base, 0.07), col(base, -0.07), col(base, -0.14)], 2);
+      for (let i = 0; i < 26; i++) { const px = r() * N, py = r() * N, rr = 6 + r() * 26; wrap((dx, dy) => { x.fillStyle = col(base, -0.1); x.beginPath(); x.arc(px + dx, py + dy, rr, 0, Math.PI * 2); x.fill(); x.strokeStyle = col(base, 0.1); x.lineWidth = 2 + rr * 0.1; x.beginPath(); x.arc(px + dx - 1, py + dy - 1, rr, Math.PI * 0.9, Math.PI * 1.9); x.stroke(); }); }
+    }
+    const tex = new T.CanvasTexture(c); tex.colorSpace = T.SRGBColorSpace; tex.wrapS = tex.wrapT = T.RepeatWrapping; tex.anisotropy = 8;
+    const res = { tex, base }; groundTexCache.set(key, res); return res;
+  }
+  const waveTex = () => E.waveTexture();
+  const GROUND_R = 140;
+  function buildGround(bd) {
+    const P = (BD.PALETTES[bd.palette] || BD.PALETTES.day)[1], kind = groundKind(bd), g = new T.Group(); g.name = 'backdrop-ground';
+    const disc2 = (r0, r1, mat2, y) => { const geo = new T.RingGeometry(r0, r1, 128, 1); geo.rotateX(-Math.PI / 2); const m = new T.Mesh(geo, mat2); m.position.y = y; m.receiveShadow = true; return m; };
+    const tile = (kind2, rep) => { const { tex } = groundTexture(kind2, P), t2 = tex.clone(); t2.needsUpdate = true; t2.repeat.set(rep, rep); return t2; };
+    // the main ground: a tiled texture over the whole disc (UVs run 0 to 1 across it: about 8 units a tile)
+    const main = kind === 'beach' ? 'sand' : kind === 'playground' ? 'grass' : kind;
+    const glow = kind === 'grid';
+    const mat0 = new T.MeshStandardMaterial({ map: tile(main, (GROUND_R * 2) / 8), roughness: 0.95, metalness: 0 });
+    if (glow) { mat0.emissive = new T.Color('#ffffff'); mat0.emissiveMap = mat0.map; mat0.emissiveIntensity = 0.7; }
+    const beachR = bd.beach ?? 14;
+    g.add(disc2(0, kind === 'beach' ? beachR + 2 : GROUND_R, mat0, -0.004));
+    if (kind === 'beach') {
+      // water beyond the beach: reflective, with ripples, and a line of foam where it meets the sand
+      const water = new T.MeshPhysicalMaterial({ color: new T.Color(P.sea), roughness: 0.06, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 1 });
+      water.normalMap = waveTex(); water.normalScale.set(0.5, 0.5);
+      g.add(disc2(beachR, GROUND_R, water, -0.003));
+      const foam = new T.RingGeometry(beachR - 0.35, beachR + 0.5, 128, 1); foam.rotateX(-Math.PI / 2);
+      const fm = new T.Mesh(foam, new T.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.75, depthWrite: false })); fm.position.y = 0.001; g.add(fm);
+    }
+    if (kind === 'playground') {
+      // a soft play surface under the scene, flecked like rubber crumb
+      const N = 256, c = document.createElement('canvas'); c.width = c.height = N; const x = c.getContext('2d'), r = rng(31); x.fillStyle = '#c0573e'; x.fillRect(0, 0, N, N);
+      for (let i = 0; i < 6000; i++) { x.fillStyle = ['#a8462f', '#d9714f', '#2f9e44', '#1c7ed6', '#f59f00'][r() < 0.85 ? Math.floor(r() * 3) : 3 + Math.floor(r() * 2)]; x.fillRect(r() * N, r() * N, 2, 2); }
+      const t3 = new T.CanvasTexture(c); t3.colorSpace = T.SRGBColorSpace; t3.wrapS = t3.wrapT = T.RepeatWrapping; t3.repeat.set(8, 8);
+      g.add(disc2(0, bd.beach ?? 12, new T.MeshStandardMaterial({ map: t3, roughness: 1 }), -0.002));
+    }
+    // the fade into the scenery: the front layer's colour, see-through near the scene and solid where the layers stand
+    if (bd.blend !== false) {
+      const n = bd.layers.length, frontIdx = (() => { for (let i = n - 1; i >= 0; i--) { const l = bd.layers[i]; if (l.visible !== false && !BD.SKY.includes(l.kind) && !['sun', 'stars', 'planets'].includes(l.kind)) return i; } return -1; })();
+      if (frontIdx >= 0) {
+        const fl = bd.layers[frontIdx], fc = colourOf(fl, P, BD.distOf(frontIdx, n)), near = BD.NEAR * 0.5, far = BD.NEAR * 0.98;
+        const geo = new T.RingGeometry(near, GROUND_R, 128, 24); geo.rotateX(-Math.PI / 2);
+        const pos = geo.attributes.position, cols = new Float32Array(pos.count * 4);
+        for (let i = 0; i < pos.count; i++) { const rr = Math.hypot(pos.getX(i), pos.getZ(i)), u = Math.max(0, Math.min(1, (rr - near) / (far - near))), a = u * u * (3 - 2 * u); cols.set([fc.r, fc.g, fc.b, (kind === 'beach' ? 0.5 : 0.92) * a], i * 4); }
+        geo.setAttribute('color', new T.BufferAttribute(cols, 4));
+        const m = new T.Mesh(geo, new T.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false })); m.position.y = 0.002; m.renderOrder = 1; g.add(m);
+      }
+    }
+    g.traverse((o) => { o.userData.backdrop = true; });
+    return g;
+  }
+  let groundGroup = null;
+
   // ---------------------------------------------------------------- in the scene
   let group = null, built = '', center = new T.Vector3();
   BD.sync = function (force) {
@@ -481,12 +572,17 @@
     built = sig;
     if (group) { group.traverse((x) => { if (x.isMesh) { x.geometry.dispose(); [].concat(x.material).forEach((m) => m.dispose()); } }); scene.remove(group); group = null; }
     const floor = scene.getObjectByName('floor'); if (floor) floor.scale.setScalar(bd && bd.on ? 2.2 : 1);
+    if (groundGroup) { groundGroup.traverse((x) => { if (x.isMesh) { x.geometry.dispose(); [].concat(x.material).forEach((m) => { if (m.map && m.map !== waveTex()) m.map.dispose(); m.dispose(); }); } }); groundGroup.removeFromParent(); groundGroup = null; }
+    // the matching ground takes the place of the plain floor (and sits in the scene's ground, so Ground: None hides it)
+    const wantGround = !!(bd && bd.on && bd.groundOn !== false && floor);
+    if (E.groundOverride !== wantGround) { E.groundOverride = wantGround; E.applyScene(); }
     if (!bd || !bd.on) { E.redraw && E.redraw(); return; }
     group = new T.Group(); group.name = 'backdrop';
     const n = bd.layers.length;
     bd.layers.forEach((l, i) => { if (l.visible === false) return; const d = BD.distOf(i, n), g = buildLayer(l, bd, d); g.position.z = -d; group.add(g); });
     const box = new T.Box3().setFromObject(E.root()); center = box.isEmpty() ? new T.Vector3() : box.getCenter(new T.Vector3()); center.y = 0;
     scene.add(group);
+    if (wantGround) { groundGroup = buildGround(bd); groundGroup.position.set(center.x, 0, center.z); floor.parent.add(groundGroup); }
     BD.pose(E.time);
   };
   const ease = (x) => 1 - (1 - x) ** 3;
