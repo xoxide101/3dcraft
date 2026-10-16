@@ -25,11 +25,12 @@
     balloons: ['Hot-air balloons', { speed: 0.5, bob: 0.5 }],
     rainbow: ['Rainbow', { speed: 0, bob: 0 }],
     planets: ['Planets', { speed: 0.1, bob: 0 }],
+    traffic: ['Sky traffic (planes, ships, shooting stars)', { speed: 0, bob: 0, planes: 2, ships: 1, airships: 1, stars: 3 }],
     forest: ['Forest', { speed: 1, bob: 0, type: 'oak', density: 1 }],
     picture: ['Picture (your own)', { speed: 1, bob: 0, size: 1, repeat: 1, removeBg: true, border: true, emboss: 1 }],
   };
   // kinds that float in the sky (Cardboard holds them up on sticks)
-  BD.SKY = ['clouds', 'pixels', 'birds', 'balloons', 'rainbow', 'planets'];
+  BD.SKY = ['clouds', 'pixels', 'birds', 'balloons', 'rainbow', 'planets', 'traffic'];
   // palettes: the sky (top, horizon), the haze far layers fade into, and a colour for each kind
   BD.PALETTES = {
     day: ['Day', { sky: ['#6fb0ee', '#e4f1fb'], haze: '#d6e7f5', sun: '#ffd84d', stars: '#ffffff', clouds: '#ffffff', mountains: '#7486a3', hills: '#64ad55', trees: '#2c7339', city: '#56677c', sea: '#2f86c8', windows: '#3a4a5c', lit: false, islands: '#3f9a4a', sand: '#e9d29a', playground: '#e03131', circuit: '#2f6b4f', traces: '#c9f2d8', pixels: '#4dabf7', birds: '#2b2f38', balloons: '#e8590c', rainbow: '#ffffff', planets: '#adb5bd' }],
@@ -56,11 +57,11 @@
   // ready-made backdrops to choose from: [name, layers (back to front), palettes that suit it]
   BD.THEMES = {
     countryside: ['Countryside', ['sun', 'clouds', 'mountains', 'hills', 'trees'], ['day', 'sunset', 'storm']],
-    city: ['City', ['sun', 'clouds', 'city', ['city', { height: 0.8 }]], ['day', 'sunset', 'night']],
-    seaside: ['Seaside', ['sun', 'clouds', 'birds', 'mountains', 'sea'], ['day', 'sunset']],
+    city: ['City', ['sun', 'traffic', 'clouds', 'city', ['city', { height: 0.8 }]], ['day', 'sunset', 'night']],
+    seaside: ['Seaside', ['sun', ['traffic', { planes: 1, ships: 0, airships: 1, stars: 0 }], 'clouds', 'birds', 'mountains', 'sea'], ['day', 'sunset']],
     islands: ['Ocean and islands', ['sun', 'clouds', 'birds', 'islands', 'sea'], ['day', 'sunset', 'night']],
     desert: ['Desert', ['sun', 'mountains', 'hills', ['hills', { height: 0.7 }]], ['desert']],
-    nightcity: ['Night city', ['stars', 'sun', 'city', ['city', { height: 0.8 }]], ['night']],
+    nightcity: ['Night city', ['stars', 'sun', ['traffic', { planes: 1, ships: 1, airships: 0, stars: 4 }], 'city', ['city', { height: 0.8 }]], ['night']],
     playground: ['Playground', ['sun', 'clouds', 'balloons', 'trees', 'playground'], ['day', 'sunset']],
     computer: ['Computer', ['pixels', 'sun', ['circuit', { height: 1.4 }], 'circuit'], ['digital']],
     rainbow: ['Rainbow meadow', ['rainbow', 'clouds', 'hills', 'trees'], ['day']],
@@ -69,7 +70,7 @@
     pineforest: ['Pine forest (USA)', ['sun', 'clouds', 'mountains', ['forest', { type: 'pine', height: 0.75 }], ['forest', { type: 'pine' }], ['forest', { type: 'pine', height: 1.3, density: 0.7 }]], ['day', 'sunset', 'storm']],
     woodland: ['Woodland (UK)', ['sun', 'clouds', 'hills', ['forest', { type: 'oak', height: 0.8 }], ['forest', { type: 'oak', height: 1.2, density: 0.8 }]], ['day', 'sunset', 'storm']],
     rainforest: ['Rainforest (Amazon)', ['sun', 'clouds', 'birds', ['forest', { type: 'jungle', height: 0.85 }], ['forest', { type: 'jungle', height: 1.2 }], ['forest', { type: 'ferns' }]], ['jungle']],
-    space: ['Space', ['stars', 'planets', 'mountains', ['hills', { height: 0.6 }]], ['night', 'digital']],
+    space: ['Space', ['stars', ['traffic', { planes: 0, ships: 2, airships: 0, stars: 5 }], 'planets', 'mountains', ['hills', { height: 0.6 }]], ['night', 'digital']],
   };
   const pick = (a) => a[Math.floor(Math.random() * a.length)];
   BD.useTheme = function (key, palette) {
@@ -259,12 +260,21 @@
       g.add(mesh(merge(list), new T.MeshBasicMaterial({ color: col })));
     } else if (l.kind === 'sun') {
       const r = rng(l.seed), x = (r() - 0.5) * per * 0.5, y = d * (0.16 + 0.14 * r()) * (l.height ?? 1), rad = d * 0.045;
-      const moon = bd.palette === 'night';
-      if (style === 'modern') g.add(mesh(new T.SphereGeometry(rad, 40, 24).translate(x, y, 0), new T.MeshBasicMaterial({ color: col })));
-      else g.add(mesh(new T.CircleGeometry(rad, 64).translate(x, y, 0), new T.MeshBasicMaterial({ color: col })));
-      if (bd.palette === 'digital') { const bars = []; for (let i = 0; i < 5; i++) { const h = rad * (0.06 + i * 0.035), yy = y - rad * (0.15 + i * 0.18); bars.push(new T.PlaneGeometry(rad * 2.2, h).translate(x, yy, 0)); } g.add(mesh(merge(bars), new T.MeshBasicMaterial({ color: new T.Color(P.sky[1]) }), style === 'modern' ? rad + 0.05 : 0.02)); }
-      if (moon) { const bite = mesh(new T.CircleGeometry(rad * 0.92, 64).translate(x + rad * 0.45, y + rad * 0.2, 0), new T.MeshBasicMaterial({ color: new T.Color(P.sky[0]).lerp(new T.Color(P.sky[1]), 0.3) }), style === 'modern' ? rad + 0.05 : 0.02); g.add(bite); }
-      else g.add(mesh(new T.CircleGeometry(rad * 1.9, 64).translate(x, y, 0), new T.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.22, depthWrite: false }), -0.05));
+      const moon = bd.palette === 'night', digital = bd.palette === 'digital';
+      if (moon) {
+        // the moon: a cratered grey world, lit from one side; a real sphere in Modern and Cardboard
+        const map = planetMap('moon', l.seed + 101);
+        if (style === 'classic') g.add(mesh(new T.CircleGeometry(rad, 64).translate(x, y, 0), new T.MeshBasicMaterial({ map: planetDisc(map, rad, 1.45), transparent: true, alphaTest: 0.02 })));
+        else { const ms = new T.Mesh(new T.SphereGeometry(rad, 64, 40), new T.MeshStandardMaterial({ map, roughness: 1, emissive: new T.Color('#ffffff'), emissiveMap: map, emissiveIntensity: 0.6 })); ms.position.set(x, y, 0); ms.rotation.y = 0.6; g.add(ms); }
+        g.add(mesh(new T.CircleGeometry(rad * 1.6, 64).translate(x, y, 0), new T.MeshBasicMaterial({ map: glowMap('#dfe7ff'), transparent: true, depthWrite: false }), -0.05));
+      } else {
+        // the sun: a glowing disc with a mottled surface, brighter in the middle, and a soft corona with rays
+        g.add(mesh(new T.CircleGeometry(rad, 64).translate(x, y, 0), new T.MeshBasicMaterial({ map: sunMap(col, digital, l.seed), transparent: true, alphaTest: 0.02, toneMapped: false })));
+        g.add(mesh(new T.CircleGeometry(rad * 3.2, 64).translate(x, y, 0), new T.MeshBasicMaterial({ map: coronaMap(col, digital), transparent: true, depthWrite: false, toneMapped: false }), -0.05));
+        if (digital) { const bars = []; for (let i = 0; i < 5; i++) { const h = rad * (0.06 + i * 0.035), yy = y - rad * (0.15 + i * 0.18); bars.push(new T.PlaneGeometry(rad * 2.2, h).translate(x, yy, 0)); } g.add(mesh(merge(bars), new T.MeshBasicMaterial({ color: new T.Color(P.sky[1]) }), 0.02)); }
+      }
+    } else if (l.kind === 'traffic') {
+      buildTraffic(g, l, d, per, P);
     }
     g.traverse((x) => { x.userData.backdrop = true; });
     return g;
@@ -615,12 +625,13 @@
         let rgb;
         if (kind === 'gas' || kind === 'ice') { const t = (py + 0.08 * nz(px, py, pz, 4)) * 9 + 0.3 * nz(px, py, pz, 9), band = pal[Math.abs(Math.floor(t)) % pal.length], next = pal[Math.abs(Math.floor(t) + 1) % pal.length], f = t - Math.floor(t); rgb = band.map((v, q) => v + (next[q] - v) * f * f); }
         else if (kind === 'rock') { const n = nz(px, py, pz, 5) * 0.5 + nz(px, py, pz, 13) * 0.25; rgb = pal[0].map((v) => v * (0.85 + n * 0.2)); }
+        else if (kind === 'moon') { const sea = nz(px, py, pz, 1.8) + 0.5 * nz(px, py, pz, 4.2), n = nz(px, py, pz, 11) * 0.06; rgb = [218, 218, 212].map((v) => v * (sea > 0.6 ? 0.66 : 0.97) * (1 + n)); }
         else { const land = nz(px, py, pz, 2.6) + 0.4 * nz(px, py, pz, 7); const ice = Math.abs(py) > 0.86; rgb = ice ? [240, 244, 248] : land > 0.55 ? (land > 1.1 ? [160, 140, 100] : [70, 140, 70]) : [30, 80, 160 + 30 * land]; const cl = nz(px * 1.3, py * 2.2, pz * 1.3, 4.5); if (cl > 0.75) rgb = rgb.map((v) => v + (255 - v) * Math.min(1, (cl - 0.75) * 2.5)); }
         D[o] = rgb[0]; D[o + 1] = rgb[1]; D[o + 2] = rgb[2]; D[o + 3] = 255;
       }
     }
     x.putImageData(img, 0, 0);
-    if (kind === 'rock') for (let q = 0; q < 70; q++) { const cx = r() * W, cy = H * (0.15 + 0.7 * r()), rr = 4 + r() ** 2 * 30; x.fillStyle = 'rgba(0,0,0,0.18)'; x.beginPath(); x.ellipse(cx, cy, rr, rr * 0.9, 0, 0, Math.PI * 2); x.fill(); x.strokeStyle = 'rgba(255,255,255,0.18)'; x.lineWidth = 1 + rr * 0.08; x.beginPath(); x.ellipse(cx - 1, cy - 1, rr, rr * 0.9, 0, Math.PI * 0.9, Math.PI * 1.9); x.stroke(); }
+    if (kind === 'rock' || kind === 'moon') for (let q = 0; q < 70; q++) { const cx = r() * W, cy = H * (0.15 + 0.7 * r()), rr = 4 + r() ** 2 * 30; x.fillStyle = 'rgba(0,0,0,0.18)'; x.beginPath(); x.ellipse(cx, cy, rr, rr * 0.9, 0, 0, Math.PI * 2); x.fill(); x.strokeStyle = 'rgba(255,255,255,0.18)'; x.lineWidth = 1 + rr * 0.08; x.beginPath(); x.ellipse(cx - 1, cy - 1, rr, rr * 0.9, 0, Math.PI * 0.9, Math.PI * 1.9); x.stroke(); }
     const tex = new T.CanvasTexture(c); tex.colorSpace = T.SRGBColorSpace; tex.anisotropy = 8; tex.wrapS = T.RepeatWrapping; return tex;
   }
   // rings: soft bands, see-through between them
@@ -630,13 +641,13 @@
     const tex = new T.CanvasTexture(c); tex.colorSpace = T.SRGBColorSpace; return tex;
   }
   // a lit planet drawn flat (for Classic): the surface picture wrapped onto a disc, with day and night sides and a glow at the edge
-  function planetDisc(map, R) {
+  function planetDisc(map, R, bright = 1) {
     const S = 512, c = document.createElement('canvas'); c.width = c.height = S; const x = c.getContext('2d'), out = x.createImageData(S, S), D = out.data;
     const src = map.image.getContext('2d').getImageData(0, 0, map.image.width, map.image.height), SD = src.data, SW = map.image.width, SH = map.image.height, L = new T.Vector3(-0.6, 0.5, 0.62).normalize();
     for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) {
       const u = (i / S) * 2 - 1, v = 1 - (j / S) * 2, rr = u * u + v * v, o = (j * S + i) * 4; if (rr > 1) continue;
       const z = Math.sqrt(1 - rr), lat = Math.asin(v), lon = Math.atan2(u, z) + 0.8, sx = Math.floor((((lon / (Math.PI * 2)) % 1) + 1) % 1 * SW), sy = Math.floor((0.5 - lat / Math.PI) * (SH - 1)), so = (sy * SW + sx) * 4;
-      const lit = Math.max(0.12, u * L.x + v * L.y + z * L.z), rim = Math.pow(1 - z, 3) * 0.6;
+      const lit = Math.max(0.12, u * L.x + v * L.y + z * L.z) * bright, rim = Math.pow(1 - z, 3) * 0.6;
       D[o] = Math.min(255, SD[so] * lit + 120 * rim); D[o + 1] = Math.min(255, SD[so + 1] * lit + 160 * rim); D[o + 2] = Math.min(255, SD[so + 2] * lit + 255 * rim); D[o + 3] = Math.min(255, 255 * Math.min(1, (1 - rr) * 60));
     }
     x.putImageData(out, 0, 0);
@@ -655,6 +666,103 @@
         rm.position.set(x, y, style === 'classic' ? 0.02 : 0); rm.rotation.set(style === 'classic' ? -1.3 : -1.25, 0, tilt); g.add(rm);
       }
     }
+  }
+
+  // ---------------------------------------------------------------- the sun, glows, and sky traffic
+  function sunMap(col, digital, seed) {
+    const S = 512, c = document.createElement('canvas'); c.width = c.height = S; const x = c.getContext('2d'), r = rng(seed + 9), base = new T.Color(col);
+    if (digital) { const g = x.createLinearGradient(0, 0, 0, S); g.addColorStop(0, '#ffe066'); g.addColorStop(0.5, '#ff7ad9'); g.addColorStop(1, '#a23cff'); x.fillStyle = g; x.beginPath(); x.arc(S / 2, S / 2, S / 2, 0, Math.PI * 2); x.fill(); }
+    else {
+      const g = x.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2); g.addColorStop(0, '#fffbe8'); g.addColorStop(0.55, '#' + base.clone().lerp(new T.Color('#ffffff'), 0.45).getHexString()); g.addColorStop(0.9, '#' + base.getHexString()); g.addColorStop(1, '#' + base.clone().lerp(new T.Color('#ff6a00'), 0.45).getHexString());
+      x.fillStyle = g; x.beginPath(); x.arc(S / 2, S / 2, S / 2, 0, Math.PI * 2); x.fill();
+      // the mottled surface (granules), clipped to the disc
+      x.save(); x.beginPath(); x.arc(S / 2, S / 2, S / 2 - 1, 0, Math.PI * 2); x.clip();
+      for (let i = 0; i < 2600; i++) { const px = r() * S, py = r() * S, rr = 2 + r() * 5; x.fillStyle = r() < 0.5 ? 'rgba(255,255,255,0.10)' : 'rgba(200,90,0,0.10)'; x.beginPath(); x.arc(px, py, rr, 0, Math.PI * 2); x.fill(); }
+      x.restore();
+    }
+    const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; return t;
+  }
+  function coronaMap(col, digital) {
+    const S = 512, c = document.createElement('canvas'); c.width = c.height = S; const x = c.getContext('2d'), base = new T.Color(digital ? '#ff7ad9' : col), rgb = `${Math.round(base.r * 255)},${Math.round(base.g * 255)},${Math.round(base.b * 255)}`;
+    const g = x.createRadialGradient(S / 2, S / 2, S * 0.14, S / 2, S / 2, S / 2); g.addColorStop(0, `rgba(${rgb},0.55)`); g.addColorStop(0.35, `rgba(${rgb},0.18)`); g.addColorStop(1, `rgba(${rgb},0)`);
+    x.fillStyle = g; x.fillRect(0, 0, S, S);
+    if (!digital) { x.translate(S / 2, S / 2); for (let i = 0; i < 24; i++) { x.rotate((Math.PI * 2) / 24); const len = S * (0.3 + 0.16 * ((i * 7) % 5) / 5), gr = x.createLinearGradient(0, 0, len, 0); gr.addColorStop(0, `rgba(${rgb},0.22)`); gr.addColorStop(1, `rgba(${rgb},0)`); x.fillStyle = gr; x.beginPath(); x.moveTo(S * 0.14, -3); x.lineTo(len, 0); x.lineTo(S * 0.14, 3); x.fill(); } }
+    const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; return t;
+  }
+  function glowMap(colour) {
+    const S = 256, c = document.createElement('canvas'); c.width = c.height = S; const x = c.getContext('2d'), b = new T.Color(colour), rgb = `${Math.round(b.r * 255)},${Math.round(b.g * 255)},${Math.round(b.b * 255)}`;
+    const g = x.createRadialGradient(S / 2, S / 2, S * 0.3, S / 2, S / 2, S / 2); g.addColorStop(0, `rgba(${rgb},0.35)`); g.addColorStop(1, `rgba(${rgb},0)`); x.fillStyle = g; x.fillRect(0, 0, S, S);
+    const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; return t;
+  }
+  // a fading streak (white in front, see-through at the back), for contrails and shooting-star tails
+  function streakMap() {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 16; const x = c.getContext('2d'), g = x.createLinearGradient(0, 0, 256, 0);
+    g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.85, 'rgba(255,255,255,0.75)'); g.addColorStop(1, 'rgba(255,255,255,0.95)'); x.fillStyle = g; x.fillRect(0, 0, 256, 16);
+    const vg = x.createLinearGradient(0, 0, 0, 16); vg.addColorStop(0, 'rgba(0,0,0,1)'); vg.addColorStop(0.5, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,1)');
+    x.globalCompositeOperation = 'destination-out'; x.fillStyle = vg; x.fillRect(0, 0, 256, 16);
+    const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; return t;
+  }
+  const std = (color, o = {}) => new T.MeshStandardMaterial({ color: new T.Color(color), roughness: o.rough ?? 0.5, metalness: o.metal ?? 0.1, emissive: new T.Color(o.glow ? color : '#000000'), emissiveIntensity: o.glow ? 1.5 : 0 });
+  // little detailed craft for the sky (pointing along +x)
+  function airliner(L) {
+    const g = new T.Group(), white = std('#f4f6f8', { rough: 0.35 }), grey = std('#9aa3ad'), dark = std('#2b3440');
+    const body = new T.Mesh(new T.CapsuleGeometry(L * 0.055, L * 0.85, 6, 16), white); body.rotation.z = Math.PI / 2; g.add(body);
+    const wing = new T.Shape(); wing.moveTo(0, 0); wing.lineTo(-L * 0.18, L * 0.42); wing.lineTo(-L * 0.28, L * 0.42); wing.lineTo(-L * 0.16, 0); wing.closePath();
+    [1, -1].forEach((sd) => { const w = new T.Mesh(new T.ExtrudeGeometry(wing, { depth: L * 0.012, bevelEnabled: false }), grey); w.rotation.x = sd > 0 ? -Math.PI / 2 : Math.PI / 2; w.position.set(L * 0.05, -L * 0.02, 0); g.add(w);
+      const eng = new T.Mesh(new T.CylinderGeometry(L * 0.025, L * 0.025, L * 0.1, 12), grey); eng.rotation.z = Math.PI / 2; eng.position.set(L * 0.02, -L * 0.06, sd * L * 0.17); g.add(eng); });
+    const fin = new T.Shape(); fin.moveTo(0, 0); fin.lineTo(-L * 0.08, L * 0.2); fin.lineTo(-L * 0.14, L * 0.2); fin.lineTo(-L * 0.12, 0); fin.closePath();
+    const f = new T.Mesh(new T.ExtrudeGeometry(fin, { depth: L * 0.01, bevelEnabled: false }), std('#1c7ed6')); f.position.set(-L * 0.36, L * 0.04, -L * 0.005); g.add(f);
+    const tail = new T.Shape(); tail.moveTo(0, 0); tail.lineTo(-L * 0.06, L * 0.14); tail.lineTo(-L * 0.11, L * 0.14); tail.lineTo(-L * 0.09, 0); tail.closePath();
+    [1, -1].forEach((sd) => { const t2 = new T.Mesh(new T.ExtrudeGeometry(tail, { depth: L * 0.008, bevelEnabled: false }), grey); t2.rotation.x = sd > 0 ? -Math.PI / 2 : Math.PI / 2; t2.position.set(-L * 0.37, L * 0.03, 0); g.add(t2); });
+    for (let i = 0; i < 12; i++) [1, -1].forEach((sd) => { const w2 = new T.Mesh(new T.BoxGeometry(L * 0.018, L * 0.014, L * 0.004), dark); w2.position.set(L * 0.32 - i * L * 0.05, L * 0.012, sd * L * 0.055); g.add(w2); });
+    return g;
+  }
+  function spaceship(L) {
+    const g = new T.Group(), hull = std('#d0d6de', { metal: 0.6, rough: 0.3 }), trim = std('#e03131'), glow = std('#66d9ff', { glow: true });
+    const body = new T.Mesh(new T.ConeGeometry(L * 0.09, L * 0.8, 16), hull); body.rotation.z = -Math.PI / 2; g.add(body);
+    const pod = new T.Mesh(new T.CapsuleGeometry(L * 0.07, L * 0.3, 4, 12), hull); pod.rotation.z = Math.PI / 2; pod.position.x = -L * 0.3; g.add(pod);
+    [1, -1].forEach((sd) => { const fin = new T.Mesh(new T.BoxGeometry(L * 0.22, L * 0.012, L * 0.18), trim); fin.position.set(-L * 0.3, 0, sd * L * 0.12); fin.rotation.y = sd * 0.35; g.add(fin); });
+    const cock = new T.Mesh(new T.SphereGeometry(L * 0.05, 12, 8), std('#1b2a3a', { rough: 0.1 })); cock.position.set(L * 0.05, L * 0.05, 0); g.add(cock);
+    const engine = new T.Mesh(new T.SphereGeometry(L * 0.07, 12, 8), glow); engine.position.x = -L * 0.48; g.add(engine);
+    return g;
+  }
+  function airship(L) {
+    const g = new T.Group(), skin = std('#c9cdd3', { metal: 0.35, rough: 0.4 }), red = std('#c92a2a');
+    const env = new T.Mesh(new T.SphereGeometry(L * 0.5, 32, 16), skin); env.scale.set(1, 0.3, 0.3); g.add(env);
+    const band = new T.Mesh(new T.SphereGeometry(L * 0.501, 32, 16, 0, Math.PI * 2, Math.PI * 0.46, Math.PI * 0.08), red); band.scale.set(1, 0.3, 0.3); g.add(band);
+    [[0, 1], [0, -1], [1, 0], [-1, 0]].forEach(([a, b]) => { const fin = new T.Mesh(new T.BoxGeometry(L * 0.16, L * 0.012, L * 0.1), red); fin.position.set(-L * 0.42, a * 0 + b * L * 0.1, a * L * 0.1); fin.rotation.x = a ? Math.PI / 2 : 0; g.add(fin); });
+    const gond = new T.Mesh(new T.CapsuleGeometry(L * 0.03, L * 0.14, 4, 8), std('#3b3f45')); gond.rotation.z = Math.PI / 2; gond.position.set(L * 0.05, -L * 0.17, 0); g.add(gond);
+    return g;
+  }
+  // sky traffic: each piece crosses the sky on a path that repeats a whole number of times in the animation's length,
+  // so loops stay seamless; shooting stars flash across now and then
+  function buildTraffic(g, l, d, per, P) {
+    const r = rng(l.seed), W = per * 1.1, tail = streakMap();
+    g.userData.traffic = true;
+    const add = (obj, o) => { obj.userData.fly = { W, ...o }; obj.traverse((x) => { x.castShadow = false; }); g.add(obj); };
+    for (let i = 0; i < (l.planes ?? 2); i++) { const L = d * 0.065, a = airliner(L), trail = mesh(new T.PlaneGeometry(L * 6, L * 0.06).translate(-L * 3.4, 0, 0), new T.MeshBasicMaterial({ map: tail, transparent: true, depthWrite: false, opacity: 0.8 })); a.add(trail); add(a, { base: 16, y: d * (0.28 + 0.14 * r()), off: r(), dir: r() < 0.5 ? 1 : -1, tilt: 0 }); }
+    for (let i = 0; i < (l.ships ?? 1); i++) { const L = d * 0.07, sp = spaceship(L), trail = mesh(new T.PlaneGeometry(L * 3, L * 0.1).translate(-L * 2, 0, 0), new T.MeshBasicMaterial({ map: tail, color: '#66d9ff', transparent: true, depthWrite: false })); sp.add(trail); add(sp, { base: 8, y: d * (0.32 + 0.16 * r()), off: r(), dir: r() < 0.5 ? 1 : -1, tilt: 0.05 }); }
+    for (let i = 0; i < (l.airships ?? 1); i++) add(airship(d * 0.14), { base: 40, y: d * (0.2 + 0.08 * r()), off: r(), dir: r() < 0.5 ? 1 : -1, tilt: 0 });
+    for (let i = 0; i < (l.stars ?? 3); i++) {
+      const L = d * 0.14, st = new T.Group();
+      st.add(mesh(new T.PlaneGeometry(L, L * 0.02).translate(-L / 2, 0, 0), new T.MeshBasicMaterial({ map: tail, transparent: true, depthWrite: false, toneMapped: false })));
+      st.add(mesh(new T.SphereGeometry(L * 0.012, 8, 6), new T.MeshBasicMaterial({ color: '#ffffff', toneMapped: false })));
+      add(st, { base: 5, y: d * (0.4 + 0.15 * r()), off: r(), dir: r() < 0.5 ? 1 : -1, tilt: -0.45, flash: true, x0: (r() - 0.5) * per * 0.6 });
+    }
+  }
+  function poseTraffic(g, t) {
+    const len = (E.anim && E.anim() && E.anim().length) || 5;
+    g.children.forEach((o) => {
+      const f = o.userData.fly; if (!f) return;
+      const k = Math.max(1, Math.round(len / f.base)), dur = len / k, u = ((t / dur + f.off) % 1 + 1) % 1;
+      o.rotation.set(0, f.dir > 0 ? 0 : Math.PI, f.dir > 0 ? f.tilt : f.tilt);
+      if (f.flash) {
+        // a quick streak across part of the sky, then gone until next time
+        const on = u < 0.25, v = u / 0.25; o.visible = on;
+        o.position.set(f.x0 + f.dir * (v - 0.5) * f.W * 0.35, f.y - v * f.W * 0.12, 0.5);
+        o.traverse((x) => { if (x.material) { x.material.transparent = true; x.material.opacity = Math.sin(v * Math.PI); } });
+      } else { o.position.set(f.dir * (u - 0.5) * f.W, f.y, 0.5); o.visible = true; }
+    });
   }
 
   // ---------------------------------------------------------------- in the scene
@@ -694,6 +802,7 @@
       if (inn.move && inn.move !== 'none') { const u = ease(Math.max(0, Math.min(1, (t - (inn.at || 0)) / Math.max(0.05, inn.dur || 1)))); if (inn.move === 'fly') y += (1 - u) * d * 0.6; else if (inn.move === 'rise') y -= (1 - u) * d * 0.5; else if (inn.move === 'slide') x += (1 - u) * per; }
       if (out.move && out.move !== 'none') { const u = Math.max(0, Math.min(1, (t - (out.at || 0)) / Math.max(0.05, out.dur || 1))), e = u * u * u; if (out.move === 'fly') y += e * d * 0.6; else if (out.move === 'rise') y -= e * d * 0.5; else if (out.move === 'slide') x -= e * per; }
       g.position.x = x; g.position.y = y;
+      if (g.userData.traffic) poseTraffic(g, t);
     });
     face();
     E.redraw && E.redraw();
