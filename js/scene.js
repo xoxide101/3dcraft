@@ -29,6 +29,7 @@
     copper: ['Copper', { color: '#c8703f', metal: 1, rough: 0.28, coat: 0, glass: 0, glow: 0 }],
     glass: ['Glass', { color: '#ffffff', metal: 0, rough: 0.03, coat: 0, glass: 1, glow: 0 }],
     glow: ['Glow', { metal: 0, rough: 0.6, coat: 0, glass: 0, glow: 1.6 }],
+    water: ['Water', { color: '#3d8fd1', metal: 0, rough: 0.03, coat: 0, glass: 0.92, glow: 0, spec: 1, ior: 1.33, waves: 1 }],
     rubber: ['Rubber', { metal: 0, rough: 0.6, coat: 0, glass: 0, glow: 0, spec: 0.25, sheen: 1 }],
   };
   E.defaultMat = (color = '#3f7fe0', preset = 'plastic') => ({ preset, color, ...E.MATERIALS[preset][1], ...(E.MATERIALS[preset][1].color ? {} : { color }), opacity: 1, faces: {} });
@@ -43,6 +44,26 @@
     stage: ['Stage', { form: 'round', w: 6, d: 4, h: 0.4, corner: 0.3, edge: 0.06, steps: 1, stepIn: 0.5 }],
   };
   E.STAGE_FORMS = { round: 'Round', oval: 'Oval', square: 'Square', rect: 'Rectangle', hex: 'Hexagon', oct: 'Octagon' };
+  // Objects: made of named parts (each part is a face with its own colour, picture or pattern). [name, defaults, fields]
+  // fields: [key, label, min, max, step] for numbers, or [key, label, { value: name }] for a choice.
+  Object.assign(E.SHAPES, {
+    palm: ['Palm tree', { h: 7, lean: 0.3, leaves: 8, nuts: 3 }, [['h', 'Height', 2, 30, 0.5], ['lean', 'Lean', 0, 1, 0.05], ['leaves', 'Leaves', 3, 14, 1], ['nuts', 'Coconuts', 0, 8, 1]]],
+    table: ['Table', { top: 'round', base: 'pedestal', w: 4, d: 2.6, h: 3, thick: 0.15 }, [['top', 'Top', { round: 'Round', square: 'Square', rect: 'Rectangle' }], ['base', 'Legs', { pedestal: 'One leg, feet to 4 sides', legs: '4 legs' }], ['w', 'Width', 1, 20, 0.1], ['d', 'Depth (rectangle)', 0.5, 20, 0.1], ['h', 'Height', 0.5, 10, 0.1], ['thick', 'Top thickness', 0.03, 1, 0.01]]],
+    monitor: ['Computer monitor', { size: 24 }, [['size', 'Size (inches)', 10, 60, 1]]],
+    tv: ['Flat TV', { size: 43 }, [['size', 'Size (inches)', 19, 100, 1]]],
+    crt: ['CRT TV', { size: 20 }, [['size', 'Size (inches)', 9, 36, 1]]],
+    boat: ['Test boat', { size: 1 }, [['size', 'Size', 0.2, 5, 0.1]]],
+  });
+  // the parts' own colours to start with (the object's Colour is used for any part without one)
+  E.PART_COLOURS = {
+    palm: { trunk: { type: 'solid', color: '#8a5a33' }, leaves: { type: 'solid', color: '#2f9e44' }, coconuts: { type: 'solid', color: '#5c3b1e' } },
+    table: { top: { type: 'solid', color: '#b07a4a' }, legs: { type: 'solid', color: '#3b3b3b' } },
+    monitor: { body: { type: 'solid', color: '#22252b' }, screen: { type: 'solid', color: '#0b0e13' } },
+    tv: { body: { type: 'solid', color: '#16181c' }, screen: { type: 'solid', color: '#0b0e13' } },
+    crt: { body: { type: 'solid', color: '#d9d4c7' }, screen: { type: 'solid', color: '#1d2a24' } },
+    boat: { hull: { type: 'solid', color: '#1971c2' }, cabin: { type: 'solid', color: '#f8f9fa' }, windows: { type: 'solid', color: '#1b2430' }, chimney: { type: 'solid', color: '#e03131' } },
+  };
+  E.isObjectShape = (type) => !!(E.SHAPES[type] && E.SHAPES[type][2]);
 
   // ------------------------------------------------------------------ three.js setup
   let renderer, scene, root, ground, grid, keyLight, fillLight, envTex, pmrem, tc, orbit;
@@ -295,6 +316,131 @@
     parts.forEach((g) => g.dispose());
     return out;
   }
+  // ------------------------------------------------------------------ objects made of parts
+  const BGU = () => T.BufferGeometryUtils;
+  // place a geometry: move, turn (radians) and size it
+  const put = (g, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) => g.applyMatrix4(new T.Matrix4().compose(new T.Vector3(x, y, z), new T.Quaternion().setFromEuler(new T.Euler(rx, ry, rz)), new T.Vector3(sx, sy, sz)));
+  // parts: [[name, [geometries]], …] → one geometry with a group per part, and the part names (the faces)
+  function partsGeo(parts) {
+    const names = [], merged = [];
+    parts.forEach(([name, geos]) => {
+      const list = geos.filter(Boolean).map((g) => {
+        const n = g.index ? g.toNonIndexed() : g, out = new T.BufferGeometry();
+        if (!n.attributes.normal) n.computeVertexNormals();
+        out.setAttribute('position', n.attributes.position); out.setAttribute('normal', n.attributes.normal);
+        out.setAttribute('uv', n.attributes.uv || new T.Float32BufferAttribute(new Float32Array(n.attributes.position.count * 2), 2));
+        return out;
+      });
+      if (list.length) { names.push(name); merged.push(BGU().mergeGeometries(list, false)); }
+    });
+    const geo = BGU().mergeGeometries(merged, true); geo.center();
+    return [geo, names];
+  }
+  const rnd2 = (i, k) => { let h = (i + 1) * 2654435761 + k * 40503; h = (h ^ (h >>> 15)) * 2246822519; return ((h ^ (h >>> 13)) >>> 0) / 4294967296; };
+  // a flat leaf along a path: both sides, a fold down the middle, saw-tooth edges like a palm frond
+  function frond(pts, width) {
+    const pos = [], nor = [], uv = [], n = pts.length;
+    const up = new T.Vector3(0, 1, 0);
+    const rows = pts.map((c, i) => {
+      const t = pts[Math.min(n - 1, i + 1)].clone().sub(pts[Math.max(0, i - 1)]).normalize(), side = new T.Vector3().crossVectors(t, up).normalize();
+      const s = i / (n - 1), w = width * Math.sin(Math.PI * Math.min(1, s * 1.15)) * (0.7 + 0.3 * Math.abs(Math.sin(s * Math.PI * 16)));
+      const drop = new T.Vector3(0, -w * 0.3, 0);
+      return [c.clone().addScaledVector(side, -w).add(drop), c.clone(), c.clone().addScaledVector(side, w).add(drop)];
+    });
+    const tri = (a, b, c) => { const nn = new T.Vector3().subVectors(b, a).cross(new T.Vector3().subVectors(c, a)).normalize(); [a, b, c].forEach((p) => { pos.push(p.x, p.y, p.z); nor.push(nn.x, nn.y, nn.z); uv.push(0, 0); }); };
+    for (let i = 0; i < n - 1; i++) for (let j = 0; j < 2; j++) {
+      const a = rows[i][j], b = rows[i][j + 1], c = rows[i + 1][j], d = rows[i + 1][j + 1];
+      tri(a, c, b); tri(b, c, d); tri(a, b, c); tri(b, d, c); // both sides
+    }
+    const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new T.Float32BufferAttribute(nor, 3)); g.setAttribute('uv', new T.Float32BufferAttribute(uv, 2));
+    return g;
+  }
+  function palmGeo(p) {
+    const H = p.h || 7, lean = p.lean ?? 0.3, segs = 16, trunk = [], leaves = [], nuts = [];
+    const at = (t) => new T.Vector3(lean * H * 0.35 * t * t, H * t, 0);
+    for (let i = 0; i < segs; i++) {
+      const t0 = i / segs, t1 = (i + 1) / segs, a = at(t0), b = at(t1), len = a.distanceTo(b), r0 = 0.06 * H * (1 - 0.45 * t0), r1 = 0.06 * H * (1 - 0.45 * t1);
+      // each ring a little wider at its bottom, like a palm's bark
+      const g = new T.CylinderGeometry(r1 * 0.92, r0 * 1.06, len * 1.04, 12, 1);
+      const q = new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 1, 0), b.clone().sub(a).normalize()), mid = a.clone().add(b).multiplyScalar(0.5);
+      g.applyMatrix4(new T.Matrix4().compose(mid, q, new T.Vector3(1, 1, 1))); trunk.push(g);
+    }
+    const top = at(1), L = H * 0.5, n = Math.max(3, p.leaves | 0 || 8);
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2 + rnd2(k, 1) * 0.4, dir = new T.Vector3(Math.cos(a), 0, Math.sin(a)), len = L * (0.8 + 0.35 * rnd2(k, 2)), rise = 0.3 + 0.25 * rnd2(k, 3);
+      const pts = Array.from({ length: 22 }, (_, i) => { const s = i / 21; return top.clone().addScaledVector(dir, len * s).add(new T.Vector3(0, len * (rise * s - 0.85 * s * s), 0)); });
+      leaves.push(frond(pts, len * 0.13));
+    }
+    for (let k = 0; k < (p.nuts | 0); k++) { const a = (k / Math.max(1, p.nuts)) * Math.PI * 2 + 0.5; nuts.push(put(new T.SphereGeometry(H * 0.032, 14, 10), top.x + Math.cos(a) * H * 0.045, top.y - H * 0.04, top.z + Math.sin(a) * H * 0.045)); }
+    return partsGeo([['trunk', trunk], ['leaves', leaves], ['coconuts', nuts]]);
+  }
+  function tableGeo(p) {
+    const w = p.w || 4, d = p.top === 'rect' ? p.d || w * 0.65 : w, h = p.h || 3, th = Math.min(p.thick || 0.15, h * 0.5), legs = [];
+    const top = p.top === 'round' ? new T.CylinderGeometry(w / 2, w / 2, th, 64) : new T.RoundedBoxGeometry(w, th, d, 2, Math.min(0.04, th / 3));
+    put(top, 0, h - th / 2, 0);
+    if (p.base === 'legs') {
+      const lw = Math.max(0.08, Math.min(w, d) * 0.05), inset = lw * 1.3;
+      const spots = p.top === 'round' ? [45, 135, 225, 315].map((deg) => { const r = w / 2 * 0.72; return [Math.cos(deg * Math.PI / 180) * r, Math.sin(deg * Math.PI / 180) * r]; }) : [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sz]) => [sx * (w / 2 - inset), sz * (d / 2 - inset)]);
+      spots.forEach(([x, z]) => legs.push(put(new T.BoxGeometry(lw, h - th, lw), x, (h - th) / 2, z)));
+    } else {
+      // one leg in the middle with feet out to the four sides
+      const col = Math.max(0.08, Math.min(w, d) * 0.045), foot = 0.12;
+      legs.push(put(new T.CylinderGeometry(col, col * 1.25, h - th, 24), 0, (h - th) / 2, 0));
+      [[w / 2 * 0.72, 0], [0, d / 2 * 0.72]].forEach(([lx, lz], i) => {
+        const len = Math.max(lx, lz) * 2;
+        legs.push(put(new T.BoxGeometry(i ? col * 1.6 : len, foot, i ? len : col * 1.6), 0, foot / 2, 0));
+      });
+      legs.push(put(new T.CylinderGeometry(col * 2.2, col * 2.2, foot * 1.2, 24), 0, foot * 0.6, 0));
+    }
+    return partsGeo([['top', [top]], ['legs', legs]]);
+  }
+  // a flat screen (monitor or TV): thin body with a narrow edge round the screen; the screen is its own part
+  function flatScreenGeo(W, H, depth, bezel, standH, kind) {
+    const body = [], screen = new T.PlaneGeometry(W, H);
+    const cy = standH + (H + bezel * 2) / 2;
+    body.push(put(new T.RoundedBoxGeometry(W + bezel * 2, H + bezel * 2, depth, 2, Math.min(0.03, depth / 3)), 0, cy, 0));
+    put(screen, 0, cy, depth / 2 + 0.003);
+    if (kind === 'monitor') {
+      body.push(put(new T.BoxGeometry(W * 0.08, standH + H * 0.3, 0.08), 0, (standH + H * 0.3) / 2, -depth / 2 - 0.05));
+      body.push(put(new T.RoundedBoxGeometry(W * 0.4, 0.05, W * 0.24, 2, 0.02), 0, 0.025, -depth / 2 - 0.05));
+    } else {
+      [-1, 1].forEach((sx) => body.push(put(new T.BoxGeometry(W * 0.03, standH + 0.1, W * 0.12), sx * W * 0.38, (standH + 0.1) / 2, 0)));
+    }
+    return partsGeo([['body', body], ['screen', [screen]]]);
+  }
+  function crtGeo(p) {
+    const W = (p.size || 20) * 0.16, H = W * 0.75, fw = W * 1.22, fh = H * 1.32, D = W * 1.05, body = [];
+    body.push(put(new T.RoundedBoxGeometry(fw, fh, D * 0.32, 3, Math.min(0.12, fw * 0.03)), 0, fh / 2, D / 2 - D * 0.16));
+    // the back tapers in, like the tube inside
+    const back = new T.BoxGeometry(fw * 0.96, fh * 0.94, D * 0.7, 1, 1, 1), bp = back.attributes.position;
+    for (let i = 0; i < bp.count; i++) if (bp.getZ(i) < 0) { bp.setX(i, bp.getX(i) * 0.55); bp.setY(i, bp.getY(i) * 0.6); }
+    back.computeVertexNormals(); body.push(put(back, 0, fh / 2 * 0.98, D / 2 - D * 0.32 - D * 0.35));
+    // two knobs under the screen
+    [0, 1].forEach((i) => body.push(put(new T.CylinderGeometry(fw * 0.025, fw * 0.025, 0.06, 16), fw * (0.3 + i * 0.08), fh * 0.09, D / 2 + 0.02, Math.PI / 2)));
+    // the glass bulges out a little
+    const sc = new T.PlaneGeometry(W, H, 16, 12), sp = sc.attributes.position;
+    for (let i = 0; i < sp.count; i++) { const x = sp.getX(i) / (W / 2), y = sp.getY(i) / (H / 2); sp.setZ(i, (1 - x * x * 0.6) * (1 - y * y * 0.6) * W * 0.03); }
+    sc.computeVertexNormals(); put(sc, 0, fh * 0.55, D / 2 + 0.005);
+    return partsGeo([['body', body], ['screen', [sc]]]);
+  }
+  // an original little test boat (a tug): hull, cabin with windows, roof and a chimney
+  function boatGeo(p) {
+    const k = p.size || 1, L = 2.6 * k, B = 1.1 * k, hullH = 0.5 * k;
+    const sh = new T.Shape(); sh.moveTo(-L / 2, -B / 2); sh.lineTo(L * 0.12, -B / 2); sh.quadraticCurveTo(L / 2, -B * 0.32, L / 2, 0); sh.quadraticCurveTo(L / 2, B * 0.32, L * 0.12, B / 2); sh.lineTo(-L / 2, B / 2); sh.closePath();
+    const hull = new T.ExtrudeGeometry(sh, { depth: hullH, bevelEnabled: true, bevelThickness: 0.04 * k, bevelSize: 0.04 * k, bevelSegments: 3, curveSegments: 24 });
+    hull.rotateX(-Math.PI / 2);
+    // narrower at the waterline than at the deck
+    const hp = hull.attributes.position; for (let i = 0; i < hp.count; i++) { const t = Math.max(0, Math.min(1, hp.getY(i) / hullH)); hp.setZ(i, hp.getZ(i) * (0.72 + 0.28 * t)); hp.setX(i, hp.getX(i) * (0.92 + 0.08 * t)); }
+    hull.computeVertexNormals();
+    const cabin = [put(new T.RoundedBoxGeometry(0.9 * k, 0.55 * k, 0.78 * B, 2, 0.04 * k), -0.12 * k, hullH + 0.3 * k, 0), put(new T.RoundedBoxGeometry(1.08 * k, 0.07 * k, 0.92 * B, 2, 0.02 * k), -0.12 * k, hullH + 0.6 * k, 0), put(new T.RoundedBoxGeometry(0.5 * k, 0.36 * k, 0.6 * B, 2, 0.03 * k), -0.25 * k, hullH + 0.82 * k, 0), put(new T.RoundedBoxGeometry(0.62 * k, 0.05 * k, 0.7 * B, 2, 0.015 * k), -0.25 * k, hullH + 1.02 * k, 0)];
+    const windows = [];
+    [-1, 1].forEach((sz) => [-0.4, -0.1, 0.18].forEach((x) => windows.push(put(new T.CylinderGeometry(0.07 * k, 0.07 * k, 0.02 * k, 20), x * k, hullH + 0.33 * k, sz * 0.39 * B + sz * 0.005, Math.PI / 2))));
+    windows.push(put(new T.BoxGeometry(0.02 * k, 0.16 * k, 0.42 * B), 0.34 * k, hullH + 0.36 * k, 0), put(new T.BoxGeometry(0.02 * k, 0.14 * k, 0.4 * B), 0.01 * k, hullH + 0.86 * k, 0));
+    const chimney = [put(new T.CylinderGeometry(0.09 * k, 0.11 * k, 0.5 * k, 20), -0.55 * k, hullH + 0.85 * k, 0, 0, 0, 0.15)];
+    return partsGeo([['hull', [hull]], ['cabin', cabin], ['windows', windows], ['chimney', chimney]]);
+  }
+  E.shapeSize = (s) => { const [g] = shapeGeo(s); g.computeBoundingBox(); const v = g.boundingBox.getSize(new T.Vector3()); g.dispose(); return v; };
+
   function shapeGeo(s) {
     const p = { ...E.SHAPES[s.type][1], ...s };
     switch (s.type) {
@@ -309,6 +455,12 @@
       case 'capsule': return [new T.CapsuleGeometry(p.r, p.h, 12, 32), null];
       case 'plane': { const g = new T.PlaneGeometry(p.w, p.h); return [g, null]; }
       case 'stage': return [stageGeo(p), SLOTS.stage];
+      case 'palm': return palmGeo(p);
+      case 'table': return tableGeo(p);
+      case 'monitor': { const W = (p.size || 24) * 0.133; return flatScreenGeo(W, W * 9 / 16, 0.1, 0.05, W * 9 / 16 * 0.3, 'monitor'); }
+      case 'tv': { const W = (p.size || 43) * 0.117; return flatScreenGeo(W, W * 9 / 16, 0.16, 0.04, 0.25, 'tv'); }
+      case 'crt': return crtGeo(p);
+      case 'boat': return boatGeo(p);
       case 'washer': { const sh = new T.Shape().absarc(0, 0, p.r, 0, Math.PI * 2, false); sh.holes.push(new T.Path().absarc(0, 0, Math.min(p.hole, p.r - 0.05), 0, Math.PI * 2, true)); return [extrudeShapes([sh], p.d, 0, 64), SLOTS.extrude]; }
       case 'star': { const sh = new T.Shape(), n = Math.max(3, p.points | 0); for (let i = 0; i < n * 2; i++) { const a = (i * Math.PI) / n + Math.PI / 2, r = i % 2 ? p.r * p.inner : p.r; i ? sh.lineTo(Math.cos(a) * r, Math.sin(a) * r) : sh.moveTo(Math.cos(a) * r, Math.sin(a) * r); } return [extrudeShapes([sh], p.d, p.d * 0.1), SLOTS.extrude]; }
       case 'heart': { const k = p.r / 1.2, sh = new T.Shape(); sh.moveTo(0, -1.1 * k); sh.bezierCurveTo(-0.3 * k, -0.75 * k, -1.2 * k, -0.25 * k, -1.2 * k, 0.35 * k); sh.bezierCurveTo(-1.2 * k, 0.95 * k, -0.45 * k, 1.15 * k, 0, 0.6 * k); sh.bezierCurveTo(0.45 * k, 1.15 * k, 1.2 * k, 0.95 * k, 1.2 * k, 0.35 * k); sh.bezierCurveTo(1.2 * k, -0.25 * k, 0.3 * k, -0.75 * k, 0, -1.1 * k); return [extrudeShapes([sh], p.d, p.d * 0.1, 24), SLOTS.extrude]; }
@@ -505,28 +657,51 @@
 
   // ------------------------------------------------------------------ materials
   const texCache = new Map();
-  function faceTexture(f) {
+  function faceTexture(f, slot) {
     if (!f || f.type === 'none' || f.type === 'solid') return null;
+    // a picture on a screen fills the whole screen (the square texture is stretched back to the screen's shape)
+    if (slot === 'screen' && f.type === 'picture') f = { ...f, fit: 'stretch' };
     const key = JSON.stringify(f); if (texCache.has(key)) return texCache.get(key);
-    const tex = new T.CanvasTexture(document.createElement('canvas')); tex.colorSpace = T.SRGBColorSpace; tex.anisotropy = 8;
+    // the stand-in is the size of the finished picture: a picture loads a moment later, and the card keeps a texture's first size
+    const blank = document.createElement('canvas'); blank.width = blank.height = 1024;
+    const tex = new T.CanvasTexture(blank); tex.colorSpace = T.SRGBColorSpace; tex.anisotropy = 8;
     const draw = (img) => { tex.image = window.paintCanvas ? window.paintCanvas(1024, 1024, f, img, 1024 / 40) : document.createElement('canvas'); tex.needsUpdate = true; needs = true; };
     if (f.type === 'picture' && f.src) { const i = new Image(); i.onload = () => draw(i); i.src = f.src; } else draw(null);
     if (f.type === 'pattern' || f.fit === 'tile') { tex.wrapS = tex.wrapT = T.RepeatWrapping; }
     texCache.set(key, tex); return tex;
   }
-  function material(m, face) {
+  // Ripples for water: a tiling normal map made from a few crossing waves
+  let waveTex = null;
+  function waveTexture() {
+    if (waveTex) return waveTex;
+    const N = 256, c = document.createElement('canvas'); c.width = c.height = N; const x = c.getContext('2d'), img = x.createImageData(N, N);
+    const waves = [[3, 1, 0.0, 1], [1, 4, 1.3, 0.8], [5, -2, 2.1, 0.5], [-2, 7, 0.7, 0.35], [9, 3, 2.9, 0.25], [-6, -8, 1.7, 0.2]];
+    const hgt = (u, v) => waves.reduce((sum, [fx, fy, ph, a]) => sum + a * Math.sin((fx * u + fy * v) * Math.PI * 2 / N + ph), 0);
+    for (let v = 0; v < N; v++) for (let u = 0; u < N; u++) {
+      const dx = hgt(u + 1, v) - hgt(u - 1, v), dy = hgt(u, v + 1) - hgt(u, v - 1), n = new T.Vector3(-dx * 3, -dy * 3, 1).normalize(), o = (v * N + u) * 4;
+      img.data[o] = (n.x * 0.5 + 0.5) * 255; img.data[o + 1] = (n.y * 0.5 + 0.5) * 255; img.data[o + 2] = (n.z * 0.5 + 0.5) * 255; img.data[o + 3] = 255;
+    }
+    x.putImageData(img, 0, 0);
+    waveTex = new T.CanvasTexture(c); waveTex.wrapS = waveTex.wrapT = T.RepeatWrapping; waveTex.repeat.set(3, 3);
+    return waveTex;
+  }
+  function material(m, face, slot) {
     const glass = m.glass || 0;
     const mat = new T.MeshPhysicalMaterial({
       color: new T.Color(m.color || '#cccccc'), metalness: m.metal ?? 0, roughness: m.rough ?? 0.4, clearcoat: m.coat || 0, clearcoatRoughness: 0.1,
-      transmission: glass, thickness: glass ? 1 : 0, ior: 1.5, transparent: (m.opacity ?? 1) < 1, opacity: m.opacity ?? 1,
+      transmission: glass, thickness: glass ? 1 : 0, ior: m.ior ?? 1.5, transparent: (m.opacity ?? 1) < 1, opacity: m.opacity ?? 1,
       emissive: m.glow ? new T.Color(m.color || '#ffffff') : new T.Color(0), emissiveIntensity: m.glow || 0,
       specularIntensity: m.spec ?? 1, sheen: m.sheen || 0, sheenRoughness: 0.45, sheenColor: new T.Color(0.35, 0.35, 0.35),
     });
     // metals live on reflections; paint and plastic only need a little
     mat.envMap = envTex; mat.userData.reflect = (m.metal ?? 0) > 0.5 ? 1.5 : 0.6; mat.envMapIntensity = mat.userData.reflect * (E.doc ? E.doc.scene.reflect ?? 1 : 1);
     if (face && face.type === 'solid') mat.color.set(face.color || m.color);
-    const tex = faceTexture(face);
+    const tex = faceTexture(face, slot);
     if (tex) { mat.map = tex; mat.color.set('#ffffff'); if (m.glow) mat.emissiveMap = tex, mat.emissive.set('#ffffff'); }
+    // water: little ripples (a normal map that drifts when the animation plays) and a blue tint deeper in
+    if (m.waves) { mat.normalMap = waveTexture(); mat.normalScale.set(0.45, 0.45); mat.attenuationColor = new T.Color(m.color || '#3d8fd1'); mat.attenuationDistance = 2.5; mat.color.lerp(new T.Color('#ffffff'), 0.55); }
+    // a screen: glossy glass, and a picture on it lights up like a real screen
+    if (slot === 'screen') { mat.roughness = 0.12; mat.metalness = 0; mat.clearcoat = 1; mat.transmission = 0; if (tex) { mat.emissiveMap = tex; mat.emissive.set('#ffffff'); mat.emissiveIntensity = 0.8; } }
     return mat;
   }
   // A picture of a ball in a material (for the material buttons): drawn with the main renderer in a corner of its
@@ -561,7 +736,7 @@
   function materialsFor(m, slots) {
     const faces = m.faces || {};
     if (!slots) return material(m, faces.all);
-    return slots.map((sl) => material(m, faces[sl] || faces.all));
+    return slots.map((sl) => material(m, faces[sl] || faces.all, sl));
   }
   E.slotsFor = (m) => (m.kind === 'shape' ? (shapeGeo(m.shape)[1] ? [...new Set(shapeGeo(m.shape)[1])] : []) : m.kind === 'text' || m.kind === 'trace' ? ['front', 'back', 'sides'] : []);
 
@@ -996,6 +1171,7 @@
     const a = E.anim(); if (!a) return;
     E.time = Math.max(0, Math.min(a.length, t));
     const tt = E.time;
+    if (waveTex) { waveTex.offset.set(tt * 0.035, tt * 0.022); }
     E.doc.objects.forEach((m) => {
       const o = built.get(m.id); if (!o) return;
       const tr = a.tracks[m.id];

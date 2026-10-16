@@ -65,9 +65,15 @@
     changed();
     return m;
   }
-  function addShape(type) {
+  function addShape(type, patch, name) {
     if (!E.doc) return;
-    const s = { type, ...E.SHAPES[type][1] };
+    const s = { type, ...E.SHAPES[type][1], ...(patch || {}) };
+    if (E.isObjectShape(type)) {
+      // objects stand on the floor at their real height, with each part in its own colour
+      const size = E.shapeSize(s), m = { kind: 'shape', name: name || E.SHAPES[type][0], shape: s, mat: { ...E.defaultMat('#9aa1ab', 'plastic'), faces: JSON.parse(JSON.stringify(E.PART_COLOURS[type] || {})) } };
+      standOnGround(m, size.y);
+      return addObject(m);
+    }
     const h = type === 'stage' ? s.h * s.steps : type === 'sphere' ? s.r * 2 : type === 'torus' ? s.r * 2 + s.tube * 2 : ['star', 'heart', 'washer'].includes(type) ? s.r * 2 : type === 'plane' ? s.h : type === 'capsule' ? s.h + s.r * 2 : s.h || 2;
     const m = { kind: 'shape', name: E.SHAPES[type][0], shape: s };
     standOnGround(m, h);
@@ -183,9 +189,14 @@
     stage: '<ellipse cx="12" cy="13" rx="9" ry="3.2"/><path d="M3 13v3c0 1.8 4 3.2 9 3.2s9-1.4 9-3.2v-3"/><path d="M9 11V6l3-2 3 2v5" opacity=".6"/>',
   };
   const ICON = (inner) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
-  $('addgrid').innerHTML = '<h4>Shapes</h4>' + Object.entries(E.SHAPES).map(([k, [n]]) => `<button type="button" data-add="${k}" title="Add a ${n.toLowerCase()}">${ICON(SH_ICON[k])}${n}</button>`).join('')
+  // ready-made objects: [label, shape type, settings]
+  const OBJECTS = [['Palm tree', 'palm', {}, 'palm'], ['Round table', 'table', { top: 'round', base: 'pedestal' }, 'table'], ['Square table', 'table', { top: 'square', base: 'legs' }, 'table4'], ['Long table', 'table', { top: 'rect', base: 'legs', w: 6, d: 3 }, 'table4'],
+    ['Computer monitor', 'monitor', {}, 'monitor'], ['TV (43 inch)', 'tv', { size: 43 }, 'tv'], ['TV (65 inch)', 'tv', { size: 65 }, 'tv'], ['CRT TV', 'crt', {}, 'crt'], ['Test boat', 'boat', {}, 'boat']];
+  const OBJ_ICON = {"palm": "<path d=\"M12 21c0-5 1-9 2-12\"/><path d=\"M14 9c-3-3-7-3-9-1M14 9c3-3 7-2 8 0M14 9c-1-3-4-5-6-5M14 9c1-3 4-4 6-3\" class=\"hue\"/>", "table": "<ellipse cx=\"12\" cy=\"8\" rx=\"9\" ry=\"2.5\"/><path d=\"M12 10.5V19M7 20l5-1.5 5 1.5\"/>", "table4": "<rect x=\"3\" y=\"6\" width=\"18\" height=\"3\" rx=\"1\"/><path d=\"M5 9v11M19 9v11M8 9v8M16 9v8\" opacity=\".8\"/>", "monitor": "<rect x=\"3\" y=\"4\" width=\"18\" height=\"12\" rx=\"1.5\"/><path d=\"M12 16v3M8 20h8\"/>", "tv": "<rect x=\"2\" y=\"5\" width=\"20\" height=\"12\" rx=\"1\"/><path d=\"M6 17l-1 3M18 17l1 3\"/>", "crt": "<rect x=\"3\" y=\"5\" width=\"16\" height=\"13\" rx=\"2\"/><rect x=\"5\" y=\"7\" width=\"10\" height=\"8\" rx=\"2\"/><path d=\"M17 9v1M17 12v1\"/><path d=\"M19 8l2 2v6l-2 1\" opacity=\".6\"/>", "boat": "<path d=\"M3 15h18l-3 4H6z\"/><rect x=\"8\" y=\"10\" width=\"7\" height=\"5\"/><path d=\"M9 10V7h4v3M15 7v3\" opacity=\".7\"/>"};
+  $('addgrid').innerHTML = '<h4>Shapes</h4>' + Object.entries(E.SHAPES).filter(([k]) => !E.isObjectShape(k)).map(([k, [n]]) => `<button type="button" data-add="${k}" title="Add a ${n.toLowerCase()}">${ICON(SH_ICON[k])}${n}</button>`).join('')
+    + '<h4>Objects</h4>' + OBJECTS.map(([n, , , ic], i) => `<button type="button" data-obj="${i}" title="Add a ${n.toLowerCase()}">${ICON(OBJ_ICON[ic])}${n}</button>`).join('')
     + `<h4>Words and pictures</h4><button type="button" data-add="text">${ICON('<path d="M5 6V4h14v2M12 4v16M9 20h6"/>')}3D text</button><button type="button" data-add="trace">${ICON('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6"/><circle cx="16" cy="9" r="2"/>')}Picture to 3D</button><button type="button" data-add="model">${ICON('<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" opacity=".6"/>')}3D file…</button>`;
-  $('addgrid').onclick = (e) => { const b = e.target.closest('[data-add]'); if (!b) return; const k = b.dataset.add; if (k === 'text') addText(); else if (k === 'trace') openTrace(); else if (k === 'model') $('model-input').click(); else addShape(k); };
+  $('addgrid').onclick = (e) => { const ob = e.target.closest('[data-obj]'); if (ob) { const [n, t, patch] = OBJECTS[+ob.dataset.obj]; addShape(t, patch, n); return; } const b = e.target.closest('[data-add]'); if (!b) return; const k = b.dataset.add; if (k === 'text') addText(); else if (k === 'trace') openTrace(); else if (k === 'model') $('model-input').click(); else addShape(k); };
   $('model-input').onchange = (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) importModel(f); };
   CraftSymbols.mount($('sym-panel'), { onPick: addSymbol });
   document.querySelectorAll('.tabs .tab').forEach((t) => { t.onclick = () => showTab(t.dataset.tab); });
@@ -246,7 +257,7 @@
     // each button shows a little ball rendered in that material (in this object's colour, unless the material has its own)
     const ballFor = (k) => E.materialPreview(k, E.MATERIALS[k][1].color || mat.color);
     return { title: 'Material', items: [
-      { t: 'html', mount: (el) => { el.className = 'mat-presets'; el.innerHTML = Object.entries(E.MATERIALS).map(([k, [n]]) => `<button type="button" data-mp="${k}" title="${n}" aria-pressed="${mat.preset === k}"><img alt="" src="${ballFor(k)}"><span>${n.replace('Glossy paint', 'Gloss')}</span></button>`).join(''); el.onclick = (e) => { const b = e.target.closest('[data-mp]'); if (!b) return; const p = E.MATERIALS[b.dataset.mp][1]; set({ preset: b.dataset.mp, spec: 1, sheen: 0, ...p }); }; } },
+      { t: 'html', mount: (el) => { el.className = 'mat-presets'; el.innerHTML = Object.entries(E.MATERIALS).map(([k, [n]]) => `<button type="button" data-mp="${k}" title="${n}" aria-pressed="${mat.preset === k}"><img alt="" src="${ballFor(k)}"><span>${n.replace('Glossy paint', 'Gloss')}</span></button>`).join(''); el.onclick = (e) => { const b = e.target.closest('[data-mp]'); if (!b) return; const p = E.MATERIALS[b.dataset.mp][1]; set({ preset: b.dataset.mp, spec: 1, sheen: 0, ior: 1.5, waves: 0, ...p }); }; } },
       { t: 'row', items: [{ t: 'color', label: 'Colour', value: mat.color, on: (v, l) => (l ? live({ color: v }) : set({ color: v })) }, m.kind === 'trace' ? { t: 'check', label: "Picture's own colours", value: m.trace.ownColours !== false, on: (v) => { m.trace.ownColours = v; changed(m.id); showProps(); } } : null] },
       { t: 'range', label: 'Shine', value: Math.round((1 - (mat.rough ?? 0.4)) * 100), min: 0, max: 100, show: (v) => v + '%', on: (v) => set({ rough: 1 - v / 100 }) },
       { t: 'range', label: 'Metal', value: Math.round((mat.metal ?? 0) * 100), min: 0, max: 100, show: (v) => v + '%', on: (v) => set({ metal: v / 100 }) },
@@ -308,9 +319,14 @@
     if (m.kind === 'shape') {
       const s = m.shape, re = (patch) => { Object.assign(s, patch); changed(m.id); showProps(); };
       const num = (k, label, min = 0.05, step = 0.1) => ({ t: 'num', label, value: s[k] ?? E.SHAPES[s.type][1][k], min, step, on: (v) => re({ [k]: Math.max(min, v || min) }) });
-      const P = E.SHAPES[s.type][1];
-      sections.push({ title: 'Shape', items: [
-        { t: 'select', label: 'Shape', value: s.type, options: Object.entries(E.SHAPES).map(([k, [n]]) => [k, n]), on: (v) => { m.shape = { type: v, ...E.SHAPES[v][1] }; m.name = E.SHAPES[v][0]; changed(m.id); showProps(); } },
+      const P = E.SHAPES[s.type][1], F = E.SHAPES[s.type][2];
+      const fieldItems = (F || []).map(([k, label, a, b, step]) => (typeof a === 'object'
+        ? { t: 'select', label, value: s[k] ?? P[k], options: Object.entries(a), on: (v) => re({ [k]: v }) }
+        : { t: 'range', label, value: s[k] ?? P[k], min: a, max: b, step, on: (v) => re({ [k]: v }) }));
+      if (F) {
+        sections.push({ title: E.SHAPES[s.type][0], items: [...fieldItems, { t: 'note', html: 'Each part (' + E.slotsFor(m).join(', ') + ') can have its own colour, picture or pattern: Material › Picture or gradient on.' + (s.type === 'monitor' || s.type === 'tv' || s.type === 'crt' ? ' Put a picture on the <b>screen</b> and it lights up.' : '') }] });
+      } else sections.push({ title: 'Shape', items: [
+        { t: 'select', label: 'Shape', value: s.type, options: Object.entries(E.SHAPES).filter(([k]) => !E.isObjectShape(k)).map(([k, [n]]) => [k, n]), on: (v) => { m.shape = { type: v, ...E.SHAPES[v][1] }; m.name = E.SHAPES[v][0]; changed(m.id); showProps(); } },
         { t: 'row', items: [P.w != null ? num('w', 'Width') : null, P.h != null ? num('h', 'Height') : null, P.d != null && !(s.type === 'stage' && !['oval', 'rect'].includes(s.form)) ? num('d', 'Depth') : null] },
         { t: 'row', items: [P.r != null ? num('r', 'Radius') : null, P.tube != null ? num('tube', 'Thickness', 0.02, 0.05) : null, P.hole != null ? num('hole', 'Hole', 0.02) : null] },
         P.round != null ? { t: 'range', label: 'Corners', value: Math.round((s.round ?? 0.25) * 100), min: 1, max: 100, show: (v) => (v / 100).toFixed(2), on: (v) => re({ round: v / 100 }) } : null,
@@ -769,6 +785,7 @@
       { id: 'insert', label: 'Insert', hue: '#7048e8', groups: [
         ['Shapes', [{ col: [{ row: ['box', 'roundbox', 'sphere', 'cylinder', 'cone', 'pyramid', 'prism'].map((k) => ({ label: E.SHAPES[k][0], icon: SH_ICON[k], iconOnly: true, run: () => addShape(k) })) }, { row: ['torus', 'washer', 'capsule', 'star', 'heart', 'plane', 'stage'].map((k) => ({ label: E.SHAPES[k][0], icon: SH_ICON[k], iconOnly: true, run: () => addShape(k) })) }] }]],
         ['Words and pictures', [C('3D text', '3D text', MI.text3d, { big: true }), C('Picture to 3D', 'Picture to 3D', MI.trace, { big: true, title: 'Trace a logo or drawing into colours and pull it out into 3D' }), C('Symbol or emoji', 'Symbols & emoji', MI.star, { big: true })]],
+        ['Objects', [{ col: [{ row: OBJECTS.slice(0, 5).map(([n, t, patch, ic]) => ({ label: n, icon: OBJ_ICON[ic], iconOnly: true, run: () => addShape(t, patch, n) })) }, { row: OBJECTS.slice(5).map(([n, t, patch, ic]) => ({ label: n, icon: OBJ_ICON[ic], iconOnly: true, run: () => addShape(t, patch, n) })) }] }]],
         ['Models', [C('3D model', '3D model', MI.model, { big: true, title: 'GLB, OBJ or STL' })]],
       ] },
       { id: 'material', label: 'Material', hue: '#c2255c', groups: [
