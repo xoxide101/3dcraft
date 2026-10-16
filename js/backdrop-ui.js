@@ -153,15 +153,18 @@
     const L = BD.land(), on = L.on;
     let html = `<div class="pad bd">
       <label class="check"><input type="checkbox" id="gd-on" ${on ? 'checked' : ''}> Landscape ground (instead of the plain floor)</label>
+      <label class="check"><input type="checkbox" id="gd-terrain-on" ${L.terrainOn ? 'checked' : ''} ${on ? '' : 'disabled'}> Terrain (hills, dunes)</label>
+      <label class="check"><input type="checkbox" id="gd-candy-on" ${L.candyOn ? 'checked' : ''} ${on ? '' : 'disabled'}> Eye candy (grass, flowers, rocks, shrubs)</label>
+      <p class="hint">Terrain and eye candy add a lot of detail: lovely, but ray-traced renders take longer to get ready.</p>
       <p class="hint">The land round your scene and out to the horizon: what it is made of, its shape, and filler like grass and rocks for depth. It matches the backdrop if there is one.</p>`;
     if (on) html += `
       <h3>Ground</h3><label class="field"><span>Made of</span><select class="input" id="gd-kind">${opts(BD.GROUNDS, L.kind || 'auto')}</select></label>
       <label class="check"><input type="checkbox" id="gd-blend" ${L.blend !== false ? 'checked' : ''}> Blend into the backdrop</label>
       ${range('gd-beach', 'Beach or play area size', L.beach ?? 14, 4, 50, 1)}
-      <h3>Terrain</h3>${seg(Object.entries(BD.TERRAINS), L.terrain || 'flat', 'data-terrain')}
-      ${L.terrain && L.terrain !== 'flat' ? range('gd-relief', 'How high', L.relief ?? 1, 0.2, 3, 0.05, (v) => Math.round(v * 100) + '%') + range('gd-flat', 'Flat area round the scene', L.flat ?? 14, 4, 50, 1) : ''}
-      <h3>Filler (eye candy)</h3>
-      ${Object.entries(BD.FILLERS).map(([k, n]) => range('gd-' + k, n, L[k] || 0, 0, 3, 0.1, (v) => (+v === 0 ? 'none' : Math.round(v * 100) + '%'))).join('')}
+      ${L.terrainOn ? `<h3>Terrain</h3>${seg(Object.entries(BD.TERRAINS), L.terrain || 'flat', 'data-terrain')}` : ''}
+      ${L.terrainOn && L.terrain && L.terrain !== 'flat' ? range('gd-relief', 'How high', L.relief ?? 1, 0.2, 3, 0.05, (v) => Math.round(v * 100) + '%') + range('gd-flat', 'Flat area round the scene', L.flat ?? 14, 4, 50, 1) : ''}
+      ${L.candyOn ? `<h3>Eye candy</h3>
+      ${Object.entries(BD.FILLERS).map(([k, n]) => range('gd-' + k, n, L[k] || 0, 0, 3, 0.1, (v) => (+v === 0 ? 'none' : Math.round(v * 100) + '%'))).join('')}` : ''}
       <div class="row"><button class="btn outline" type="button" data-gd="reseed">🎲 New layout</button><button class="btn outline" type="button" data-gd="theme" ${E.doc.backdrop && E.doc.backdrop.theme ? '' : 'disabled'} title="Terrain and filler that suit the backdrop">Match the backdrop</button></div>
       <h3>Distance haze</h3>${range('gd-haze', 'Haze', L.haze || 0, 0, 1, 0.05, (v) => (+v === 0 ? 'off' : Math.round(v * 100) + '%'))}
       <p class="hint">Far things fade into the sky for depth (shows in the view, pictures and videos; not yet in ray-traced renders).</p>`;
@@ -170,6 +173,8 @@
     const on2 = (id, ev, fn) => { const el = $(id); if (el) el[ev] = fn; };
     on2('gd-on', 'onchange', (e) => { L.on = e.target.checked; changed(false); renderGround(); });
     on2('gd-kind', 'onchange', (e) => { L.kind = e.target.value; changed(false); });
+    on2('gd-terrain-on', 'onchange', (e) => { L.terrainOn = e.target.checked; changed(false); renderGround(); });
+    on2('gd-candy-on', 'onchange', (e) => { L.candyOn = e.target.checked; changed(false); renderGround(); });
     on2('gd-blend', 'onchange', (e) => { L.blend = e.target.checked; changed(false); });
     ['beach', 'relief', 'flat', 'haze', ...Object.keys(BD.FILLERS)].forEach((k) => { on2('gd-' + k, 'oninput', (e) => { const v = $('gd-' + k + '-v'); if (v) v.textContent = k === 'haze' ? (+e.target.value === 0 ? 'off' : Math.round(e.target.value * 100) + '%') : ['relief', ...Object.keys(BD.FILLERS)].includes(k) ? (+e.target.value === 0 ? 'none' : Math.round(e.target.value * 100) + '%') : e.target.value; }); on2('gd-' + k, 'onchange', (e) => { L[k] = +e.target.value; changed(false); }); });
   }
@@ -188,5 +193,8 @@
     style: (s) => { if (!E.doc) return; BD.ensure().style = s; changed(); },
     palette: (p) => { if (!E.doc) return; BD.applyPalette(p); changed(); },
     clear: () => { if (!E.doc) return; delete E.doc.backdrop; cur = null; changed(); },
+    // quick switches for the ribbon
+    toggleLand: (k) => { if (!E.doc) return; const L = BD.land(); if (k === 'on') L.on = !L.on; else { L.on = true; L[k] = !L[k]; } changed(false); },
+    landIs: (k) => { const L = E.doc && BD.land(); return !!(L && L.on && (k === 'on' || L[k])); },
   };
 })();

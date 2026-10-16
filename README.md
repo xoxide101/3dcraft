@@ -61,7 +61,7 @@ Scenery in layers behind your scene, like the flats of a stage or the layers of 
 
 ### Ground
 
-The land round your scene and out to the horizon (the **Ground** tab, separate from the Backdrop and the Scene): turn the landscape ground on or off (the backdrop stays as it is); what it is made of (automatic from the backdrop, or grass, flowers, forest floor, sand, beach and water, paving, play surface, neon grid, rock); **terrain** (flat, gentle rolling, hills or dunes, with height and how big a flat area stays round the scene); **filler** for depth: grass fuzz, flowers, rocks, pebbles and shrubs, thinning out towards the scene, with a new layout at a click or **Match the backdrop**; and **distance haze** so far things fade into the sky. Choosing a backdrop sets up land that suits it.
+The land round your scene and out to the horizon (the **Ground** tab, separate from the Backdrop and the Scene, with quick switches on the Backdrop ribbon tab: **Landscape ground**, **Terrain** and **Eye candy**; terrain and eye candy start off, so scenes stay light and quick to render): turn the landscape ground on or off (the backdrop stays as it is); what it is made of (automatic from the backdrop, or grass, flowers, forest floor, sand, beach and water, paving, play surface, neon grid, rock); **terrain** (flat, gentle rolling, hills or dunes, with height and how big a flat area stays round the scene); **filler** for depth: grass fuzz, flowers, rocks, pebbles and shrubs, thinning out towards the scene, with a new layout at a click or **Match the backdrop**; and **distance haze** so far things fade into the sky. Choosing a backdrop sets up land that suits it.
 
 ### Scene
 

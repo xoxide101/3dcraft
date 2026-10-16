@@ -531,14 +531,18 @@
   BD.FILLERS = { grass: 'Grass (fuzz)', flowers: 'Flowers', rocks: 'Rocks (rockscape)', pebbles: 'Pebbles', shrubs: 'Shrubs' };
   BD.land = function () {
     if (!E.doc) return null;
-    if (!E.doc.land) { const bd = E.doc.backdrop; E.doc.land = { on: !!(bd && bd.on && bd.groundOn !== false), kind: (bd && bd.groundKind) || 'auto', blend: !(bd && bd.blend === false), beach: (bd && bd.beach) ?? 14, terrain: 'flat', relief: 1, flat: 14, grass: 0, flowers: 0, rocks: 0, pebbles: 0, shrubs: 0, haze: 0, seed: 7 }; }
-    return E.doc.land;
+    if (!E.doc.land) { const bd = E.doc.backdrop; E.doc.land = { on: !!(bd && bd.on && bd.groundOn !== false), kind: (bd && bd.groundKind) || 'auto', blend: !(bd && bd.blend === false), beach: (bd && bd.beach) ?? 14, terrain: 'flat', relief: 1, flat: 14, grass: 0, flowers: 0, rocks: 0, pebbles: 0, shrubs: 0, haze: 0, seed: 7, terrainOn: false, candyOn: false }; }
+    const L = E.doc.land;
+    // scenes saved before the switches existed keep what they had
+    if (L.terrainOn === undefined) L.terrainOn = !!(L.terrain && L.terrain !== 'flat');
+    if (L.candyOn === undefined) L.candyOn = Object.keys(BD.FILLERS).some((k) => (L[k] || 0) > 0);
+    return L;
   };
   // a sensible start for the land that suits a backdrop theme
   const THEME_LAND = { countryside: { terrain: 'rolling', grass: 1.5, flowers: 0.5, rocks: 0.4, shrubs: 0.6 }, meadow: { terrain: 'rolling', grass: 2, flowers: 1.5, shrubs: 0.4 }, rainbow: { terrain: 'rolling', grass: 1.5, flowers: 2 }, balloons: { terrain: 'rolling', grass: 1.2, flowers: 0.6 },
     pineforest: { terrain: 'hills', grass: 1, rocks: 0.8, shrubs: 1, pebbles: 0.5 }, woodland: { terrain: 'rolling', grass: 1.2, rocks: 0.4, shrubs: 1.2 }, rainforest: { terrain: 'rolling', grass: 2.5, shrubs: 2 },
     desert: { terrain: 'dunes', rocks: 0.8, pebbles: 1 }, space: { terrain: 'hills', rocks: 1.5, pebbles: 1.5 }, seaside: { rocks: 0.5, pebbles: 1 }, islands: { pebbles: 0.8 }, playground: { terrain: 'flat', grass: 1.2, flowers: 0.4 }, city: {}, nightcity: {}, computer: {} };
-  BD.landForTheme = (theme) => { const L = BD.land(); Object.assign(L, { on: true, terrain: 'flat', grass: 0, flowers: 0, rocks: 0, pebbles: 0, shrubs: 0 }, THEME_LAND[theme] || {}); };
+  BD.landForTheme = (theme) => { const L = BD.land(); Object.assign(L, { on: true, terrain: 'rolling', grass: 0, flowers: 0, rocks: 0, pebbles: 0, shrubs: 0 }, THEME_LAND[theme] || {}); if (L.terrain === 'flat') L.terrain = 'rolling'; };
   function groundKind(bd) {
     const land = BD.land(); if (land && land.kind && land.kind !== 'auto') return land.kind;
     if (bd.theme && THEME_GROUND[bd.theme]) return THEME_GROUND[bd.theme];
@@ -583,7 +587,7 @@
   // the height of the land at (x, z), for the chosen terrain (flat close to the scene, lower again near the backdrop)
   function landHeight(land) {
     const r = rng(land.seed || 7), relief = land.relief ?? 1, flatR = land.flat ?? 14, t = land.terrain || 'flat';
-    if (t === 'flat') return () => 0;
+    if (t === 'flat' || !land.terrainOn) return () => 0; // terrain is switched off: flat ground
     const waves2 = Array.from({ length: 6 }, (_, i) => ({ kx: (r() - 0.5) * (0.05 + i * 0.05), kz: (r() - 0.5) * (0.05 + i * 0.05), ph: r() * 6.28, a: 1 / (1 + i * 1.2) }));
     const amp = { rolling: 1.6, hills: 5, dunes: 2.4 }[t] * relief, dir = r() * Math.PI;
     return (x, z) => {
@@ -680,7 +684,7 @@
         const m = new T.Mesh(geo, new T.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false })); m.position.y = 0.002; m.renderOrder = 1; g.add(m);
       }
     }
-    buildFiller(g, land, kind, P, H);
+    if (land.candyOn) buildFiller(g, land, kind, P, H);
     g.traverse((o) => { o.userData.backdrop = true; });
     return g;
   }
