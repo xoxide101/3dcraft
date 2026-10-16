@@ -35,7 +35,7 @@ How 3DCraft is built and what to keep in mind when changing it. For what it does
 - **Material buttons** show a ball rendered in each material (`E3.materialPreview`: drawn with the main renderer in a corner of its canvas with a checked wall behind, copied to a PNG, cached). Presets also set `spec` (specular strength) and `sheen` so plastic, gloss, matte and rubber look different.
 - **Materials** get the studio reflections as their own `envMap` (metals 1.5×, everything else 0.6×) so metals shine without washing out paint; imported GLB materials use `scene.environment`.
 - **Views** are transparent `div`s over one WebGL canvas, drawn with scissor/viewport; each view's div is what OrbitControls and the TransformControls listen to, so handles work in any of the four views.
-- **Quick pictures** (`renderImage`) and **ray-traced renders** (`pathRender`) use the main renderer at the asked size and then put it back. Ray-traced renders give the path tracer the studio room as a cube map, a "matte" shadow catcher when there is no floor (the floor catches shadows otherwise), and pause the editor (`E3.busy`).
+- **Quick pictures** (`renderImage`) and **ray-traced renders** (`pathRender`) use the main renderer at the asked size and then put it back. Ray-traced renders split every object that has a material per face into one mesh per face first (sharing the same points), because three-gpu-pathtracer numbers materials one per object and otherwise gave the wrong colours to everything after the first such object; they are put back when the render ends. Ray-traced renders also give the path tracer the studio room as a cube map, a "matte" shadow catcher when there is no floor (the floor catches shadows otherwise), and pause the editor (`E3.busy`).
 
 ## Testing
 

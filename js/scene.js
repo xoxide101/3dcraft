@@ -696,6 +696,25 @@
     cubeCam.update(renderer, room); scene.environment = cubeRT.texture; scene.environmentIntensity = 0.8 * ((E.doc && E.doc.scene.reflect) ?? 1);
     const k = Math.min(1, Math.min(8192, renderer.capabilities.maxTextureSize || 4096) / Math.max(w, h)), W = Math.round(w * k), H = Math.round(h * k);
     renderer.setScissorTest(false); renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setViewport(0, 0, W, H);
+    // The path tracer numbers materials one per object, so objects with a material per face (front, sides, top…)
+    // shifted every colour after them. For the render, each of those is split into one piece per face (sharing
+    // the same points), and put back afterwards.
+    const split = [];
+    root.traverseVisible((x) => {
+      if (!x.isMesh || !Array.isArray(x.material) || !x.geometry.groups.length || !x.parent) return;
+      const g = x.geometry, parts = g.groups.map((gr) => {
+        const sub = new T.BufferGeometry(); Object.entries(g.attributes).forEach(([k, at]) => sub.setAttribute(k, at));
+        const idx = g.index ? Array.from(g.index.array.slice(gr.start, gr.start + gr.count)) : Array.from({ length: gr.count }, (_, i) => gr.start + i);
+        sub.setIndex(idx);
+        const mesh = new T.Mesh(sub, x.material[gr.materialIndex] || x.material[0]);
+        mesh.position.copy(x.position); mesh.quaternion.copy(x.quaternion); mesh.scale.copy(x.scale); mesh.castShadow = x.castShadow; mesh.receiveShadow = x.receiveShadow;
+        return mesh;
+      }).filter((m) => m.geometry.index.count);
+      split.push({ x, parts });
+    });
+    split.forEach(({ x, parts }) => { x.visible = false; parts.forEach((m) => x.parent.add(m)); });
+    const unsplit = () => split.forEach(({ x, parts }) => { parts.forEach((m) => { m.removeFromParent(); m.geometry.setIndex(null); m.geometry.dispose(); }); x.visible = true; });
+    scene.updateMatrixWorld(true);
     const pt = new T.WebGLPathTracer(renderer), tiles = W * H > 2e6 ? 3 : 2;
     Object.assign(pt, { renderDelay: 0, minSamples: 0, fadeDuration: 0, bounces, transmissiveBounces: 10, filterGlossyFactor: 0.5, renderScale: 1, dynamicLowRes: false, rasterizeScene: false });
     pt.tiles.set(tiles, tiles);
@@ -704,7 +723,7 @@
     const copy = () => { ox.clearRect(0, 0, w, h); ox.drawImage(renderer.domElement, 0, 0, W, H, 0, 0, w, h); };
     let stopped = false, frame = 0;
     const finish = () => {
-      pt.dispose(); cubeRT.dispose(); matte.dispose();
+      pt.dispose(); cubeRT.dispose(); matte.dispose(); unsplit();
       shadow.material = keep.shadowMat; shadow.visible = keep.shadowVis; floor.visible = keep.floor; scene.background = keep.bg; scene.environment = keep.env; scene.environmentIntensity = keep.envI;
       grid.visible = keep.grid; keep.helpers.forEach((x) => (x.visible = true));
       renderer.setPixelRatio(keep.ratio); renderer.setSize(keep.size.x, keep.size.y, false);
