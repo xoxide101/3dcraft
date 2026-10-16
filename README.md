@@ -44,9 +44,19 @@ Plastic, glossy paint, matte, gold, silver, chrome, copper, glass, glow, **water
 
 ![Four views](docs/four-views.png)
 
+### Backdrop
+
+Scenery in layers behind your scene, like the flats of a stage or the layers of an old video game (the **Backdrop** tab on the left, and on the ribbon):
+- **🎲 New backdrop** makes a whole random one (countryside, city, seaside, desert, night city…); **🎲 Shuffle shapes** keeps the layers and gives them new shapes.
+- Layers: **sun or moon, stars, clouds, mountains, hills, treeline, city skyline** (lit windows at sunset and night) and **sea**. Add, hide, reorder and delete them; each has its own height, haze, colour and shape.
+- Three styles, for the whole backdrop or one layer: **Classic** (flat cut-outs with an embossed edge and a drop shadow), **Modern** (soft rounded 3D) and **Cardboard** (cut-outs with cardboard edges, propped up by fold-out stands, clouds on sticks; the stands can be hidden).
+- **Palettes:** Day, Sunset, Night, Desert and Storm, which also set the sky; farther layers come out hazier.
+- All layers stand 75 to 100 units out and stay behind your scene from wherever the camera looks; raise or lower it all to meet the horizon.
+- **Movement:** scroll speed (endless loop or pass by once) with nearer layers faster for depth, bobbing, and per layer **fly in, rise up or slide in**, and out again, at chosen times.
+
 ### Scene
 
-Background (see-through, colour, gradient, pattern or picture), ground (none, shadow only, or a floor in any colour), lights (studio, sunset, night, dramatic, soft) with brightness and direction, reflections, and the camera lens.
+Ground (none, shadow only, or a floor in any colour), lights (studio, sunset, night, dramatic, soft) with brightness and direction, reflections, and the camera lens.
 
 ![Retro chrome](docs/chrome.png)
 

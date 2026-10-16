@@ -54,6 +54,13 @@ Headless Chrome over the DevTools protocol, opening `index.html` from the folder
 - **Camera keys:** `anim.camera.keys = [{ t, pos, target, fov, ease }]` (with the turntable or swing still added on top). `E3.camAt(t)` moves the target in a line and the camera round it in spherical coordinates. `evalAt(t, moveCamera)` only puts the keyed camera in place when the time changed or `moveCamera` is set (seeking, export frames), so looking around while editing is not undone by every change. `E3.setCamKey(t)` keeps the current view.
 - Export: `E3.beginFrames(w, h)` sizes the renderer once; `frame(t)` evaluates and renders one frame; `end()` puts everything back.
 
+## Backdrop
+
+- `js/backdrop.js` (`window.BD3`) builds `doc.backdrop = { on, style: classic | modern | cardboard, palette, speed, mode: loop | once, y, stands, layers: [{ id, kind, seed, height, y, haze, color, style, speed, bob, enter, exit, visible }] }` into a `backdrop` group in the scene (outside `root`, so it is not picked, fitted or exported as a model). It is rebuilt when its JSON changes (`BD3.sync`, on every `built`), and placed for the time on every `time` event (`BD3.pose`).
+- Layer distances come from their order (`BD3.distOf`: back 100, front 75). Shapes come from the seed with waves that have a whole number of cycles per period, so a layer joins up with itself; each layer is built over three periods and scrolls modulo one. Scrolling speed falls off with (75 / distance)³, stronger than true parallax, like old games.
+- The group stands at the scene's centre and turns to face the camera (`face`, on `view` and `camera` events).
+- `js/backdrop-ui.js` is the Backdrop tab; the sky (`scene.bg`) moved there from the Scene properties.
+
 ## Title bar and starter scenes
 
 - **Render now** is a button put in front of the title bar's search box (`renderNow`): it opens the Render window and clicks Render.
@@ -61,7 +68,8 @@ Headless Chrome over the DevTools protocol, opening `index.html` from the folder
 
 ## Planned
 
-- Talk first: moving Background and Lighting onto their own tabs, with shadow depth, strength and direction.
+- Talk first: Lighting (and shadow depth, strength and direction), maybe its own tab like the Backdrop.
+- More backdrop layer kinds and weather (rain, snow, fog).
 - Ray-traced animation (every frame path-traced, smoothed, saved as video).
 - Animation and video playing on monitor and TV screens.
 - An original 3D stress-test model shared with the other Craft apps.

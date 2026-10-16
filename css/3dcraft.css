@@ -130,3 +130,14 @@
 .ctb-render { margin-right: 8px; font-weight: 700; color: #fff; background: rgba(255,255,255,.28) !important; border: 1px solid rgba(255,255,255,.55) !important; white-space: nowrap; }
 .ctb-render:hover { background: rgba(255,255,255,.4) !important; }
 @media (max-width: 820px) { .ctb-render { display: inline-grid !important; } }
+/* Backdrop tab */
+.bd-scroll { overflow: auto; }
+.bd { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.bd .row > *, .bd .field, .bd .seg { min-width: 0; }
+.bd .btn { white-space: normal; height: auto; min-height: 30px; line-height: 1.2; padding-top: 4px; padding-bottom: 4px; }
+.bd .seg .btn { flex: 1 1 auto; padding-left: 6px; padding-right: 6px; }
+.bd input[type=range] { min-width: 0; width: 100%; }
+.bd h3 { margin: 8px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.bd .seg { flex-wrap: wrap; }
+.bd-layers { padding: 0; }
+.bd-edit { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 6px; }
