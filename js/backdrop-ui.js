@@ -5,6 +5,10 @@
   const E = window.E3, BD = window.BD3, $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
   const host = $('backdrop-panel');
+  // scenery objects that go with each kind of backdrop (added to the scene as normal objects)
+  const MATCH = { countryside: ['rock', 'bush', 'fence', 'pine3d'], city: ['streetlamp', 'bench', 'trafficcone'], nightcity: ['streetlamp', 'bench', 'trafficcone'], seaside: ['sailboat', 'lighthouse', 'umbrella', 'rock'], islands: ['sailboat', 'umbrella', 'rock', 'palm'],
+    desert: ['cactus', 'rock', 'crater'], playground: ['bench', 'fence', 'bush', 'trafficcone'], computer: ['chip', 'capacitor', 'monitor', 'crt'], rainbow: ['mushroom', 'bush', 'fence', 'rock'], balloons: ['bush', 'fence', 'bench', 'rock'],
+    space: ['rocket', 'ufo', 'asteroid', 'crater'], meadow: ['bush', 'mushroom', 'rock', 'fence'], pineforest: ['pine3d', 'stump', 'rock', 'mushroom'], woodland: ['stump', 'mushroom', 'bush', 'rock'], rainforest: ['mushroom', 'stump', 'bush', 'palm'] };
   let cur = null; // the layer being edited
   const EYE = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
   const EYE_OFF = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.1 3.9M6.2 6.2C3.6 8 2 12 2 12s3.6 7 10 7a9.6 9.6 0 0 0 4.3-1"/></svg>';
@@ -23,6 +27,7 @@
     let html = `<div class="pad bd">
       <h3>Choose a backdrop</h3>
       <div class="bd-themes">${Object.entries(BD.THEMES).map(([k, [n]]) => `<button class="btn" type="button" data-theme="${k}" aria-pressed="${!!(b && b.theme === k)}" title="${esc(n)}: click again for another one">${esc(n)}</button>`).join('')}</div>
+      ${b && MATCH[b.theme] ? `<h3>Add matching objects</h3><div class="bd-themes">${MATCH[b.theme].map((k) => `<button class="btn" type="button" data-addobj="${k}" title="Add a ${esc(E.SHAPES[k][0].toLowerCase())} to the scene">+ ${esc(E.SHAPES[k][0])}</button>`).join('')}</div>` : ''}
       <div class="row"><button class="btn primary" type="button" data-bd="new" title="A random kind of backdrop">🎲 Surprise me</button><button class="btn outline" type="button" data-bd="shuffle" ${b && b.layers.length ? '' : 'disabled'} title="Keep the layers, give them new shapes">🎲 Shuffle shapes</button></div>`;
     if (!b) {
       html += `<p class="hint">A backdrop is scenery behind your scene in layers, like the flats of a stage or the layers of an old video game: sun or moon, stars, clouds, mountains, hills, trees, a city or the sea. Farther layers are hazier, and each can scroll at its own speed for depth.</p><h3>Sky</h3><div id="bd-sky"></div></div>`;
@@ -32,6 +37,7 @@
     html += `<label class="check"><input type="checkbox" id="bd-on" ${b.on ? 'checked' : ''}> Show the backdrop</label>
       <h3>Style</h3>${seg([['classic', 'Classic (flat)'], ['modern', 'Modern (3D)'], ['cardboard', 'Cardboard']], b.style, 'data-style')}
       ${(b.style === 'cardboard' || b.layers.some((l) => l.style === 'cardboard')) ? `<label class="check"><input type="checkbox" id="bd-stands" ${b.stands !== false ? 'checked' : ''}> Show the fold-out stands and cloud sticks</label>` : ''}
+      <h3>Detail</h3>${seg([[0, 'Simple'], [1, 'Normal'], [2, 'High'], [3, 'Extra']], b.detail ?? 1, 'data-detail')}
       <h3>Palette</h3>${seg(Object.entries(BD.PALETTES).map(([k, [n]]) => [k, n]), b.palette, 'data-pal')}
       ${range('bd-y', 'Raise or lower it all (to the horizon)', b.y || 0, -40, 40, 0.5)}
       <h3>Ground</h3>
@@ -111,14 +117,16 @@
     mv('enter', 'bdl-in', 'move'); mv('enter', 'bdl-in-at', 'at'); mv('enter', 'bdl-in-dur', 'dur'); mv('exit', 'bdl-out', 'move'); mv('exit', 'bdl-out-at', 'at'); mv('exit', 'bdl-out-dur', 'dur');
   }
   host && host.addEventListener('click', (e) => {
-    const b = bd(), t = e.target.closest('[data-bd],[data-theme],[data-style],[data-pal],[data-mode],[data-la]'); if (!t || !E.doc) return;
+    const b = bd(), t = e.target.closest('[data-bd],[data-theme],[data-addobj],[data-detail],[data-style],[data-pal],[data-mode],[data-la]'); if (!t || !E.doc) return;
     if (t.dataset.bd === 'new') { BD.random(); cur = null; changed(); return; }
+    if (t.dataset.addobj) { const k = t.dataset.addobj, m = window.UI3 && UI3.addShape(k); if (m) { const n = E.doc.objects.length; m.pos[0] = ((n % 5) - 2) * 3; m.pos[2] = 2 + Math.floor(n / 5) * 2; E.placeOne(m.id); } return; }
     if (t.dataset.theme) { BD.useTheme(t.dataset.theme); cur = null; changed(); return; }
     if (t.dataset.bd === 'pic') { const l = b && b.layers.find((x) => x.id === cur); if (l) choosePicture(l); return; }
     if (!b) return;
     if (t.dataset.bd === 'shuffle') { BD.shuffle(); changed(); return; }
     if (t.dataset.bd === 'del') { b.layers = b.layers.filter((l) => l.id !== cur); cur = null; changed(); return; }
     if (t.dataset.bd === 'reseed') { const l = b.layers.find((x) => x.id === cur); if (l) l.seed = Math.floor(Math.random() * 1e6); changed(); return; }
+    if (t.dataset.detail != null) { b.detail = +t.dataset.detail; changed(); return; }
     if (t.dataset.style) { b.style = t.dataset.style; changed(); return; }
     if (t.dataset.pal) { BD.applyPalette(t.dataset.pal); changed(); return; }
     if (t.dataset.mode) { b.mode = t.dataset.mode; changed(false); render(); return; }

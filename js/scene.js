@@ -53,6 +53,26 @@
     tv: ['Flat TV', { size: 43 }, [['size', 'Size (inches)', 19, 100, 1]]],
     crt: ['CRT TV', { size: 20 }, [['size', 'Size (inches)', 9, 36, 1]]],
     boat: ['Test boat', { size: 1 }, [['size', 'Size', 0.2, 5, 0.1]]],
+    // scenery objects that go with the backdrops
+    rock: ['Rock', { size: 1, seed: 7 }, [['size', 'Size', 0.2, 5, 0.05], ['seed', 'Shape (try another number)', 1, 999, 1]]],
+    asteroid: ['Asteroid', { size: 1, seed: 3 }, [['size', 'Size', 0.2, 5, 0.05], ['seed', 'Shape (try another number)', 1, 999, 1]]],
+    crater: ['Crater', { size: 1 }, [['size', 'Size', 0.2, 5, 0.05]]],
+    rocket: ['Rocket', { size: 1 }, [['size', 'Size', 0.2, 5, 0.05]]],
+    ufo: ['Flying saucer', { size: 1 }, [['size', 'Size', 0.2, 5, 0.05]]],
+    sailboat: ['Sailboat', { size: 1 }, [['size', 'Size', 0.2, 5, 0.05]]],
+    lighthouse: ['Lighthouse', { size: 1 }, [['size', 'Size', 0.2, 5, 0.05]]],
+    umbrella: ['Beach umbrella', { size: 1 }, [['size', 'Size', 0.2, 5, 0.05]]],
+    chip: ['Microchip', { size: 1, pins: 8 }, [['size', 'Size', 0.2, 5, 0.05], ['pins', 'Pins on each side', 2, 20, 1]]],
+    capacitor: ['Capacitor', { size: 1 }, [['size', 'Size', 0.2, 5, 0.05]]],
+    streetlamp: ['Street lamp', { size: 1 }, [['size', 'Size', 0.2, 5, 0.05]]],
+    bench: ['Bench', { size: 1 }, [['size', 'Size', 0.2, 5, 0.05]]],
+    trafficcone: ['Traffic cone', { size: 1 }, [['size', 'Size', 0.2, 5, 0.05]]],
+    pine3d: ['Pine tree', { size: 1, tiers: 4 }, [['size', 'Size', 0.2, 5, 0.05], ['tiers', 'Tiers', 2, 8, 1]]],
+    stump: ['Tree stump', { size: 1 }, [['size', 'Size', 0.2, 5, 0.05]]],
+    mushroom: ['Mushroom', { size: 1 }, [['size', 'Size', 0.2, 5, 0.05]]],
+    cactus: ['Cactus', { size: 1, seed: 5 }, [['size', 'Size', 0.2, 5, 0.05], ['seed', 'Shape (try another number)', 1, 999, 1]]],
+    bush: ['Bush', { size: 1, seed: 11 }, [['size', 'Size', 0.2, 5, 0.05], ['seed', 'Shape (try another number)', 1, 999, 1]]],
+    fence: ['Fence', { size: 1, posts: 5 }, [['size', 'Size', 0.2, 5, 0.05], ['posts', 'Posts', 2, 20, 1]]],
   });
   // the parts' own colours to start with (the object's Colour is used for any part without one)
   E.PART_COLOURS = {
@@ -61,6 +81,25 @@
     monitor: { body: { type: 'solid', color: '#22252b' }, screen: { type: 'solid', color: '#0b0e13' } },
     tv: { body: { type: 'solid', color: '#16181c' }, screen: { type: 'solid', color: '#0b0e13' } },
     crt: { body: { type: 'solid', color: '#d9d4c7' }, screen: { type: 'solid', color: '#1d2a24' } },
+    rock: { rock: { type: 'solid', color: '#8c8f94' } },
+    asteroid: { rock: { type: 'solid', color: '#6e6258' } },
+    crater: { rim: { type: 'solid', color: '#8a8c91' }, floor: { type: 'solid', color: '#4a4c52' } },
+    rocket: { body: { type: 'solid', color: '#f1f3f5' }, fins: { type: 'solid', color: '#e03131' }, window: { type: 'solid', color: '#4dabf7' } },
+    ufo: { hull: { type: 'solid', color: '#adb5bd' }, dome: { type: 'solid', color: '#a5d8ff' }, lights: { type: 'solid', color: '#ffe066' } },
+    sailboat: { hull: { type: 'solid', color: '#f8f9fa' }, mast: { type: 'solid', color: '#8a5a33' }, sails: { type: 'solid', color: '#efd9a8' } },
+    lighthouse: { tower: { type: 'solid', color: '#f8f9fa' }, stripes: { type: 'solid', color: '#e03131' }, lantern: { type: 'solid', color: '#ffe066' }, roof: { type: 'solid', color: '#343a40' } },
+    umbrella: { canopy: { type: 'solid', color: '#e03131' }, stripes: { type: 'solid', color: '#f8f9fa' }, pole: { type: 'solid', color: '#ced4da' } },
+    chip: { body: { type: 'solid', color: '#1f2328' }, pins: { type: 'solid', color: '#ced4da' }, mark: { type: 'solid', color: '#868e96' } },
+    capacitor: { body: { type: 'solid', color: '#1c7ed6' }, stripe: { type: 'solid', color: '#e7f5ff' }, metal: { type: 'solid', color: '#ced4da' } },
+    streetlamp: { pole: { type: 'solid', color: '#343a40' }, lamp: { type: 'solid', color: '#fff3bf' } },
+    bench: { wood: { type: 'solid', color: '#a0673a' }, metal: { type: 'solid', color: '#2b2f33' } },
+    trafficcone: { cone: { type: 'solid', color: '#ff6b1a' }, stripes: { type: 'solid', color: '#f8f9fa' }, base: { type: 'solid', color: '#212529' } },
+    pine3d: { trunk: { type: 'solid', color: '#6b4a2e' }, needles: { type: 'solid', color: '#2b7a3d' } },
+    stump: { bark: { type: 'solid', color: '#6b4a2e' }, wood: { type: 'solid', color: '#d8b483' } },
+    mushroom: { stem: { type: 'solid', color: '#f1e9da' }, cap: { type: 'solid', color: '#e03131' }, spots: { type: 'solid', color: '#ffffff' } },
+    cactus: { cactus: { type: 'solid', color: '#3f8a4a' }, flower: { type: 'solid', color: '#f783ac' } },
+    bush: { leaves: { type: 'solid', color: '#3f8a4a' } },
+    fence: { wood: { type: 'solid', color: '#c99a6b' } },
     boat: { hull: { type: 'solid', color: '#1971c2' }, cabin: { type: 'solid', color: '#f8f9fa' }, windows: { type: 'solid', color: '#1b2430' }, chimney: { type: 'solid', color: '#e03131' } },
   };
   E.isObjectShape = (type) => !!(E.SHAPES[type] && E.SHAPES[type][2]);
@@ -439,6 +478,133 @@
     const chimney = [put(new T.CylinderGeometry(0.09 * k, 0.11 * k, 0.5 * k, 20), -0.55 * k, hullH + 0.85 * k, 0, 0, 0, 0.15)];
     return partsGeo([['hull', [hull]], ['cabin', cabin], ['windows', windows], ['chimney', chimney]]);
   }
+  // ------------------------------------------------------------------ scenery objects
+  // a lumpy rock: a round shape pushed in and out by a few waves (the same point always moves the same way, so the
+  // faces stay joined); faceted like a real stone
+  function lumpy(r, seed, detail = 2, rough = 0.28) {
+    const g = new T.IcosahedronGeometry(r, detail), pos = g.attributes.position, k = [1, 2, 3, 4, 5, 6].map((i) => rnd2(seed, i) * 6.28);
+    for (let i = 0; i < pos.count; i++) {
+      const v = new T.Vector3().fromBufferAttribute(pos, i).normalize();
+      const n = Math.sin(v.x * 2.1 + k[0]) * Math.cos(v.y * 1.7 + k[1]) * 0.5 + Math.sin(v.z * 3.3 + k[2]) * 0.3 + Math.sin((v.x + v.y) * 5.1 + k[3]) * 0.15 + Math.cos((v.y - v.z) * 7.3 + k[4]) * 0.08;
+      v.multiplyScalar(r * (1 + rough * n)); pos.setXYZ(i, v.x, v.y, v.z);
+    }
+    g.computeVertexNormals(); return g;
+  }
+  const lathe = (pts, segs = 32) => new T.LatheGeometry(pts.map(([x, y]) => new T.Vector2(x, y)), segs);
+  function sceneryGeo(p) {
+    const k = p.size || 1, seed = p.seed || 1;
+    switch (p.type) {
+      case 'rock': { const g = lumpy(0.9 * k, seed); g.scale(1.2, 0.75, 1); return partsGeo([['rock', [g]]]); }
+      case 'asteroid': {
+        const g = lumpy(1 * k, seed, 3, 0.35), pos = g.attributes.position, dents = [0, 1, 2, 3, 4].map((i) => new T.Vector3(rnd2(seed, i + 10) - 0.5, rnd2(seed, i + 20) - 0.5, rnd2(seed, i + 30) - 0.5).normalize());
+        for (let i = 0; i < pos.count; i++) { const v = new T.Vector3().fromBufferAttribute(pos, i), dir = v.clone().normalize(); let d = 0; dents.forEach((c) => { const a = dir.angleTo(c); if (a < 0.45) d += (1 - a / 0.45) ** 2 * 0.18; }); v.multiplyScalar(1 - d); pos.setXYZ(i, v.x, v.y, v.z); }
+        g.computeVertexNormals(); g.scale(1.3, 0.9, 1); return partsGeo([['rock', [g]]]);
+      }
+      case 'crater': { const R = 2 * k, rim = lathe([[R * 0.55, 0], [R * 0.85, 0.32 * k], [R, 0.3 * k], [R * 1.35, 0]], 48), floor = new T.CircleGeometry(R * 0.6, 48); floor.rotateX(-Math.PI / 2); floor.translate(0, 0.02, 0); return partsGeo([['rim', [rim]], ['floor', [floor]]]); }
+      case 'rocket': {
+        const body = lathe([[0, 0], [0.45 * k, 0], [0.5 * k, 0.6 * k], [0.5 * k, 2.4 * k], [0.38 * k, 3.1 * k], [0.18 * k, 3.6 * k], [0, 3.85 * k]], 40);
+        const fins = [0, 1, 2].map((i) => { const sh = new T.Shape(); sh.moveTo(0, 0); sh.lineTo(0.75 * k, -0.15 * k); sh.lineTo(0.7 * k, 0.35 * k); sh.lineTo(0, 1.1 * k); sh.closePath(); const g = new T.ExtrudeGeometry(sh, { depth: 0.08 * k, bevelEnabled: false }); g.translate(0.42 * k, 0.15 * k, -0.04 * k); g.rotateY((i / 3) * Math.PI * 2); return g; });
+        const nozzle = put(lathe([[0.25 * k, 0], [0.35 * k, -0.35 * k], [0.4 * k, -0.4 * k]], 24), 0, 0, 0);
+        const win = put(new T.CylinderGeometry(0.2 * k, 0.2 * k, 0.06 * k, 24), 0, 2.4 * k, 0.48 * k, Math.PI / 2), frame = put(new T.TorusGeometry(0.21 * k, 0.04 * k, 8, 24), 0, 2.4 * k, 0.5 * k);
+        return partsGeo([['body', [body]], ['fins', [...fins, nozzle, frame]], ['window', [win]]]);
+      }
+      case 'ufo': {
+        const hull = lathe([[0, -0.25 * k], [0.8 * k, -0.3 * k], [1.6 * k, -0.05 * k], [1.7 * k, 0.05 * k], [1.2 * k, 0.25 * k], [0.6 * k, 0.32 * k], [0, 0.33 * k]], 48);
+        const dome = new T.SphereGeometry(0.65 * k, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2); dome.translate(0, 0.28 * k, 0);
+        const lights = Array.from({ length: 10 }, (_, i) => put(new T.SphereGeometry(0.09 * k, 10, 8), Math.cos((i / 10) * Math.PI * 2) * 1.55 * k, 0, Math.sin((i / 10) * Math.PI * 2) * 1.55 * k));
+        return partsGeo([['hull', [hull]], ['dome', [dome]], ['lights', lights]]);
+      }
+      case 'sailboat': {
+        const L = 2.4 * k, B = 0.8 * k, sh = new T.Shape(); sh.moveTo(-L / 2, -B / 2); sh.lineTo(L * 0.1, -B / 2); sh.quadraticCurveTo(L / 2, -B * 0.3, L / 2, 0); sh.quadraticCurveTo(L / 2, B * 0.3, L * 0.1, B / 2); sh.lineTo(-L / 2, B / 2); sh.closePath();
+        const hull = new T.ExtrudeGeometry(sh, { depth: 0.4 * k, bevelEnabled: true, bevelThickness: 0.04 * k, bevelSize: 0.04 * k, bevelSegments: 3, curveSegments: 20 }); hull.rotateX(-Math.PI / 2);
+        const hp = hull.attributes.position; for (let i = 0; i < hp.count; i++) { const t = Math.max(0, Math.min(1, hp.getY(i) / (0.4 * k))); hp.setZ(i, hp.getZ(i) * (0.55 + 0.45 * t)); } hull.computeVertexNormals();
+        const mast = put(new T.CylinderGeometry(0.04 * k, 0.05 * k, 3 * k, 12), 0, 1.9 * k, 0), boom = put(new T.CylinderGeometry(0.03 * k, 0.03 * k, 1.2 * k, 8), -0.6 * k, 0.75 * k, 0, 0, 0, Math.PI / 2);
+        const sailShape = (pts) => { const ss = new T.Shape(); ss.moveTo(pts[0][0], pts[0][1]); pts.slice(1).forEach(([x, y]) => ss.lineTo(x, y)); ss.closePath(); return [new T.ShapeGeometry(ss)]; };
+        const main = sailShape([[-0.05 * k, 0.8 * k], [-1.2 * k, 0.8 * k], [-0.05 * k, 3.3 * k]]), jib = sailShape([[0.05 * k, 0.6 * k], [1.15 * k, 0.55 * k], [0.05 * k, 3 * k]]);
+        return partsGeo([['hull', [hull]], ['mast', [mast, boom]], ['sails', [...main, ...jib]]]);
+      }
+      case 'lighthouse': {
+        const H = 5 * k, tower = [], stripes = [], bands = 6;
+        for (let i = 0; i < bands; i++) { const y0 = (i / bands) * H, y1 = ((i + 1) / bands) * H, r0 = 0.8 * k * (1 - 0.35 * (i / bands)), r1 = 0.8 * k * (1 - 0.35 * ((i + 1) / bands)); (i % 2 ? stripes : tower).push(put(new T.CylinderGeometry(r1, r0, y1 - y0, 32), 0, (y0 + y1) / 2, 0)); }
+        tower.push(put(new T.CylinderGeometry(0.7 * k, 0.7 * k, 0.1 * k, 32), 0, H + 0.05 * k, 0));
+        const lantern = put(new T.CylinderGeometry(0.4 * k, 0.4 * k, 0.6 * k, 24), 0, H + 0.4 * k, 0), roof = put(new T.ConeGeometry(0.55 * k, 0.6 * k, 24), 0, H + 1 * k, 0);
+        return partsGeo([['tower', tower], ['stripes', stripes], ['lantern', [lantern]], ['roof', [roof]]]);
+      }
+      case 'umbrella': {
+        const R = 1.5 * k, hgt = 2.4 * k, canopy = [], stripes = [], n = 8;
+        for (let i = 0; i < n; i++) { const g = new T.ConeGeometry(R, 0.55 * k, 6, 1, true, (i / n) * Math.PI * 2, (Math.PI * 2) / n); g.translate(0, hgt, 0); (i % 2 ? stripes : canopy).push(g); }
+        const pole = put(new T.CylinderGeometry(0.04 * k, 0.04 * k, hgt + 0.3 * k, 10), 0, (hgt + 0.3 * k) / 2, 0);
+        return partsGeo([['canopy', canopy], ['stripes', stripes], ['pole', [pole]]]);
+      }
+      case 'chip': {
+        const n = Math.max(2, p.pins | 0 || 8), W = 2 * k, D = Math.max(1, n * 0.22) * k, Hh = 0.25 * k, pins = [];
+        const body = new T.RoundedBoxGeometry(W, Hh, D, 2, 0.03 * k); body.translate(0, Hh / 2 + 0.12 * k, 0);
+        for (let i = 0; i < n; i++) { const z = -D / 2 + (D / n) * (i + 0.5); [-1, 1].forEach((sx) => { pins.push(put(new T.BoxGeometry(0.28 * k, 0.04 * k, 0.07 * k), sx * (W / 2 + 0.1 * k), 0.2 * k, z), put(new T.BoxGeometry(0.04 * k, 0.2 * k, 0.07 * k), sx * (W / 2 + 0.22 * k), 0.1 * k, z)); }); }
+        const mark = put(new T.CylinderGeometry(0.1 * k, 0.1 * k, 0.01 * k, 16), -W / 2 + 0.3 * k, Hh + 0.125 * k, -D / 2 + 0.3 * k);
+        const label = put(new T.BoxGeometry(W * 0.5, 0.005 * k, D * 0.25), 0.1 * k, Hh + 0.123 * k, 0);
+        return partsGeo([['body', [body]], ['pins', pins], ['mark', [mark, label]]]);
+      }
+      case 'capacitor': {
+        const R = 0.5 * k, H = 1.4 * k, legs = [-1, 1].map((sx) => put(new T.CylinderGeometry(0.03 * k, 0.03 * k, 0.6 * k, 8), sx * 0.2 * k, 0.3 * k, 0));
+        const body = put(new T.CylinderGeometry(R, R, H, 32), 0, 0.6 * k + H / 2, 0), top = put(new T.CylinderGeometry(R * 0.96, R * 0.96, 0.03 * k, 32), 0, 0.6 * k + H + 0.01 * k, 0);
+        const stripe = put(new T.CylinderGeometry(R * 1.01, R * 1.01, H * 0.98, 32, 1, true, -0.5, 1), 0, 0.6 * k + H / 2, 0);
+        return partsGeo([['body', [body]], ['stripe', [stripe]], ['metal', [top, ...legs]]]);
+      }
+      case 'streetlamp': {
+        const H = 5 * k, pole = [put(new T.CylinderGeometry(0.07 * k, 0.12 * k, H, 16), 0, H / 2, 0), put(new T.CylinderGeometry(0.22 * k, 0.28 * k, 0.4 * k, 16), 0, 0.2 * k, 0)];
+        pole.push(put(new T.BoxGeometry(1 * k, 0.07 * k, 0.07 * k), 0.48 * k, H - 0.02 * k, 0), put(new T.BoxGeometry(0.5 * k, 0.05 * k, 0.05 * k), 0.22 * k, H - 0.3 * k, 0, 0, 0, 0.6));
+        const head = put(new T.CylinderGeometry(0.15 * k, 0.4 * k, 0.3 * k, 16), 0.95 * k, H + 0.3 * k, 0), bulb = put(new T.SphereGeometry(0.2 * k, 16, 10), 0.95 * k, H + 0.1 * k, 0);
+        pole.push(head);
+        return partsGeo([['pole', pole], ['lamp', [bulb]]]);
+      }
+      case 'bench': {
+        const W = 3 * k, wood = [], metal = [];
+        for (let i = 0; i < 3; i++) wood.push(put(new T.BoxGeometry(W, 0.06 * k, 0.16 * k), 0, 0.85 * k, -0.2 * k + i * 0.2 * k));
+        for (let i = 0; i < 2; i++) wood.push(put(new T.BoxGeometry(W, 0.16 * k, 0.05 * k), 0, 1.15 * k + i * 0.25 * k, -0.42 * k, -0.25));
+        [-1, 1].forEach((sx) => { metal.push(put(new T.BoxGeometry(0.06 * k, 0.85 * k, 0.06 * k), sx * W * 0.4, 0.42 * k, 0.15 * k), put(new T.BoxGeometry(0.06 * k, 1.5 * k, 0.06 * k), sx * W * 0.4, 0.75 * k, -0.35 * k, -0.15), put(new T.BoxGeometry(0.06 * k, 0.06 * k, 0.65 * k), sx * W * 0.4, 0.8 * k, -0.1 * k)); });
+        return partsGeo([['wood', wood], ['metal', metal]]);
+      }
+      case 'trafficcone': {
+        const H = 1.4 * k, R = 0.42 * k, cone = [], stripes = [], at = (t) => R * (1 - t) + 0.07 * k * t;
+        [[0, 0.3, 0], [0.3, 0.45, 1], [0.45, 0.62, 0], [0.62, 0.74, 1], [0.74, 1, 0]].forEach(([a, b, w]) => (w ? stripes : cone).push(put(new T.CylinderGeometry(at(b), at(a), (b - a) * H, 24), 0, 0.08 * k + ((a + b) / 2) * H, 0)));
+        return partsGeo([['cone', cone], ['stripes', stripes], ['base', [put(new T.RoundedBoxGeometry(1.1 * k, 0.08 * k, 1.1 * k, 2, 0.03 * k), 0, 0.04 * k, 0)]]]);
+      }
+      case 'pine3d': {
+        const n = Math.max(2, p.tiers | 0 || 4), H = 4.5 * k, trunk = put(new T.CylinderGeometry(0.15 * k, 0.22 * k, H * 0.3, 10), 0, H * 0.15, 0), tiers = [];
+        for (let i = 0; i < n; i++) { const t = i / n, r = 1.3 * k * (1 - t * 0.75), h = (H * 0.85) / n * 1.6; tiers.push(put(new T.ConeGeometry(r, h, 16), 0, H * 0.2 + t * H * 0.72 + h / 2, 0)); }
+        return partsGeo([['trunk', [trunk]], ['needles', tiers]]);
+      }
+      case 'stump': {
+        const bark = [put(new T.CylinderGeometry(0.6 * k, 0.72 * k, 0.9 * k, 20, 1, true), 0, 0.45 * k, 0)];
+        for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2 + 0.4; bark.push(put(new T.ConeGeometry(0.18 * k, 0.6 * k, 8), Math.cos(a) * 0.68 * k, 0.12 * k, Math.sin(a) * 0.68 * k, Math.sin(a) * 1.2, 0, -Math.cos(a) * 1.2)); }
+        const top = put(new T.CylinderGeometry(0.6 * k, 0.6 * k, 0.02 * k, 20), 0, 0.9 * k, 0), rings = [0.2, 0.35, 0.5].map((r) => put(new T.TorusGeometry(r * k, 0.012 * k, 4, 32), 0, 0.912 * k, 0, Math.PI / 2));
+        return partsGeo([['bark', [...bark, ...rings]], ['wood', [top]]]);
+      }
+      case 'mushroom': {
+        const stem = lathe([[0, 0], [0.32 * k, 0], [0.26 * k, 0.5 * k], [0.28 * k, 1 * k], [0, 1.02 * k]], 20);
+        const cap = new T.SphereGeometry(0.85 * k, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2); cap.scale(1, 0.75, 1); cap.translate(0, 0.95 * k, 0);
+        const under = new T.CircleGeometry(0.85 * k, 32); under.rotateX(Math.PI / 2); under.translate(0, 0.95 * k, 0);
+        const spots = []; for (let i = 0; i < 9; i++) { const a = rnd2(i, 1) * Math.PI * 2, el = 0.3 + rnd2(i, 2) * 0.9, dir = new T.Vector3(Math.cos(a) * Math.cos(el), Math.sin(el) * 0.75, Math.sin(a) * Math.cos(el)).multiplyScalar(0.85 * k); const sp = new T.SphereGeometry(0.1 * k, 10, 6); sp.scale(1, 0.4, 1); spots.push(put(sp, dir.x, 0.95 * k + dir.y, dir.z)); }
+        return partsGeo([['stem', [stem, under]], ['cap', [cap]], ['spots', spots]]);
+      }
+      case 'cactus': {
+        const H = 3.2 * k, body = [put(new T.CapsuleGeometry(0.35 * k, H - 0.7 * k, 6, 16), 0, H / 2, 0)], flower = [];
+        [[-1, 0.4, 0.8], [1, 0.55, 0.65]].forEach(([sx, at, len]) => { if (rnd2(p.seed || 1, sx + 3) < 0.15) return; const y = H * at, r = 0.24 * k; body.push(put(new T.CapsuleGeometry(r, 0.45 * k, 4, 12), sx * 0.5 * k, y, 0, 0, 0, Math.PI / 2), put(new T.CapsuleGeometry(r, len * k, 4, 12), sx * 0.8 * k, y + len * k * 0.5, 0)); flower.push(put(new T.SphereGeometry(0.14 * k, 12, 8), sx * 0.8 * k, y + len * k + 0.32 * k, 0)); });
+        flower.push(put(new T.SphereGeometry(0.18 * k, 12, 8), 0, H + 0.05 * k, 0));
+        return partsGeo([['cactus', body], ['flower', flower]]);
+      }
+      case 'bush': { const list = []; for (let i = 0; i < 7; i++) { const a = rnd2(seed, i) * Math.PI * 2, d = 0.5 * k * rnd2(seed, i + 9); list.push(put(lumpy((0.5 + 0.35 * rnd2(seed, i + 20)) * k, seed + i, 2, 0.15), Math.cos(a) * d, (0.45 + 0.35 * rnd2(seed, i + 30)) * k, Math.sin(a) * d)); } return partsGeo([['leaves', list]]); }
+      case 'fence': {
+        const n = Math.max(2, p.posts | 0 || 5), gap = 1 * k, W = (n - 1) * gap, wood = [];
+        for (let i = 0; i < n; i++) { const x = -W / 2 + i * gap; wood.push(put(new T.BoxGeometry(0.12 * k, 1.1 * k, 0.12 * k), x, 0.55 * k, 0)); const tip = new T.ConeGeometry(0.09 * k, 0.15 * k, 4); tip.rotateY(Math.PI / 4); wood.push(put(tip, x, 1.17 * k, 0)); }
+        wood.push(put(new T.BoxGeometry(W + 0.2 * k, 0.1 * k, 0.05 * k), 0, 0.4 * k, 0.08 * k), put(new T.BoxGeometry(W + 0.2 * k, 0.1 * k, 0.05 * k), 0, 0.85 * k, 0.08 * k));
+        return partsGeo([['wood', wood]]);
+      }
+    }
+    return null;
+  }
+  E.SCENERY = ['rock', 'asteroid', 'crater', 'rocket', 'ufo', 'sailboat', 'lighthouse', 'umbrella', 'chip', 'capacitor', 'streetlamp', 'bench', 'trafficcone', 'pine3d', 'stump', 'mushroom', 'cactus', 'bush', 'fence'];
+
   E.shapeSize = (s) => { const [g] = shapeGeo(s); g.computeBoundingBox(); const v = g.boundingBox.getSize(new T.Vector3()); g.dispose(); return v; };
 
   function shapeGeo(s) {
@@ -446,7 +612,7 @@
     switch (s.type) {
       case 'box': return [new T.BoxGeometry(p.w, p.h, p.d), SLOTS.box];
       case 'roundbox': return [new T.RoundedBoxGeometry(p.w, p.h, p.d, 6, Math.min(p.round, Math.min(p.w, p.h, p.d) / 2 - 0.001)), SLOTS.box];
-      case 'sphere': return [new T.SphereGeometry(p.r, 64, 40), null];
+      case 'sphere': return [new T.SphereGeometry(p.r, 96, 64), null];
       case 'cylinder': return [new T.CylinderGeometry(p.r, p.r, p.h, 64), SLOTS.cyl];
       case 'cone': return [new T.CylinderGeometry(0, p.r, p.h, 64), SLOTS.cyl];
       case 'pyramid': { const g = new T.CylinderGeometry(0, p.r, p.h, 4); g.rotateY(Math.PI / 4); return [g, SLOTS.cyl]; }
@@ -461,6 +627,7 @@
       case 'tv': { const W = (p.size || 43) * 0.117; return flatScreenGeo(W, W * 9 / 16, 0.16, 0.04, 0.25, 'tv'); }
       case 'crt': return crtGeo(p);
       case 'boat': return boatGeo(p);
+      case 'rock': case 'asteroid': case 'crater': case 'rocket': case 'ufo': case 'sailboat': case 'lighthouse': case 'umbrella': case 'chip': case 'capacitor': case 'streetlamp': case 'bench': case 'trafficcone': case 'pine3d': case 'stump': case 'mushroom': case 'cactus': case 'bush': case 'fence': return sceneryGeo(p);
       case 'washer': { const sh = new T.Shape().absarc(0, 0, p.r, 0, Math.PI * 2, false); sh.holes.push(new T.Path().absarc(0, 0, Math.min(p.hole, p.r - 0.05), 0, Math.PI * 2, true)); return [extrudeShapes([sh], p.d, 0, 64), SLOTS.extrude]; }
       case 'star': { const sh = new T.Shape(), n = Math.max(3, p.points | 0); for (let i = 0; i < n * 2; i++) { const a = (i * Math.PI) / n + Math.PI / 2, r = i % 2 ? p.r * p.inner : p.r; i ? sh.lineTo(Math.cos(a) * r, Math.sin(a) * r) : sh.moveTo(Math.cos(a) * r, Math.sin(a) * r); } return [extrudeShapes([sh], p.d, p.d * 0.1), SLOTS.extrude]; }
       case 'heart': { const k = p.r / 1.2, sh = new T.Shape(); sh.moveTo(0, -1.1 * k); sh.bezierCurveTo(-0.3 * k, -0.75 * k, -1.2 * k, -0.25 * k, -1.2 * k, 0.35 * k); sh.bezierCurveTo(-1.2 * k, 0.95 * k, -0.45 * k, 1.15 * k, 0, 0.6 * k); sh.bezierCurveTo(0.45 * k, 1.15 * k, 1.2 * k, 0.95 * k, 1.2 * k, 0.35 * k); sh.bezierCurveTo(1.2 * k, -0.25 * k, 0.3 * k, -0.75 * k, 0, -1.1 * k); return [extrudeShapes([sh], p.d, p.d * 0.1, 24), SLOTS.extrude]; }
@@ -686,6 +853,40 @@
     return waveTex;
   }
   E.waveTexture = () => waveTexture();
+  // Colour cycling: bands of colour that scroll through an object while the animation plays, like the moving colours
+  // of old computer logos. mat.cycle = { preset, speed (bands a second), bands, dir: up | down | left | right, front }
+  E.CYCLES = {
+    retro: ['Retro bands (8-bit)', ['#ff004d', '#ff7a00', '#ffd300', '#3cf000', '#00c8ff', '#3a55ff', '#b44dff', '#ff3df2'], true],
+    rainbow: ['Smooth rainbow', null, false],
+    fire: ['Fire', ['#3a0000', '#9a0a00', '#ff3000', '#ff8a00', '#ffd200', '#fff4b0', '#ffd200', '#ff8a00', '#ff3000', '#9a0a00'], false],
+    ocean: ['Ocean', ['#03256c', '#2541b2', '#1768ac', '#06bee1', '#b8f3ff', '#06bee1', '#1768ac', '#2541b2'], false],
+    neon: ['Neon', ['#ff00e5', '#7a00ff', '#00e1ff', '#00ff9d', '#00e1ff', '#7a00ff'], false],
+    gold: ['Gold shimmer', ['#5c3d00', '#a67c00', '#e6b422', '#fff1b0', '#e6b422', '#a67c00'], false],
+    copper: ['Copper bars', ['#120018', '#4b0f6b', '#a33dd1', '#ffd1ff', '#a33dd1', '#4b0f6b', '#120018', '#0d2a63', '#2f74d0', '#c9ecff', '#2f74d0', '#0d2a63'], false],
+  };
+  const cycleCache = new Map();
+  function cycleTexture(c) {
+    const along = c.dir === 'left' || c.dir === 'right', key = [c.preset, c.bands, along].join('|');
+    if (!cycleCache.has(key)) {
+      const [, cols, hard] = E.CYCLES[c.preset] || E.CYCLES.retro, N = 1024, cv = document.createElement('canvas'); cv.width = along ? N : 4; cv.height = along ? 4 : N;
+      const x = cv.getContext('2d'), bands = Math.max(1, c.bands || 8);
+      for (let i = 0; i < N; i++) {
+        const u = (i / N) * bands, k = Math.floor(u), f = u - k;
+        let col;
+        if (!cols) col = new T.Color().setHSL(((i / N) * bands) % 1, 0.9, 0.55);
+        else { const a = new T.Color(cols[k % cols.length]), b = new T.Color(cols[(k + 1) % cols.length]); col = hard ? a : a.lerp(b, f * f * (3 - 2 * f)); }
+        x.fillStyle = '#' + col.getHexString(); if (along) x.fillRect(i, 0, 1, 4); else x.fillRect(0, N - 1 - i, 4, 1);
+      }
+      cycleCache.set(key, cv);
+    }
+    const tex = new T.CanvasTexture(cycleCache.get(key)); tex.colorSpace = T.SRGBColorSpace; tex.wrapS = tex.wrapT = T.RepeatWrapping;
+    if (c.preset === 'retro') tex.magFilter = T.NearestFilter;
+    return tex;
+  }
+  // where the bands are at time t
+  function poseCycles(t) {
+    root.traverse((o) => { if (!o.isMesh) return; [].concat(o.material).forEach((m) => { const c = m.userData && m.userData.cycle; if (!c || !m.map) return; const off = (t * (c.speed ?? 1)) / Math.max(1, c.bands || 8); if (c.dir === 'left' || c.dir === 'right') m.map.offset.x = c.dir === 'left' ? off : -off; else m.map.offset.y = c.dir === 'down' ? off : -off; }); });
+  }
   function material(m, face, slot) {
     const glass = m.glass || 0;
     const mat = new T.MeshPhysicalMaterial({
@@ -702,6 +903,11 @@
     // water: little ripples (a normal map that drifts when the animation plays) and a blue tint deeper in
     if (m.waves) { mat.normalMap = waveTexture(); mat.normalScale.set(0.45, 0.45); mat.attenuationColor = new T.Color(m.color || '#3d8fd1'); mat.attenuationDistance = 2.5; mat.color.lerp(new T.Color('#ffffff'), 0.55); }
     // a screen: glossy glass, and a picture on it lights up like a real screen
+    if (m.cycle && m.cycle.preset && m.cycle.preset !== 'none' && !tex && (!m.cycle.front || !slot || slot === 'front')) {
+      const ct = cycleTexture(m.cycle); mat.map = ct; mat.color.set('#ffffff'); mat.emissive = new T.Color('#ffffff'); mat.emissiveMap = ct; mat.emissiveIntensity = 0.45; mat.userData.cycle = { ...m.cycle };
+    }
+    if (slot === 'sails' || slot === 'canopy' || slot === 'stripes') mat.side = T.DoubleSide;
+    if (slot === 'lamp' || slot === 'lantern' || slot === 'lights') { mat.emissive.copy(mat.color); mat.emissiveIntensity = 1.2; }
     if (slot === 'screen') { mat.roughness = 0.12; mat.metalness = 0; mat.clearcoat = 1; mat.transmission = 0; if (tex) { mat.emissiveMap = tex; mat.emissive.set('#ffffff'); mat.emissiveIntensity = 0.8; } }
     return mat;
   }
@@ -1173,6 +1379,7 @@
     E.time = Math.max(0, Math.min(a.length, t));
     const tt = E.time;
     if (waveTex) { waveTex.offset.set(tt * 0.035, tt * 0.022); }
+    poseCycles(tt);
     E.doc.objects.forEach((m) => {
       const o = built.get(m.id); if (!o) return;
       const tr = a.tracks[m.id];

@@ -96,14 +96,16 @@
   const ridge = (ws, P, x) => ws.reduce((s, w) => s + w.a * (1 - Math.abs(Math.sin((w.n * x * Math.PI) / P + w.ph))) ** 1.6, 0);
   const periodOf = (d) => Math.max(26, Math.round(d * 1.7));
   // the top edge of a ground layer as points [x, y] over three periods (from -1.5P to 1.5P)
+  // Detail level (doc.backdrop.detail): 0 simple, 1 normal, 2 high, 3 extra
+  let DET = 1;
   function skyline(l, P, d) {
-    const r = rng(l.seed), H = l.height ?? 1, pts = [], N = 3 * 180;
+    const r = rng(l.seed), H = l.height ?? 1, pts = [], N = 3 * (DET >= 2 ? 360 : 180);
     const at = (fn) => { for (let i = 0; i <= N; i++) { const x = -1.5 * P + (3 * P * i) / N; pts.push([x, fn(x)]); } return pts; };
     if (l.kind === 'hills') { const ws = waves(r, P, [[1, 2, 1], [2, 4, 0.5], [5, 8, 0.15]]); return at((x) => d * H * (0.05 + 0.025 * sumWaves(ws, P, x))); }
-    if (l.kind === 'mountains') { const ws = waves(r, P, [[2, 4, 1], [5, 9, 0.45], [11, 19, 0.18], [23, 37, 0.07]]); return at((x) => d * H * (0.03 + 0.09 * ridge(ws, P, x))); }
+    if (l.kind === 'mountains') { const ws = waves(r, P, [[2, 4, 1], [5, 9, 0.45], [11, 19, 0.18], [23, 37, 0.07], ...(DET >= 2 ? [[41, 67, 0.035]] : []), ...(DET >= 3 ? [[71, 113, 0.018]] : [])].slice(0, DET === 0 ? 2 : 99)); return at((x) => d * H * (0.03 + 0.09 * ridge(ws, P, x))); }
     if (l.kind === 'sea') { const ws = waves(r, P, [[18, 26, 1], [31, 45, 0.5]]); return at((x) => d * H * (0.012 + 0.0025 * sumWaves(ws, P, x))); }
     if (l.kind === 'trees') {
-      const ws = waves(r, P, [[1, 3, 1], [4, 7, 0.4]]), trees = [], n = Math.round(P / (d * 0.022));
+      const ws = waves(r, P, [[1, 3, 1], [4, 7, 0.4]]), trees = [], n = Math.round((P / (d * 0.022)) * [0.6, 1, 1.4, 1.8][DET]);
       for (let i = 0; i < n; i++) trees.push({ x: (i + r() * 0.8) * (P / n) - P / 2, w: d * (0.018 + 0.016 * r()), h: d * (0.035 + 0.035 * r()), pine: r() < 0.6 });
       const base = (x) => d * H * (0.012 + 0.008 * sumWaves(ws, P, x));
       return at((x) => {
@@ -147,9 +149,9 @@
   }
   // clouds: groups of puffs, placed over one period and repeated
   function cloudPuffs(l, P, d) {
-    const r = rng(l.seed), H = l.height ?? 1, n = 4 + Math.floor(r() * 4), clouds = [];
+    const r = rng(l.seed), H = l.height ?? 1, n = 4 + Math.floor(r() * 4), clouds = [], extra = DET * 2;
     for (let i = 0; i < n; i++) {
-      const cx = (i + r() * 0.7) * (P / n) - P / 2, cy = d * (0.2 + 0.16 * r()) * H, size = d * (0.035 + 0.035 * r()), m = 4 + Math.floor(r() * 4), puffs = [];
+      const cx = (i + r() * 0.7) * (P / n) - P / 2, cy = d * (0.2 + 0.16 * r()) * H, size = d * (0.035 + 0.035 * r()), m = 3 + extra + Math.floor(r() * 4), puffs = [];
       for (let k = 0; k < m; k++) { const u = k / (m - 1) - 0.5, pr = size * (0.55 + 0.45 * Math.cos(u * Math.PI) * (0.7 + 0.5 * r())); puffs.push([cx + u * size * 2.6, cy + pr * 0.35 * r(), pr]); }
       clouds.push(puffs);
     }
@@ -166,6 +168,7 @@
     return base.lerp(new T.Color(P.haze), l.kind === 'sun' || l.kind === 'stars' ? 0 : f);
   }
   function buildLayer(l, bd, d) {
+    DET = bd.detail ?? 1;
     const g = new T.Group(), P = (BD.PALETTES[bd.palette] || BD.PALETTES.day)[1], per = periodOf(d), style = l.style || bd.style || 'classic';
     const col = colourOf(l, P, d), hex = '#' + col.getHexString(), light = '#' + col.clone().lerp(new T.Color('#ffffff'), 0.35).getHexString(), dark = '#' + col.clone().lerp(new T.Color('#000000'), 0.55).getHexString();
     // everything stands on the ground: nothing hangs below the horizon
@@ -183,11 +186,50 @@
         if (l.kind !== 'city') g.add(mesh(new T.ShapeGeometry(edgeBand(pts, d * (l.kind === 'sea' ? 0.004 : 0.008))), mat(light), 0.02));
         const shadow = mesh(new T.ShapeGeometry(sh), mat(dark, { opacity: 0.35 }), -0.15); shadow.position.x = d * 0.006; shadow.position.y = -d * 0.008; g.add(shadow);
       }
+      // detail laid over the front of the layer
+      const zf = style === 'modern' ? d * 0.015 + Math.min(d * 0.02, 1.2) + 0.03 : style === 'cardboard' ? Math.max(0.08, d * 0.004) / 2 + 0.03 : 0.035, lift = style === 'modern' ? Math.min(d * 0.02, 1.2) : 0;
+      const over = (geo, color, z = 0, glow) => { const m2 = mesh(geo, glow ? new T.MeshBasicMaterial({ color }) : mat(color)); m2.position.set(0, lift, zf + z); g.add(m2); };
+      const triGeo = (tris) => { const gg = new T.BufferGeometry(); gg.setAttribute('position', new T.Float32BufferAttribute(tris, 3)); gg.computeVertexNormals(); return gg; };
+      if (l.kind === 'mountains' && DET >= 1) {
+        // shaded slopes (the sides facing away from the light, which comes from the left) and snow on the peaks
+        const top = Math.max(...pts.map((q) => q[1])), snowLine = top * (DET >= 3 ? 0.62 : 0.7), shade = [], snow = [], sd = d * 0.035;
+        for (let i = 0; i < pts.length - 1; i++) {
+          const [x0, y0] = pts[i], [x1, y1] = pts[i + 1];
+          if (DET >= 2 && y1 < y0) shade.push(x0, y0, 0, x0, Math.max(0, y0 - sd), 0, x1, y1, 0, x1, y1, 0, x0, Math.max(0, y0 - sd), 0, x1, Math.max(0, y1 - sd), 0);
+          if (y0 > snowLine && y1 > snowLine) { const b0 = Math.max(snowLine, y0 - (y0 - snowLine) * 0.75 - d * 0.004 * Math.sin(x0 * 3)), b1 = Math.max(snowLine, y1 - (y1 - snowLine) * 0.75 - d * 0.004 * Math.sin(x1 * 3)); snow.push(x0, y0, 0, x0, b0, 0, x1, y1, 0, x1, y1, 0, x0, b0, 0, x1, b1, 0); }
+        }
+        if (shade.length) over(triGeo(shade), '#' + col.clone().lerp(new T.Color('#1b2333'), 0.28).getHexString(), -0.01);
+        if (snow.length) over(triGeo(snow), '#' + new T.Color('#ffffff').lerp(new T.Color(P.haze), 0.15).getHexString(), 0.005);
+      }
+      if (l.kind === 'hills' && DET >= 2) {
+        // bushes and rocks along the hills
+        const r = rng(l.seed + 3), bush = [], rocks = [], n = Math.round((per / (d * 0.05)) * (DET - 1));
+        for (let k = -1; k <= 1; k++) for (let i = 0; i < n; i++) {
+          const x = k * per + (i + r()) * (per / n) - per / 2, near = pts.reduce((a, q) => (Math.abs(q[0] - x) < Math.abs(a[0] - x) ? q : a), pts[0]), y = near[1] * (0.35 + 0.6 * r());
+          if (r() < 0.75) bush.push(new T.CircleGeometry(d * (0.006 + 0.006 * r()), 12).translate(x, y, 0)); else rocks.push(new T.CircleGeometry(d * (0.004 + 0.004 * r()), 6).translate(x, y, 0));
+        }
+        if (bush.length) over(merge(bush), '#' + col.clone().lerp(new T.Color('#1d4d22'), 0.35).getHexString());
+        if (rocks.length) over(merge(rocks), '#' + col.clone().lerp(new T.Color('#8f8f8f'), 0.6).getHexString(), 0.002);
+      }
+      if (l.kind === 'city' && pts.blds && DET >= 1) {
+        // rooftops: water towers, boxes, stepped tops and spires; at high detail, the shaded side of each building
+        const r = rng(l.seed + 11), roof = [], side = [], sh2 = (pts2) => { const S = new T.Shape(); S.moveTo(pts2[0][0], pts2[0][1]); pts2.slice(1).forEach(([x, y]) => S.lineTo(x, y)); S.closePath(); return new T.ShapeGeometry(S); };
+        [-per, 0, per].forEach((k) => pts.blds.forEach((b, bi) => {
+          const x0 = b.x + k, w = b.w, h = b.h, u = rng(l.seed + bi * 31)();
+          if (u < 0.18) roof.push(sh2([[x0 + w * 0.2, h], [x0 + w * 0.8, h], [x0 + w * 0.8, h + d * 0.012], [x0 + w * 0.2, h + d * 0.012]]), sh2([[x0 + w * 0.35, h + d * 0.012], [x0 + w * 0.65, h + d * 0.012], [x0 + w * 0.65, h + d * 0.022], [x0 + w * 0.35, h + d * 0.022]]));
+          else if (u < 0.3) roof.push(sh2([[x0 + w * 0.3, h], [x0 + w * 0.7, h], [x0 + w * 0.5, h + d * 0.04]]));
+          else if (u < 0.45) { const tx = x0 + w * (0.25 + 0.4 * r()), tw = d * 0.012; roof.push(sh2([[tx, h], [tx + d * 0.002, h], [tx + d * 0.002, h + d * 0.008], [tx, h + d * 0.008]]), sh2([[tx + tw - d * 0.002, h], [tx + tw, h], [tx + tw, h + d * 0.008], [tx + tw - d * 0.002, h + d * 0.008]]), sh2([[tx - d * 0.001, h + d * 0.008], [tx + tw + d * 0.001, h + d * 0.008], [tx + tw + d * 0.001, h + d * 0.02], [tx - d * 0.001, h + d * 0.02]]), sh2([[tx - d * 0.002, h + d * 0.02], [tx + tw + d * 0.002, h + d * 0.02], [tx + tw / 2, h + d * 0.026]])); }
+          else if (u < 0.7 && DET >= 2) for (let q = 0; q < 2; q++) { const bx = x0 + w * (0.15 + 0.5 * r()), bw = d * 0.006; roof.push(sh2([[bx, h], [bx + bw, h], [bx + bw, h + bw * 0.7], [bx, h + bw * 0.7]])); }
+          if (DET >= 2) side.push(sh2([[x0 + w * 0.82, 0], [x0 + w, 0], [x0 + w, h], [x0 + w * 0.82, h]]));
+        }));
+        if (roof.length) { const rg = merge(roof); const m2 = mesh(rg, style === 'modern' ? new T.MeshStandardMaterial({ color: col, roughness: 0.8 }) : mat(hex)); m2.position.set(0, lift, style === 'modern' ? 0 : 0); g.add(m2); }
+        if (side.length) over(merge(side), '#' + col.clone().lerp(new T.Color('#000000'), 0.22).getHexString(), -0.01);
+      }
       if (l.kind === 'city' && pts.blds) {
         // windows: lit at sunset and at night
         const r = rng(l.seed + 7), quads = [], ws = d * 0.006, zf = style === 'modern' ? d * 0.015 + Math.min(d * 0.02, 1.2) + 0.02 : 0.03;
         [-per, 0, per].forEach((k) => pts.blds.forEach((b) => {
-          for (let y = d * 0.012; y < b.h - d * 0.01; y += ws * 2.4) for (let x = b.x + ws * 1.2; x < b.x + b.w - ws * 1.2; x += ws * 2.2) if (r() < (P.lit ? 0.45 : 0.7)) { const q = new T.PlaneGeometry(ws, ws * 1.3); q.translate(x + k + ws / 2, y, zf); quads.push(q); }
+          for (let y = d * 0.012; y < b.h - d * 0.01; y += ws * 2.4) for (let x = b.x + ws * 1.2; x < b.x + b.w - ws * 1.2; x += ws * 2.2) if (r() < (P.lit ? 0.45 : 0.7) * [0.5, 1, 1, 1.15][DET]) { const q = new T.PlaneGeometry(ws, ws * 1.3); q.translate(x + k + ws / 2, y, zf); quads.push(q); }
         }));
         const wg = merge(quads); if (wg) g.add(mesh(wg, P.lit ? new T.MeshBasicMaterial({ color: P.windows }) : mat(P.windows, { glow: 0.1, rough: 0.3 })));
       }
@@ -205,7 +247,9 @@
         g.add(mesh(merge(hi), mat(light, { glow: 0.6 }), 0.02));
         const shadow = mesh(body.clone(), mat(dark, { opacity: 0.3 }), -0.15); shadow.position.set(d * 0.006, -d * 0.008, -0.15); g.add(shadow);
       }
-    } else if (['forest', 'islands', 'playground', 'circuit', 'pixels', 'birds', 'balloons', 'rainbow', 'planets'].includes(l.kind)) {
+    } else if (l.kind === 'planets') {
+      buildPlanets(g, l, d, per, style, bd);
+    } else if (['forest', 'islands', 'playground', 'circuit', 'pixels', 'birds', 'balloons', 'rainbow'].includes(l.kind)) {
       buildItems(g, makeItems(l, per, d, P, col), style, d, per, col, l, bd);
     } else if (l.kind === 'picture') {
       buildPicture(g, l, d, per, style, bd);
@@ -219,7 +263,7 @@
       if (style === 'modern') g.add(mesh(new T.SphereGeometry(rad, 40, 24).translate(x, y, 0), new T.MeshBasicMaterial({ color: col })));
       else g.add(mesh(new T.CircleGeometry(rad, 64).translate(x, y, 0), new T.MeshBasicMaterial({ color: col })));
       if (bd.palette === 'digital') { const bars = []; for (let i = 0; i < 5; i++) { const h = rad * (0.06 + i * 0.035), yy = y - rad * (0.15 + i * 0.18); bars.push(new T.PlaneGeometry(rad * 2.2, h).translate(x, yy, 0)); } g.add(mesh(merge(bars), new T.MeshBasicMaterial({ color: new T.Color(P.sky[1]) }), style === 'modern' ? rad + 0.05 : 0.02)); }
-      if (moon) { const bite = mesh(new T.CircleGeometry(rad * 0.92, 64).translate(x + rad * 0.45, y + rad * 0.2, 0), new T.MeshBasicMaterial({ color: new T.Color(P.sky[0]) }), style === 'modern' ? rad + 0.05 : 0.02); g.add(bite); }
+      if (moon) { const bite = mesh(new T.CircleGeometry(rad * 0.92, 64).translate(x + rad * 0.45, y + rad * 0.2, 0), new T.MeshBasicMaterial({ color: new T.Color(P.sky[0]).lerp(new T.Color(P.sky[1]), 0.3) }), style === 'modern' ? rad + 0.05 : 0.02); g.add(bite); }
       else g.add(mesh(new T.CircleGeometry(rad * 1.9, 64).translate(x, y, 0), new T.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.22, depthWrite: false }), -0.05));
     }
     g.traverse((x) => { x.userData.backdrop = true; });
@@ -372,13 +416,6 @@
     } else if (l.kind === 'rainbow') {
       const cx = (r() - 0.5) * P * 0.3, R = d * 0.3 * H, band = d * 0.012, cols = ['#e03131', '#f76707', '#fcc419', '#40c057', '#228be6', '#7048e8'];
       cols.forEach((c, i) => { const ro = R - i * band, ri = ro - band, sh = new T.Shape(); sh.absarc(cx, -d * 0.02, ro, 0, Math.PI, false); sh.absarc(cx, -d * 0.02, ri, Math.PI, 0, true); sh.closePath(); add(sh, c, { glow: true, sky: true, z: 0.002 * i, once: true }); });
-    } else if (l.kind === 'planets') {
-      const n = 1 + Math.floor(r() * 3);
-      for (let i = 0; i < n; i++) {
-        const px = (r() - 0.5) * P * 0.6, py = d * (0.15 + 0.25 * r()) * H, R = d * (0.04 + 0.07 * r()) * (i ? 0.5 : 1), c = ['#e599f7', '#74c0fc', '#ffa94d', '#ced4da', '#ff8787'][Math.floor(r() * 5)];
-        add(disc(px, py, R), c, { sky: true, once: true });
-        if (r() < 0.6) { const ring = new T.Shape(); ring.absellipse(px, py, R * 2, R * 0.45, 0, Math.PI * 2, false, -0.3); ring.holes.push(new T.Path().absellipse(px, py, R * 1.45, R * 0.3, 0, Math.PI * 2, true, -0.3)); add(ring, '#f1f3f5', { sky: true, once: true, z: 0.02 }); }
-      }
     }
     // repeat over three periods (things that should appear only once, like a rainbow, stay once)
     one.forEach((it) => { if (it.once) items.push(it); else [-P, 0, P].forEach((k) => items.push({ ...it, shapes: it.shapes.map((sh) => moveShape(sh, k)) })); });
@@ -562,6 +599,63 @@
     return g;
   }
   let groundGroup = null;
+
+  // ---------------------------------------------------------------- planets
+  // a planet's surface as a wrap-round picture: banded gas giant, cratered rock, or a blue world with land and clouds
+  function planetMap(kind, seed) {
+    const W = 1024, H = 512, c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d'), r = rng(seed), img = x.createImageData(W, H), D = img.data;
+    const k = [0, 1, 2, 3, 4, 5, 6, 7].map(() => r() * 6.28);
+    // smooth noise on the sphere (from sines of the 3D point, so the left and right edges join)
+    const nz = (px, py, pz, f) => Math.sin(px * f + k[0]) * Math.sin(py * f * 1.3 + k[1]) + Math.sin(py * f * 0.7 + pz * f * 1.1 + k[2]) * 0.6 + Math.sin(pz * f * 2.1 + px * f * 0.4 + k[3]) * 0.35 + Math.sin((px + py + pz) * f * 3.7 + k[4]) * 0.15;
+    const pal = { gas: [[214, 168, 112], [180, 120, 80], [236, 214, 170], [150, 96, 70], [222, 190, 140]], ice: [[160, 210, 230], [120, 170, 210], [210, 235, 245], [90, 140, 190]], rock: [[150, 140, 130], [110, 100, 92], [175, 168, 158]], world: null }[kind] || [[180, 180, 180]];
+    for (let j = 0; j < H; j++) {
+      const lat = (j / H - 0.5) * Math.PI;
+      for (let i = 0; i < W; i++) {
+        const lon = (i / W) * Math.PI * 2, px = Math.cos(lat) * Math.cos(lon), py = Math.sin(lat), pz = Math.cos(lat) * Math.sin(lon), o = (j * W + i) * 4;
+        let rgb;
+        if (kind === 'gas' || kind === 'ice') { const t = (py + 0.08 * nz(px, py, pz, 4)) * 9 + 0.3 * nz(px, py, pz, 9), band = pal[Math.abs(Math.floor(t)) % pal.length], next = pal[Math.abs(Math.floor(t) + 1) % pal.length], f = t - Math.floor(t); rgb = band.map((v, q) => v + (next[q] - v) * f * f); }
+        else if (kind === 'rock') { const n = nz(px, py, pz, 5) * 0.5 + nz(px, py, pz, 13) * 0.25; rgb = pal[0].map((v) => v * (0.85 + n * 0.2)); }
+        else { const land = nz(px, py, pz, 2.6) + 0.4 * nz(px, py, pz, 7); const ice = Math.abs(py) > 0.86; rgb = ice ? [240, 244, 248] : land > 0.55 ? (land > 1.1 ? [160, 140, 100] : [70, 140, 70]) : [30, 80, 160 + 30 * land]; const cl = nz(px * 1.3, py * 2.2, pz * 1.3, 4.5); if (cl > 0.75) rgb = rgb.map((v) => v + (255 - v) * Math.min(1, (cl - 0.75) * 2.5)); }
+        D[o] = rgb[0]; D[o + 1] = rgb[1]; D[o + 2] = rgb[2]; D[o + 3] = 255;
+      }
+    }
+    x.putImageData(img, 0, 0);
+    if (kind === 'rock') for (let q = 0; q < 70; q++) { const cx = r() * W, cy = H * (0.15 + 0.7 * r()), rr = 4 + r() ** 2 * 30; x.fillStyle = 'rgba(0,0,0,0.18)'; x.beginPath(); x.ellipse(cx, cy, rr, rr * 0.9, 0, 0, Math.PI * 2); x.fill(); x.strokeStyle = 'rgba(255,255,255,0.18)'; x.lineWidth = 1 + rr * 0.08; x.beginPath(); x.ellipse(cx - 1, cy - 1, rr, rr * 0.9, 0, Math.PI * 0.9, Math.PI * 1.9); x.stroke(); }
+    const tex = new T.CanvasTexture(c); tex.colorSpace = T.SRGBColorSpace; tex.anisotropy = 8; tex.wrapS = T.RepeatWrapping; return tex;
+  }
+  // rings: soft bands, see-through between them
+  function ringMap(seed) {
+    const W = 512, c = document.createElement('canvas'); c.width = W; c.height = 4; const x = c.getContext('2d'), r = rng(seed + 5);
+    for (let i = 0; i < W; i++) { const t = i / W, a = (0.25 + 0.6 * Math.abs(Math.sin(t * 23 + r() * 0.3)) * (0.6 + 0.4 * Math.sin(t * 7))) * Math.sin(t * Math.PI); x.fillStyle = `rgba(${220 - 40 * t},${205 - 50 * t},${180 - 50 * t},${a.toFixed(3)})`; x.fillRect(i, 0, 1, 4); }
+    const tex = new T.CanvasTexture(c); tex.colorSpace = T.SRGBColorSpace; return tex;
+  }
+  // a lit planet drawn flat (for Classic): the surface picture wrapped onto a disc, with day and night sides and a glow at the edge
+  function planetDisc(map, R) {
+    const S = 512, c = document.createElement('canvas'); c.width = c.height = S; const x = c.getContext('2d'), out = x.createImageData(S, S), D = out.data;
+    const src = map.image.getContext('2d').getImageData(0, 0, map.image.width, map.image.height), SD = src.data, SW = map.image.width, SH = map.image.height, L = new T.Vector3(-0.6, 0.5, 0.62).normalize();
+    for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) {
+      const u = (i / S) * 2 - 1, v = 1 - (j / S) * 2, rr = u * u + v * v, o = (j * S + i) * 4; if (rr > 1) continue;
+      const z = Math.sqrt(1 - rr), lat = Math.asin(v), lon = Math.atan2(u, z) + 0.8, sx = Math.floor((((lon / (Math.PI * 2)) % 1) + 1) % 1 * SW), sy = Math.floor((0.5 - lat / Math.PI) * (SH - 1)), so = (sy * SW + sx) * 4;
+      const lit = Math.max(0.12, u * L.x + v * L.y + z * L.z), rim = Math.pow(1 - z, 3) * 0.6;
+      D[o] = Math.min(255, SD[so] * lit + 120 * rim); D[o + 1] = Math.min(255, SD[so + 1] * lit + 160 * rim); D[o + 2] = Math.min(255, SD[so + 2] * lit + 255 * rim); D[o + 3] = Math.min(255, 255 * Math.min(1, (1 - rr) * 60));
+    }
+    x.putImageData(out, 0, 0);
+    const tex = new T.CanvasTexture(c); tex.colorSpace = T.SRGBColorSpace; return tex;
+  }
+  function buildPlanets(g, l, d, per, style, bd) {
+    const r = rng(l.seed), H = l.height ?? 1, n = 1 + Math.floor(r() * 3), kinds = ['gas', 'rock', 'world', 'ice'];
+    for (let i = 0; i < n; i++) {
+      const kind = kinds[Math.floor(r() * kinds.length)], R = d * (0.05 + 0.07 * r()) * (i ? 0.55 : 1), x = (r() - 0.5) * per * 0.6, y = d * (0.18 + 0.22 * r()) * H, ringed = kind !== 'world' && r() < 0.55, tilt = (r() - 0.5) * 0.7, map = planetMap(kind, l.seed + i * 17);
+      if (style === 'classic') { const m = mesh(new T.CircleGeometry(R, 64).translate(x, y, 0), new T.MeshBasicMaterial({ map: planetDisc(map, R), transparent: true, alphaTest: 0.02 }), 0.01); g.add(m); }
+      else { const s2 = new T.Mesh(new T.SphereGeometry(R, 64, 40), new T.MeshStandardMaterial({ map, roughness: kind === 'world' ? 0.6 : 0.9, metalness: 0 })); s2.position.set(x, y, 0); s2.rotation.set(0.2, r() * 6, tilt); g.add(s2); }
+      if (ringed) {
+        const ring = new T.RingGeometry(R * 1.35, R * 2.2, 96, 1), pos = ring.attributes.position, uv = ring.attributes.uv;
+        for (let q = 0; q < pos.count; q++) { const rr = Math.hypot(pos.getX(q), pos.getY(q)); uv.setXY(q, (rr - R * 1.35) / (R * 0.85), 0.5); }
+        const rm = new T.Mesh(ring, new T.MeshStandardMaterial({ map: ringMap(l.seed + i), transparent: true, side: T.DoubleSide, depthWrite: false, roughness: 1 }));
+        rm.position.set(x, y, style === 'classic' ? 0.02 : 0); rm.rotation.set(style === 'classic' ? -1.3 : -1.25, 0, tilt); g.add(rm);
+      }
+    }
+  }
 
   // ---------------------------------------------------------------- in the scene
   let group = null, built = '', center = new T.Vector3();
