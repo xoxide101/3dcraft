@@ -145,4 +145,9 @@
 .bd-themes .btn { font-size: 12px; min-height: 28px; }
 .bd-themes .btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
 .linkbtn { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
-.tabs .tab { padding-left: 6px; padding-right: 6px; }
+/* side-panel tabs with their labels at 45°, so five fit with room to spare */
+.tabs.angled { height: 66px; min-height: 66px; flex: none; overflow: hidden; }
+.tabs.angled .tab { position: relative; padding: 0; min-width: 0; }
+.tabs.angled .tab > span { position: absolute; left: 26%; bottom: 8px; transform: rotate(-45deg); transform-origin: left center; white-space: nowrap; font-size: 12px; }
+.tabs.angled .tab:hover { background: var(--panel-2); }
+.tabs.angled .tab[aria-selected="true"] { background: var(--accent-soft); }
