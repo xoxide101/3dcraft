@@ -99,6 +99,8 @@
         <div class="field"><span>Quality</span><div class="seg" id="rd-q"></div></div>
         <p class="hint" id="rd-q-tip"></p>
         <label class="check"><input type="checkbox" id="rd-transp"> See-through background (shadows stay)</label>
+        <label class="check"><input type="checkbox" id="rd-dn" checked> Smooth the grain (keeps edges sharp)</label>
+        <label class="field"><span>Edges (anti-aliasing)</span><select class="input" id="rd-aa"><option value="1">Normal</option><option value="2">2× smoother (about 4× slower)</option><option value="3">3× smoother (about 9× slower)</option><option value="4">4× smoother (about 16× slower)</option></select></label>
         <div class="rd-bar"><i id="rd-bar"></i></div>
         <p class="hint" id="rd-status">Not started.</p>
         <div class="row"><button class="btn primary" id="rd-go">Render</button><button class="btn" id="rd-stop" disabled>Stop here</button></div>

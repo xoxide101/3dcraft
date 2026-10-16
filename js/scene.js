@@ -681,6 +681,82 @@
   // Light bounces between surfaces like real light: soft shadows, true reflections, glass that bends light. It gets better
   // with every sample, so the window shows it clearing up. The editor pauses while it renders.
   E.QUALITY = { draft: ['Draft', 24, 3], good: ['Good', 96, 5], high: ['High', 320, 8], best: ['Best', 1000, 12] };
+  // ------------------------------------------------------------------ smoothing the grain of ray-traced renders
+  // Two quick passes of the scene with the normal renderer tell the smoothing where the edges are: which way each
+  // surface faces and how far away it is, and its plain colour without light. Grain is then averaged away only
+  // between neighbours that face the same way, are as far away and have the same colour, so edges and pictures stay sharp.
+  function renderAux(cam, W, H) {
+    const mk = () => new T.WebGLRenderTarget(W, H, { type: T.HalfFloatType });
+    const nrm = mk(), alb = mk();
+    const keep = { bg: scene.background, clear: renderer.getClearColor(new T.Color()), alpha: renderer.getClearAlpha(), tm: renderer.toneMapping, shadow: renderer.shadowMap.enabled };
+    scene.background = null; renderer.setClearColor(0x000000, 0); renderer.shadowMap.enabled = false; renderer.toneMapping = T.NoToneMapping;
+    const nm = new T.ShaderMaterial({ side: T.DoubleSide,
+      vertexShader: 'varying vec3 vN; varying float vZ; void main() { vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vZ = -mv.z; gl_Position = projectionMatrix * mv; }',
+      fragmentShader: 'varying vec3 vN; varying float vZ; void main() { vec3 n = normalize(vN) * (gl_FrontFacing ? 1.0 : -1.0); gl_FragColor = vec4(n * 0.5 + 0.5, vZ); }' });
+    scene.overrideMaterial = nm; renderer.setRenderTarget(nrm); renderer.clear(); renderer.render(scene, cam); scene.overrideMaterial = null;
+    const swaps = [];
+    scene.traverseVisible((x) => {
+      if (!x.isMesh) return;
+      const one = (m) => new T.MeshBasicMaterial({ color: m && m.color ? m.color.clone() : new T.Color(1, 1, 1), map: (m && m.map) || null, side: m ? m.side : T.FrontSide });
+      swaps.push([x, x.material]); x.material = Array.isArray(x.material) ? x.material.map(one) : one(x.material);
+    });
+    renderer.setRenderTarget(alb); renderer.clear(); renderer.render(scene, cam);
+    swaps.forEach(([x, m]) => { [].concat(x.material).forEach((b) => b.dispose()); x.material = m; });
+    renderer.setRenderTarget(null); scene.background = keep.bg; renderer.setClearColor(keep.clear, keep.alpha); renderer.toneMapping = keep.tm; renderer.shadowMap.enabled = keep.shadow;
+    return { nrm, alb, dispose() { nrm.dispose(); alb.dispose(); nm.dispose(); } };
+  }
+  const DENOISE_FS = `
+    uniform sampler2D tC, tN, tA, tRaw; uniform vec2 texel; uniform float stepW, phiC, useColor, first, last;
+    varying vec2 vUv;
+    vec3 albAt(vec2 uv) { return pow(max(texture2D(tA, uv).rgb, vec3(0.0)), vec3(1.0 / 2.2)); }
+    vec3 illumAt(vec2 uv) { vec3 c = texture2D(tC, uv).rgb; if (first > 0.5 && texture2D(tN, uv).a > 0.0) return c / max(albAt(uv), vec3(0.03)); return c; }
+    void main() {
+      vec4 n0 = texture2D(tN, vUv), raw = texture2D(tRaw, vUv);
+      vec3 c0 = illumAt(vUv);
+      if (n0.a <= 0.0) { gl_FragColor = last > 0.5 ? vec4(raw.rgb * raw.a, raw.a) : vec4(c0, 1.0); return; }
+      vec3 N0 = n0.xyz * 2.0 - 1.0, a0 = albAt(vUv); float z0 = n0.a;
+      float k[5]; k[0] = 0.0625; k[1] = 0.25; k[2] = 0.375; k[3] = 0.25; k[4] = 0.0625;
+      vec3 sum = vec3(0.0); float wsum = 0.0;
+      for (int j = -2; j <= 2; j++) for (int i = -2; i <= 2; i++) {
+        vec2 uv = vUv + vec2(float(i), float(j)) * stepW * texel;
+        vec4 nq = texture2D(tN, uv); if (nq.a <= 0.0) continue;
+        vec3 cq = illumAt(uv), aq = albAt(uv), dc = cq - c0, da = aq - a0;
+        float wn = pow(max(0.0, dot(N0, nq.xyz * 2.0 - 1.0)), 64.0);
+        float wz = exp(-abs(nq.a - z0) / (0.04 * z0 * stepW + 1e-4));
+        // brightness compared as a ratio, so a shadow stays a shadow while grain of the same brightness averages out
+        float rel = length(dc) / (length(c0) + length(cq) + 0.05), wc = useColor > 0.5 ? exp(-rel * rel / (phiC * phiC + 1e-6)) : 1.0;
+        float w = k[i + 2] * k[j + 2] * wn * wz * wc * exp(-dot(da, da) / 0.004);
+        sum += cq * w; wsum += w;
+      }
+      vec3 c = wsum > 0.0 ? sum / wsum : c0;
+      if (last > 0.5) { vec3 col = c * max(a0, vec3(0.03)); gl_FragColor = vec4(col * raw.a, raw.a); } else gl_FragColor = vec4(c, 1.0);
+    }`;
+  // the raw picture (a canvas) smoothed, drawn with the renderer at W × H and copied into a new canvas of w × h
+  function denoiseCanvas(raw, aux, W, H, w, h, samples) {
+    const tex = new T.CanvasTexture(raw); tex.colorSpace = T.NoColorSpace; tex.generateMipmaps = false; tex.minFilter = tex.magFilter = T.LinearFilter;
+    const rt = [0, 1].map(() => new T.WebGLRenderTarget(W, H, { type: T.HalfFloatType, depthBuffer: false }));
+    const mat = new T.ShaderMaterial({ uniforms: { tC: { value: tex }, tN: { value: aux.nrm.texture }, tA: { value: aux.alb.texture }, tRaw: { value: tex }, texel: { value: new T.Vector2(1 / W, 1 / H) }, stepW: { value: 1 }, phiC: { value: 0.1 }, useColor: { value: 1 }, first: { value: 1 }, last: { value: 0 } },
+      vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }', fragmentShader: DENOISE_FS, depthTest: false, depthWrite: false, toneMapped: false });
+    const qs = new T.Scene(), qc = new T.OrthographicCamera(-1, 1, 1, -1, 0, 1); qs.add(new T.Mesh(new T.PlaneGeometry(2, 2), mat));
+    const keepTM = renderer.toneMapping; renderer.toneMapping = T.NoToneMapping; renderer.setScissorTest(false);
+    // less smoothing the cleaner the picture already is (more samples). The first, small passes look only at the
+    // shapes (they clear single dark or bright specks); the larger ones also keep differences in brightness (shadows).
+    const phi = Math.max(0.02, Math.min(0.2, 0.6 / Math.sqrt(Math.max(1, samples)))), shapeOnly = samples < 100 ? 2 : samples < 500 ? 1 : 0;
+    let src = tex;
+    const N = 5;
+    for (let i = 0; i < N; i++) {
+      const last = i === N - 1, target = last ? null : rt[i % 2];
+      mat.uniforms.tC.value = src; mat.uniforms.stepW.value = 1 << i; mat.uniforms.phiC.value = phi; mat.uniforms.useColor.value = i < shapeOnly ? 0 : 1; mat.uniforms.first.value = i === 0 ? 1 : 0; mat.uniforms.last.value = last ? 1 : 0;
+      renderer.setRenderTarget(target); renderer.setViewport(0, 0, W, H); renderer.render(qs, qc);
+      if (!last) src = target.texture;
+    }
+    const out = document.createElement('canvas'); out.width = w; out.height = h; const ox = out.getContext('2d'); ox.imageSmoothingQuality = 'high';
+    // WebGL draws from the bottom left of its canvas
+    ox.drawImage(renderer.domElement, 0, renderer.domElement.height - H, W, H, 0, 0, w, h);
+    renderer.toneMapping = keepTM; tex.dispose(); rt.forEach((r) => r.dispose()); mat.dispose();
+    return out;
+  }
+
   E.pathRender = function (w, h, o = {}) {
     const v = views.find((x) => !x.ortho), cam = v.cam.clone(); cam.aspect = w / h; cam.updateProjectionMatrix();
     const [, samples, bounces] = E.QUALITY[o.quality] || E.QUALITY.good;
@@ -694,7 +770,10 @@
     // the same studio room the editor uses, as an environment the path tracer can sample
     const cubeRT = new T.WebGLCubeRenderTarget(256, { type: T.HalfFloatType }), cubeCam = new T.CubeCamera(0.1, 100, cubeRT), room = new T.RoomEnvironment();
     cubeCam.update(renderer, room); scene.environment = cubeRT.texture; scene.environmentIntensity = 0.8 * ((E.doc && E.doc.scene.reflect) ?? 1);
-    const k = Math.min(1, Math.min(8192, renderer.capabilities.maxTextureSize || 4096) / Math.max(w, h)), W = Math.round(w * k), H = Math.round(h * k);
+    // Smoother edges (anti-aliasing): render 2, 3 or 4 times the size and shrink it, within the card's limit and about 16 million pixels
+    const k = Math.max(0.25, Math.min(o.edges || 1, Math.min(8192, renderer.capabilities.maxTextureSize || 4096) / Math.max(w, h), Math.max(1, Math.sqrt(16.6e6 / (w * h))))), W = Math.round(w * k), H = Math.round(h * k);
+    // the grain is smoothed at the finished size
+    const dw = Math.min(w, W), dh = Math.min(h, H);
     renderer.setScissorTest(false); renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setViewport(0, 0, W, H);
     // The path tracer numbers materials one per object, so objects with a material per face (front, sides, top…)
     // shifted every colour after them. For the render, each of those is split into one piece per face (sharing
@@ -715,15 +794,19 @@
     split.forEach(({ x, parts }) => { x.visible = false; parts.forEach((m) => x.parent.add(m)); });
     const unsplit = () => split.forEach(({ x, parts }) => { parts.forEach((m) => { m.removeFromParent(); m.geometry.setIndex(null); m.geometry.dispose(); }); x.visible = true; });
     scene.updateMatrixWorld(true);
+    const aux = o.denoise !== false ? renderAux(cam, dw, dh) : null;
     const pt = new T.WebGLPathTracer(renderer), tiles = W * H > 2e6 ? 3 : 2;
     Object.assign(pt, { renderDelay: 0, minSamples: 0, fadeDuration: 0, bounces, transmissiveBounces: 10, filterGlossyFactor: 0.5, renderScale: 1, dynamicLowRes: false, rasterizeScene: false });
     pt.tiles.set(tiles, tiles);
     pt.setScene(scene, cam);
     const out = document.createElement('canvas'); out.width = w; out.height = h; const ox = out.getContext('2d');
+    ox.imageSmoothingQuality = 'high';
     const copy = () => { ox.clearRect(0, 0, w, h); ox.drawImage(renderer.domElement, 0, 0, W, H, 0, 0, w, h); };
+    let smooth = null;
     let stopped = false, frame = 0;
     const finish = () => {
       pt.dispose(); cubeRT.dispose(); matte.dispose(); unsplit();
+      if (aux) { try { smooth = denoiseCanvas(out, aux, dw, dh, w, h, Math.floor(pt.samples) || 1); } catch (e) { console.warn('smoothing', e); } aux.dispose(); }
       shadow.material = keep.shadowMat; shadow.visible = keep.shadowVis; floor.visible = keep.floor; scene.background = keep.bg; scene.environment = keep.env; scene.environmentIntensity = keep.envI;
       grid.visible = keep.grid; keep.helpers.forEach((x) => (x.visible = true));
       renderer.setPixelRatio(keep.ratio); renderer.setSize(keep.size.x, keep.size.y, false);
@@ -733,12 +816,12 @@
       if (stopped) return;
       for (let i = 0; i < tiles * tiles; i++) pt.renderSample();
       const n = Math.floor(pt.samples); frame++;
-      if (n >= samples) { copy(); stopped = true; finish(); o.onDone && o.onDone(out, n, false); return; }
+      if (n >= samples) { copy(); stopped = true; finish(); o.onDone && o.onDone(out, n, false, smooth); return; }
       if (frame % 3 === 0) { copy(); o.onProgress && o.onProgress(out, n, samples); }
       requestAnimationFrame(step);
     };
     requestAnimationFrame(step);
-    return { canvas: out, samples, stop: () => { if (stopped) return; stopped = true; copy(); const n = Math.floor(pt.samples); finish(); o.onDone && o.onDone(out, n, true); } };
+    return { canvas: out, samples, stop: () => { if (stopped) return; stopped = true; copy(); const n = Math.floor(pt.samples); finish(); o.onDone && o.onDone(out, n, true, smooth); }, edges: +k.toFixed(2) };
   };
   E.thumbnail = (w = 320, h = 200) => E.renderImage(w, h, {}).toDataURL('image/jpeg', 0.8);
 

@@ -525,18 +525,24 @@
   const rdSync = () => { $('rd-q').innerHTML = Object.entries(E.QUALITY).map(([k, q]) => `<button class="btn" data-q="${k}" aria-pressed="${k === rdQ}" title="${q[1]} samples, ${q[2]} light bounces">${q[0]}</button>`).join(''); $('rd-q-tip').textContent = `${E.QUALITY[rdQ][1]} samples. ${QTIP[rdQ]}`; };
   $('rd-q').onclick = (e) => { const b = e.target.closest('[data-q]'); if (b && !rdJob) { rdQ = b.dataset.q; rdSync(); } };
   const openRender = () => { if (!E.doc) return; rdSync(); $('renderdlg').hidden = false; };
-  const rdBusy = (on) => { $('rd-go').disabled = on; $('rd-stop').disabled = !on; $('rd-close').disabled = on; ['rd-size', 'rd-transp'].forEach((id) => { $(id).disabled = on; }); };
+  const rdBusy = (on) => { $('rd-go').disabled = on; $('rd-stop').disabled = !on; $('rd-close').disabled = on; ['rd-size', 'rd-transp', 'rd-aa'].forEach((id) => { $(id).disabled = on; }); };
   $('rd-go').onclick = () => {
     const [w, h] = RSIZES[+$('rd-size').value], t0 = performance.now();
     $('rd-view').innerHTML = ''; $('rd-view').style.aspectRatio = `${w} / ${h}`; rdBusy(true); $('rd-png').disabled = $('rd-jpg').disabled = true;
     $('rd-status').textContent = 'Getting the scene ready…'; $('rd-bar').style.width = '0';
     const show = (c) => { if (!$('rd-view').contains(c)) { $('rd-view').innerHTML = ''; $('rd-view').append(c); } };
-    rdJob = E.pathRender(w, h, { quality: rdQ, transparent: $('rd-transp').checked,
+    rdRaw = rdSmooth = null;
+    rdJob = E.pathRender(w, h, { quality: rdQ, transparent: $('rd-transp').checked, edges: +$('rd-aa').value || 1,
       onProgress: (c, n, of) => { show(c); $('rd-bar').style.width = Math.round((n / of) * 100) + '%'; $('rd-status').textContent = `${n} of ${of} samples · ${Math.round((performance.now() - t0) / 1000)} s`; },
-      onDone: (c, n, early) => { show(c); rdOut = c; rdJob = null; rdBusy(false); $('rd-png').disabled = $('rd-jpg').disabled = false; $('rd-bar').style.width = early ? $('rd-bar').style.width : '100%';
-        $('rd-status').textContent = `${early ? 'Stopped at' : 'Done:'} ${n} samples, ${w} × ${h}, in ${Math.round((performance.now() - t0) / 1000)} s.`; } });
+      onDone: (c, n, early, smooth) => { rdRaw = c; rdSmooth = smooth; rdOut = $('rd-dn').checked && smooth ? smooth : c; show(rdOut); rdJob = null; rdBusy(false); $('rd-png').disabled = $('rd-jpg').disabled = false; $('rd-bar').style.width = early ? $('rd-bar').style.width : '100%';
+        const aa = rdJob0 && rdJob0.edges > 1 ? `, edges ${rdJob0.edges}× smoother` : '', capped = rdJob0 && +$('rd-aa').value > Math.max(1, rdJob0.edges) ? ' (as smooth as fits at this size)' : '';
+        $('rd-status').textContent = `${early ? 'Stopped at' : 'Done:'} ${n} samples, ${w} × ${h}${aa}${capped}, in ${Math.round((performance.now() - t0) / 1000)} s.`; } });
+    const rdJob0 = rdJob;
   };
   $('rd-stop').onclick = () => { if (rdJob) rdJob.stop(); };
+  // switch between the smoothed and the raw picture after rendering, to compare (what shows is what is saved)
+  let rdRaw = null, rdSmooth = null;
+  $('rd-dn').onchange = () => { if (rdJob || !rdRaw) return; rdOut = $('rd-dn').checked && rdSmooth ? rdSmooth : rdRaw; $('rd-view').innerHTML = ''; $('rd-view').append(rdOut); };
   $('rd-close').onclick = () => { if (!rdJob) $('renderdlg').hidden = true; };
   const rdSave = (fmt) => { if (!rdOut) return; let c = rdOut; if (fmt === 'jpg') { c = document.createElement('canvas'); c.width = rdOut.width; c.height = rdOut.height; const x = c.getContext('2d'); x.fillStyle = '#ffffff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(rdOut, 0, 0); } c.toBlob((b) => download(b, `${baseName()}-render.${fmt}`), fmt === 'jpg' ? 'image/jpeg' : 'image/png', 0.95); };
   $('rd-png').onclick = () => rdSave('png'); $('rd-jpg').onclick = () => rdSave('jpg');
