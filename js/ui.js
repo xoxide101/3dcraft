@@ -12,6 +12,7 @@
   // ------------------------------------------------------------------ messages
   const toastEl = $('toast'); let toastT;
   function toast(m) { toastEl.textContent = m; toastEl.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { toastEl.hidden = true; }, 3200); }
+  E.onWarn = toast;
   function info(title, html) { $('info-title').textContent = title; $('info-body').innerHTML = html; $('info').hidden = false; $('info-close').focus(); }
   $('info-close').onclick = () => { $('info').hidden = true; };
   ['info', 'tracedlg', 'exportdlg'].forEach((id) => $(id).addEventListener('keydown', (e) => { if (e.key === 'Escape') $(id).hidden = true; }));

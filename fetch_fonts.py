@@ -6,7 +6,7 @@ fonts/fonts3d.js lists the 3D fonts for the menus. All fonts are SIL Open Font L
 
 Run:  python fetch_fonts.py
 """
-import json
+import base64, json
 import pathlib
 import re
 import urllib.request
@@ -44,6 +44,9 @@ for family, group, weights in FONTS3D:
             print("no TrueType for", family, w); continue
         name = f"{family.replace(' ', '')}-{w}.ttf"
         (out / "3d" / name).write_bytes(get(urls[0], OLD_UA))
+        # the same font as a script: pages opened from the folder (file://) cannot fetch files, but they can load scripts
+        b64 = base64.b64encode((out / "3d" / name).read_bytes()).decode("ascii")
+        (out / "3d" / name.replace(".ttf", ".js")).write_text("/* %s as text, so 3D text works when index.html is opened from the folder (file://). */\n(window.CRAFT_FONT_DATA = window.CRAFT_FONT_DATA || {})[%r] = '%s';\n" % (name, "3d/" + name, b64), encoding="ascii")
         files[w] = "3d/" + name
     if files:
         listing.append([family, group, files])

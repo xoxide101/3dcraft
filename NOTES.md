@@ -6,7 +6,7 @@ How 3DCraft is built and what to keep in mind when changing it. For what it does
 
 - **No build step for the app.** `index.html` loads `fonts/fonts.css`, `css/base.css` (the shared Craft styles, own copy) and `css/3dcraft.css`, then `lib/craft3d-libs.js`, `fonts/fonts3d.js`, `js/craft-titlebar.js`, `js/fills.js`, `js/tracer.js`, `js/craft-symbols.js`, `js/scene.js`, `js/ui.js`, `js/timeline.js`, `js/animexport.js` and `js/range-type.js`.
 - **The libraries** are one IIFE bundle (`lib/craft3d-libs.js`) so the app works from `file://` without modules: three.js 0.186 with OrbitControls, TransformControls, SVGLoader, GLTF/OBJ/STL loaders and exporters, RoomEnvironment, RoundedBoxGeometry and BufferGeometryUtils (as `window.THREE`), three-gpu-pathtracer's WebGLPathTracer, gifenc (`window.Gifenc`), webm-muxer and mp4-muxer (`window.WebMMuxer`, `window.MP4Muxer`), opentype.js (`window.opentype`) and ImageTracer (`window.ImageTracer`). To rebuild: `cd lib/build && npm install && npm run build` (`entry.js` lists what goes in).
-- **Fonts:** `fetch_fonts.py` downloads the 3D fonts as TrueType (`fonts/3d/*.ttf`: opentype.js cannot read woff2) plus the interface font, writes `fonts/fonts.css` (so the font menu shows each font) and `fonts/fonts3d.js` (`window.CRAFT_FONTS3D = [[family, group, { weight: file }]]`), and runs `make_symbols.py` for `fonts/symbols.js` (kept to the sets 3D can draw: Noto Sans Symbols 2 and the emoji).
+- **Fonts:** `fetch_fonts.py` downloads the 3D fonts as TrueType (`fonts/3d/*.ttf`: opentype.js cannot read woff2) plus the interface font, writes each one again as a script (`fonts/3d/*.js`, the font as base64 in `window.CRAFT_FONT_DATA`, because a page opened from the folder (`file://`) cannot fetch files but can load scripts; `E3.loadFont` adds the script when a font is first needed), writes `fonts/fonts.css` (so the font menu shows each font) and `fonts/fonts3d.js` (`window.CRAFT_FONTS3D = [[family, group, { weight: file }]]`), and runs `make_symbols.py` for `fonts/symbols.js` (kept to the sets 3D can draw: Noto Sans Symbols 2 and the emoji).
 - **Title bar, ribbon, fills, symbols picker and slider-typing helper** are own copies of the shared Craft pieces.
 
 ## Files
@@ -37,7 +37,7 @@ How 3DCraft is built and what to keep in mind when changing it. For what it does
 
 ## Testing
 
-Headless Chrome over the DevTools protocol: starter scenes, adding shapes, text, symbols and emoji, Picture to 3D on a drawn logo, a gradient on a face, the dial turning a selection, middle-mouse dragging, four views, picture export (see-through), GLB/OBJ/STL export and a ray-traced render.
+Headless Chrome over the DevTools protocol, opening `index.html` from the folder **without** `--allow-file-access-from-files` (that flag hides `file://` loading problems a normal double-click has): starter scenes, adding shapes, text, symbols and emoji, Picture to 3D on a drawn logo, a gradient on a face, the dial turning a selection, middle-mouse dragging, four views, picture export (see-through), GLB/OBJ/STL export and a ray-traced render.
 
 ## Animation
 

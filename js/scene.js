@@ -273,12 +273,22 @@
     const list = (window.CRAFT_FONTS3D || []).find(([f]) => f === family) || (window.CRAFT_FONTS3D || [])[0];
     if (!list) return Promise.reject(new Error('No 3D fonts (fonts/fonts3d.js)'));
     const file = list[2][weight] || list[2]['400'] || Object.values(list[2])[0], key = file;
-    if (!fontCache.has(key)) fontCache.set(key, fetch('fonts/' + file).then((r) => r.arrayBuffer()).then((b) => opentype.parse(b)).catch(() => new Promise((res, rej) => {
-      // file:// pages cannot fetch in some browsers: load it as a script-free XHR instead
-      const x = new XMLHttpRequest(); x.open('GET', 'fonts/' + file); x.responseType = 'arraybuffer'; x.onload = () => { try { res(opentype.parse(x.response)); } catch (e) { rej(e); } }; x.onerror = rej; x.send();
-    })));
+    if (!fontCache.has(key)) fontCache.set(key, fontBytes(file).then((b) => opentype.parse(b)));
     return fontCache.get(key);
   };
+  // Pages opened from the folder (file://) cannot fetch the .ttf, so each font also comes as a script
+  // (fonts/3d/Name-400.js, written by fetch_fonts.py) that puts the font into CRAFT_FONT_DATA as base64.
+  function fontBytes(file) {
+    const data = () => (window.CRAFT_FONT_DATA || {})[file];
+    const decode = (b64) => { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u.buffer; };
+    if (data()) return Promise.resolve(decode(data()));
+    return new Promise((res, rej) => {
+      const sc = document.createElement('script'); sc.src = 'fonts/' + file.replace(/\.ttf$/, '.js');
+      sc.onload = () => (data() ? res(decode(data())) : rej(new Error('Font script empty: ' + file)));
+      sc.onerror = () => fetch('fonts/' + file).then((r) => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }).then(res, rej);
+      document.head.append(sc);
+    });
+  }
   function textShapes(font, t) {
     const size = 1, lines = String(t.text || ' ').split('\n'), lh = size * (t.lead || 1.15), loader = new T.SVGLoader();
     const shapes = [], widths = lines.map((ln) => font.getAdvanceWidth(ln, size * 100, { letterSpacing: (t.spacing || 0) / 1000 }) / 100);
@@ -353,7 +363,9 @@
     if (m.kind === 'group') o = new T.Group();
     else if (m.kind === 'shape') { const [geo, slots] = shapeGeo(m.shape); o = new T.Mesh(geo, materialsFor(m.mat, slots)); if (m.shape.type === 'plane') [].concat(o.material).forEach((x) => (x.side = T.DoubleSide)); }
     else if (m.kind === 'text') {
-      const font = await E.loadFont(m.text.font, m.text.bold ? '700' : '400');
+      let font;
+      try { font = await E.loadFont(m.text.font, m.text.bold ? '700' : '400'); }
+      catch (e) { console.warn('3D text font', e); E.onWarn?.('The font for 3D text could not be loaded (' + m.text.font + ').'); o = new T.Group(); o.userData = { id: m.id, kind: m.kind }; o.uid = m.id; place(o, m); return o; }
       const t = m.text, shapes = textShapes(font, t), geo = extrudeShapes(shapes, (t.depth || 0.4) / (t.size || 1) * 100, (t.bevel || 0) / (t.size || 1) * 100, 8);
       geo.scale((t.size || 1) / 100, (t.size || 1) / 100, (t.size || 1) / 100); geo.center();
       o = new T.Mesh(geo, materialsFor(m.mat, SLOTS.extrude));
