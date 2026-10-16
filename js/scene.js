@@ -20,16 +20,16 @@
 
   // Material presets: what the Material tab's buttons set.
   E.MATERIALS = {
-    plastic: ['Plastic', { metal: 0, rough: 0.35, coat: 0.3, glass: 0, glow: 0 }],
-    gloss: ['Glossy paint', { metal: 0, rough: 0.12, coat: 1, glass: 0, glow: 0 }],
-    matte: ['Matte', { metal: 0, rough: 0.9, coat: 0, glass: 0, glow: 0 }],
+    plastic: ['Plastic', { metal: 0, rough: 0.32, coat: 0, glass: 0, glow: 0, spec: 0.7 }],
+    gloss: ['Glossy paint', { metal: 0, rough: 0.25, coat: 1, glass: 0, glow: 0, spec: 1 }],
+    matte: ['Matte', { metal: 0, rough: 1, coat: 0, glass: 0, glow: 0, spec: 0.15 }],
     gold: ['Gold', { color: '#e6b422', metal: 1, rough: 0.22, coat: 0, glass: 0, glow: 0 }],
     silver: ['Silver', { color: '#d8dade', metal: 1, rough: 0.18, coat: 0, glass: 0, glow: 0 }],
     chrome: ['Chrome', { color: '#ffffff', metal: 1, rough: 0.04, coat: 0, glass: 0, glow: 0 }],
     copper: ['Copper', { color: '#c8703f', metal: 1, rough: 0.28, coat: 0, glass: 0, glow: 0 }],
     glass: ['Glass', { color: '#ffffff', metal: 0, rough: 0.03, coat: 0, glass: 1, glow: 0 }],
     glow: ['Glow', { metal: 0, rough: 0.6, coat: 0, glass: 0, glow: 1.6 }],
-    rubber: ['Rubber', { metal: 0, rough: 1, coat: 0, glass: 0, glow: 0 }],
+    rubber: ['Rubber', { metal: 0, rough: 0.6, coat: 0, glass: 0, glow: 0, spec: 0.25, sheen: 1 }],
   };
   E.defaultMat = (color = '#3f7fe0', preset = 'plastic') => ({ preset, color, ...E.MATERIALS[preset][1], ...(E.MATERIALS[preset][1].color ? {} : { color }), opacity: 1, faces: {} });
 
@@ -472,6 +472,7 @@
       color: new T.Color(m.color || '#cccccc'), metalness: m.metal ?? 0, roughness: m.rough ?? 0.4, clearcoat: m.coat || 0, clearcoatRoughness: 0.1,
       transmission: glass, thickness: glass ? 1 : 0, ior: 1.5, transparent: (m.opacity ?? 1) < 1, opacity: m.opacity ?? 1,
       emissive: m.glow ? new T.Color(m.color || '#ffffff') : new T.Color(0), emissiveIntensity: m.glow || 0,
+      specularIntensity: m.spec ?? 1, sheen: m.sheen || 0, sheenRoughness: 0.45, sheenColor: new T.Color(0.35, 0.35, 0.35),
     });
     // metals live on reflections; paint and plastic only need a little
     mat.envMap = envTex; mat.userData.reflect = (m.metal ?? 0) > 0.5 ? 1.5 : 0.6; mat.envMapIntensity = mat.userData.reflect * (E.doc ? E.doc.scene.reflect ?? 1 : 1);
@@ -480,6 +481,34 @@
     if (tex) { mat.map = tex; mat.color.set('#ffffff'); if (m.glow) mat.emissiveMap = tex, mat.emissive.set('#ffffff'); }
     return mat;
   }
+  // A picture of a ball in a material (for the material buttons): drawn with the main renderer in a corner of its
+  // canvas, copied off, then the view is drawn again. Cached by material and colour.
+  const previews = new Map(); let pv = null;
+  E.materialPreview = function (key, color, size = 72) {
+    const id = key + '|' + color + '|' + size; if (previews.has(id)) return previews.get(id);
+    if (!renderer) return '';
+    if (!pv) {
+      pv = { scene: new T.Scene(), cam: new T.PerspectiveCamera(28, 1, 0.1, 30) };
+      pv.cam.position.set(0, 0.35, 4.6); pv.cam.lookAt(0, 0, 0);
+      pv.scene.background = new T.Color('#e8ebf0');
+      // a checked wall behind, so glass shows that it is see-through
+      const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'); x.fillStyle = '#f4f5f7'; x.fillRect(0, 0, 64, 64); x.fillStyle = '#9aa3b2'; for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) if ((i + j) % 2) x.fillRect(i * 16, j * 16, 16, 16);
+      const tex = new T.CanvasTexture(c); tex.colorSpace = T.SRGBColorSpace; tex.wrapS = tex.wrapT = T.RepeatWrapping; tex.repeat.set(3, 3);
+      const wall = new T.Mesh(new T.PlaneGeometry(6, 6), new T.MeshBasicMaterial({ map: tex })); wall.position.z = -2.2; pv.scene.add(wall);
+      const key = new T.DirectionalLight(0xffffff, 2.4); key.position.set(-2, 3, 3); pv.scene.add(key, new T.AmbientLight(0xffffff, 0.25));
+      pv.ball = new T.Mesh(new T.SphereGeometry(1, 64, 40)); pv.scene.add(pv.ball);
+    }
+    const mat = material({ ...E.defaultMat(color, key), opacity: 1 }); mat.envMapIntensity = mat.userData.reflect; pv.ball.material = mat;
+    const pr = renderer.getPixelRatio(), W = renderer.domElement.width, H = renderer.domElement.height, n = Math.round(size * pr);
+    if (W < n || H < n) return '';
+    const keepVp = renderer.getViewport(new T.Vector4()), keepSc = renderer.getScissor(new T.Vector4()), keepTest = renderer.getScissorTest(), keepShadow = renderer.shadowMap.enabled;
+    renderer.setViewport(0, 0, size, size); renderer.setScissor(0, 0, size, size); renderer.setScissorTest(true); renderer.shadowMap.enabled = false;
+    renderer.render(pv.scene, pv.cam);
+    const out = document.createElement('canvas'); out.width = out.height = n; out.getContext('2d').drawImage(renderer.domElement, 0, H - n, n, n, 0, 0, n, n);
+    renderer.setViewport(keepVp); renderer.setScissor(keepSc); renderer.setScissorTest(keepTest); renderer.shadowMap.enabled = keepShadow;
+    mat.dispose(); needs = true;
+    const url = out.toDataURL('image/png'); previews.set(id, url); return url;
+  };
   // one material per named face (front, back, sides, top, bottom), each with its own picture or gradient if set
   function materialsFor(m, slots) {
     const faces = m.faces || {};

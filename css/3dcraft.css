@@ -58,8 +58,11 @@
 .xyz { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .xyz label span { font-weight: 600; }
 .mat-presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
-.mat-presets button { aspect-ratio: 1; border-radius: 50%; border: 2px solid var(--line); cursor: pointer; padding: 0; }
-.mat-presets button[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.mat-presets button { border: 2px solid transparent; border-radius: 8px; background: none; cursor: pointer; padding: 2px 0 1px; display: grid; justify-items: center; gap: 1px; color: inherit; font: inherit; }
+.mat-presets button img { width: 100%; max-width: 46px; aspect-ratio: 1; border-radius: 50%; display: block; }
+.mat-presets button span { font-size: 10.5px; line-height: 1.1; opacity: .85; white-space: nowrap; }
+.mat-presets button:hover { background: var(--panel-2); }
+.mat-presets button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
 
 /* Render (ray-traced) */
 .render-grid { display: grid; grid-template-columns: 1fr 250px; gap: 14px; align-items: start; }

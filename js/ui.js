@@ -241,9 +241,10 @@
     const live = (patch) => { put(patch); E.rebuildOne(m.id); };
     const slots = E.slotsFor(m);
     let face = materialSection.face && (slots.includes(materialSection.face) || materialSection.face === 'all') ? materialSection.face : 'all';
-    const swatch = (k) => { const p = E.MATERIALS[k][1], c = p.color || mat.color; return p.glass ? 'linear-gradient(135deg,#e8f4ff,#9fc3e0 60%,#fff)' : p.metal ? `radial-gradient(circle at 35% 30%,#fff,${c} 45%,#333)` : p.glow ? `radial-gradient(circle,#fff,${c} 60%)` : `radial-gradient(circle at 35% 30%,#fff8,${c} 55%,${c})`; };
+    // each button shows a little ball rendered in that material (in this object's colour, unless the material has its own)
+    const ballFor = (k) => E.materialPreview(k, E.MATERIALS[k][1].color || mat.color);
     return { title: 'Material', items: [
-      { t: 'html', mount: (el) => { el.className = 'mat-presets'; el.innerHTML = Object.entries(E.MATERIALS).map(([k, [n]]) => `<button type="button" data-mp="${k}" title="${n}" aria-pressed="${mat.preset === k}" style="background:${swatch(k)}"></button>`).join(''); el.onclick = (e) => { const b = e.target.closest('[data-mp]'); if (!b) return; const p = E.MATERIALS[b.dataset.mp][1]; set({ preset: b.dataset.mp, ...p }); }; } },
+      { t: 'html', mount: (el) => { el.className = 'mat-presets'; el.innerHTML = Object.entries(E.MATERIALS).map(([k, [n]]) => `<button type="button" data-mp="${k}" title="${n}" aria-pressed="${mat.preset === k}"><img alt="" src="${ballFor(k)}"><span>${n.replace('Glossy paint', 'Gloss')}</span></button>`).join(''); el.onclick = (e) => { const b = e.target.closest('[data-mp]'); if (!b) return; const p = E.MATERIALS[b.dataset.mp][1]; set({ preset: b.dataset.mp, spec: 1, sheen: 0, ...p }); }; } },
       { t: 'row', items: [{ t: 'color', label: 'Colour', value: mat.color, on: (v, l) => (l ? live({ color: v }) : set({ color: v })) }, m.kind === 'trace' ? { t: 'check', label: "Picture's own colours", value: m.trace.ownColours !== false, on: (v) => { m.trace.ownColours = v; changed(m.id); showProps(); } } : null] },
       { t: 'range', label: 'Shine', value: Math.round((1 - (mat.rough ?? 0.4)) * 100), min: 0, max: 100, show: (v) => v + '%', on: (v) => set({ rough: 1 - v / 100 }) },
       { t: 'range', label: 'Metal', value: Math.round((mat.metal ?? 0) * 100), min: 0, max: 100, show: (v) => v + '%', on: (v) => set({ metal: v / 100 }) },
