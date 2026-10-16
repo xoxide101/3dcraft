@@ -39,7 +39,10 @@
     cylinder: ['Cylinder', { r: 1, h: 2 }], cone: ['Cone', { r: 1.1, h: 2.2 }], pyramid: ['Pyramid', { r: 1.4, h: 2 }], prism: ['Prism', { r: 1, h: 2, sides: 6 }],
     torus: ['Ring (doughnut)', { r: 1.1, tube: 0.4 }], washer: ['Flat ring', { r: 1.3, hole: 0.7, d: 0.4 }], capsule: ['Capsule', { r: 0.7, h: 1.6 }],
     star: ['Star', { r: 1.4, inner: 0.55, points: 5, d: 0.5 }], heart: ['Heart', { r: 1.4, d: 0.5 }], plane: ['Flat panel', { w: 3, h: 2 }],
+    // a stage to stand things on: form, width, depth, height of each step, corner and edge roundness, steps and how far each step comes in
+    stage: ['Stage', { form: 'round', w: 6, d: 4, h: 0.4, corner: 0.3, edge: 0.06, steps: 1, stepIn: 0.5 }],
   };
+  E.STAGE_FORMS = { round: 'Round', oval: 'Oval', square: 'Square', rect: 'Rectangle', hex: 'Hexagon', oct: 'Octagon' };
 
   // ------------------------------------------------------------------ three.js setup
   let renderer, scene, root, ground, grid, keyLight, fillLight, envTex, pmrem, tc, orbit;
@@ -247,7 +250,51 @@
     geo.translate(0, 0, -depth / 2);
     return splitExtrude(geo, box);
   };
-  const SLOTS = { box: ['sides', 'sides', 'top', 'bottom', 'front', 'back'], cyl: ['sides', 'top', 'bottom'], extrude: ['front', 'back', 'sides'] };
+  const SLOTS = { box: ['sides', 'sides', 'top', 'bottom', 'front', 'back'], cyl: ['sides', 'top', 'bottom'], extrude: ['front', 'back', 'sides'], stage: ['top', 'bottom', 'sides'] };
+  // The outline of a stage seen from above (w across, d deep), with its corners rounded by `corner` (0 sharp to 1 fully round)
+  function stageOutline(form, w, d, corner) {
+    const sh = new T.Shape();
+    if (form === 'round' || form === 'oval') { sh.absellipse(0, 0, w / 2, (form === 'round' ? w : d) / 2, 0, Math.PI * 2, false); return sh; }
+    let pts;
+    if (form === 'hex' || form === 'oct') { const n = form === 'hex' ? 6 : 8; pts = Array.from({ length: n }, (_, i) => { const a = (i / n) * Math.PI * 2 + Math.PI / n; return [Math.cos(a) * w / 2, Math.sin(a) * w / 2]; }); }
+    else { const dd = form === 'square' ? w : d; pts = [[-w / 2, -dd / 2], [w / 2, -dd / 2], [w / 2, dd / 2], [-w / 2, dd / 2]]; }
+    // round each corner: cut in along both sides, then curve across
+    const n = pts.length, side = Math.min(...pts.map((p, i) => Math.hypot(pts[(i + 1) % n][0] - p[0], pts[(i + 1) % n][1] - p[1])));
+    const r = Math.max(0, Math.min(1, corner || 0)) * side / 2;
+    pts.forEach((p, i) => {
+      const prev = pts[(i + n - 1) % n], next = pts[(i + 1) % n];
+      const toward = (q) => { const dx = q[0] - p[0], dy = q[1] - p[1], L = Math.hypot(dx, dy) || 1; return [p[0] + (dx / L) * r, p[1] + (dy / L) * r]; };
+      const a = toward(prev), b = toward(next);
+      if (i === 0) sh.moveTo(a[0], a[1]); else sh.lineTo(a[0], a[1]);
+      if (r > 1e-4) sh.quadraticCurveTo(p[0], p[1], b[0], b[1]); else sh.lineTo(p[0], p[1]);
+    });
+    sh.closePath();
+    return sh;
+  }
+  // A stage: one slab per step, each smaller by stepIn on every side, stacked; faces are top, bottom and sides
+  function stageGeo(p) {
+    const steps = Math.max(1, Math.min(6, p.steps | 0 || 1)), h = Math.max(0.02, p.h || 0.4), parts = [];
+    for (let i = 0; i < steps; i++) {
+      const inset = i * (p.stepIn ?? 0.5) * 2, w = Math.max(0.1, p.w - inset), d = Math.max(0.1, (p.d || p.w) - inset);
+      const edge = Math.max(0, Math.min(p.edge || 0, h / 2 - 0.005, Math.min(w, d) / 4)), grow = edge * 0.8;
+      // the rounded rim grows the outline outwards: start that much smaller so the size stays as typed
+      const sh = stageOutline(p.form, Math.max(0.05, w - grow * 2), Math.max(0.05, d - grow * 2), p.corner);
+      const g = extrudeShapes([sh], Math.max(0.01, h - edge * 2), edge, 24);
+      g.rotateX(-Math.PI / 2); g.translate(0, h / 2 + i * h, 0); parts.push(g);
+    }
+    // join the steps, keeping all tops together, then all bottoms, then all sides (three face groups)
+    const total = steps * h, out = new T.BufferGeometry(), names = ['position', 'normal', 'uv'], arrays = names.map(() => []), groups = [];
+    for (let k = 0; k < 3; k++) {
+      const start = arrays[0].length / 3;
+      parts.forEach((g) => { const gr = g.groups[k]; names.forEach((nm, j) => { const at = g.attributes[nm], s = at.itemSize; arrays[j].push(...at.array.slice(gr.start * s, (gr.start + gr.count) * s)); }); });
+      groups.push([start, arrays[0].length / 3 - start]);
+    }
+    names.forEach((nm, j) => out.setAttribute(nm, new T.Float32BufferAttribute(arrays[j], j === 2 ? 2 : 3)));
+    groups.forEach(([s, c], k) => out.addGroup(s, c, k));
+    out.translate(0, -total / 2, 0);
+    parts.forEach((g) => g.dispose());
+    return out;
+  }
   function shapeGeo(s) {
     const p = { ...E.SHAPES[s.type][1], ...s };
     switch (s.type) {
@@ -261,6 +308,7 @@
       case 'torus': return [new T.TorusGeometry(p.r, p.tube, 32, 96), null];
       case 'capsule': return [new T.CapsuleGeometry(p.r, p.h, 12, 32), null];
       case 'plane': { const g = new T.PlaneGeometry(p.w, p.h); return [g, null]; }
+      case 'stage': return [stageGeo(p), SLOTS.stage];
       case 'washer': { const sh = new T.Shape().absarc(0, 0, p.r, 0, Math.PI * 2, false); sh.holes.push(new T.Path().absarc(0, 0, Math.min(p.hole, p.r - 0.05), 0, Math.PI * 2, true)); return [extrudeShapes([sh], p.d, 0, 64), SLOTS.extrude]; }
       case 'star': { const sh = new T.Shape(), n = Math.max(3, p.points | 0); for (let i = 0; i < n * 2; i++) { const a = (i * Math.PI) / n + Math.PI / 2, r = i % 2 ? p.r * p.inner : p.r; i ? sh.lineTo(Math.cos(a) * r, Math.sin(a) * r) : sh.moveTo(Math.cos(a) * r, Math.sin(a) * r); } return [extrudeShapes([sh], p.d, p.d * 0.1), SLOTS.extrude]; }
       case 'heart': { const k = p.r / 1.2, sh = new T.Shape(); sh.moveTo(0, -1.1 * k); sh.bezierCurveTo(-0.3 * k, -0.75 * k, -1.2 * k, -0.25 * k, -1.2 * k, 0.35 * k); sh.bezierCurveTo(-1.2 * k, 0.95 * k, -0.45 * k, 1.15 * k, 0, 0.6 * k); sh.bezierCurveTo(0.45 * k, 1.15 * k, 1.2 * k, 0.95 * k, 1.2 * k, 0.35 * k); sh.bezierCurveTo(1.2 * k, -0.25 * k, 0.3 * k, -0.75 * k, 0, -1.1 * k); return [extrudeShapes([sh], p.d, p.d * 0.1, 24), SLOTS.extrude]; }

@@ -68,10 +68,11 @@
   function addShape(type) {
     if (!E.doc) return;
     const s = { type, ...E.SHAPES[type][1] };
-    const h = type === 'sphere' ? s.r * 2 : type === 'torus' ? s.r * 2 + s.tube * 2 : ['star', 'heart', 'washer'].includes(type) ? s.r * 2 : type === 'plane' ? s.h : type === 'capsule' ? s.h + s.r * 2 : s.h || 2;
+    const h = type === 'stage' ? s.h * s.steps : type === 'sphere' ? s.r * 2 : type === 'torus' ? s.r * 2 + s.tube * 2 : ['star', 'heart', 'washer'].includes(type) ? s.r * 2 : type === 'plane' ? s.h : type === 'capsule' ? s.h + s.r * 2 : s.h || 2;
     const m = { kind: 'shape', name: E.SHAPES[type][0], shape: s };
     standOnGround(m, h);
     if (type === 'plane') m.pos[1] = s.h / 2;
+    if (type === 'stage') { m.pos = [0, h / 2, 0]; m.mat = E.defaultMat('#8c96a3', 'matte'); }
     return addObject(m);
   }
   const FONT3D = () => (window.CRAFT_FONTS3D || []).map(([f]) => f);
@@ -179,6 +180,7 @@
     star: '<path d="M12 3l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.1-5.4 3.1 1.3-6L3.3 9.2l6.1-.6z"/>',
     heart: '<path d="M12 20s-7.5-4.6-7.5-10A4.5 4.5 0 0 1 12 7a4.5 4.5 0 0 1 7.5 3c0 5.4-7.5 10-7.5 10z"/>',
     plane: '<path d="M3 15l6-6h12l-6 6z"/>',
+    stage: '<ellipse cx="12" cy="13" rx="9" ry="3.2"/><path d="M3 13v3c0 1.8 4 3.2 9 3.2s9-1.4 9-3.2v-3"/><path d="M9 11V6l3-2 3 2v5" opacity=".6"/>',
   };
   const ICON = (inner) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
   $('addgrid').innerHTML = '<h4>Shapes</h4>' + Object.entries(E.SHAPES).map(([k, [n]]) => `<button type="button" data-add="${k}" title="Add a ${n.toLowerCase()}">${ICON(SH_ICON[k])}${n}</button>`).join('')
@@ -309,11 +311,16 @@
       const P = E.SHAPES[s.type][1];
       sections.push({ title: 'Shape', items: [
         { t: 'select', label: 'Shape', value: s.type, options: Object.entries(E.SHAPES).map(([k, [n]]) => [k, n]), on: (v) => { m.shape = { type: v, ...E.SHAPES[v][1] }; m.name = E.SHAPES[v][0]; changed(m.id); showProps(); } },
-        { t: 'row', items: [P.w != null ? num('w', 'Width') : null, P.h != null ? num('h', 'Height') : null, P.d != null ? num('d', 'Depth') : null] },
+        { t: 'row', items: [P.w != null ? num('w', 'Width') : null, P.h != null ? num('h', 'Height') : null, P.d != null && !(s.type === 'stage' && !['oval', 'rect'].includes(s.form)) ? num('d', 'Depth') : null] },
         { t: 'row', items: [P.r != null ? num('r', 'Radius') : null, P.tube != null ? num('tube', 'Thickness', 0.02, 0.05) : null, P.hole != null ? num('hole', 'Hole', 0.02) : null] },
         P.round != null ? { t: 'range', label: 'Corners', value: Math.round((s.round ?? 0.25) * 100), min: 1, max: 100, show: (v) => (v / 100).toFixed(2), on: (v) => re({ round: v / 100 }) } : null,
         P.points != null ? { t: 'row', items: [{ t: 'num', label: 'Points', value: s.points, min: 3, max: 24, on: (v) => re({ points: Math.max(3, Math.min(24, v | 0)) }) }, num('inner', 'Inner size', 0.1, 0.05)] } : null,
         P.sides != null ? { t: 'num', label: 'Sides', value: s.sides, min: 3, max: 24, on: (v) => re({ sides: Math.max(3, Math.min(24, v | 0)) }) } : null,
+        P.form != null ? { t: 'seg', label: 'Form', buttons: Object.entries(E.STAGE_FORMS).map(([k, n]) => ({ label: n, pressed: (s.form || 'round') === k, on: () => re({ form: k }) })) } : null,
+        P.form != null ? { t: 'range', label: 'Corners (sharp to round)', value: Math.round((s.corner ?? 0.3) * 100), min: 0, max: 100, show: (v) => v + '%', on: (v) => re({ corner: v / 100 }) } : null,
+        P.form != null ? { t: 'range', label: 'Rounded rim', value: s.edge ?? 0.06, min: 0, max: 0.5, step: 0.01, on: (v) => re({ edge: v }) } : null,
+        P.form != null ? { t: 'row', items: [{ t: 'num', label: 'Steps', value: s.steps || 1, min: 1, max: 6, on: (v) => re({ steps: Math.max(1, Math.min(6, v | 0)) }) }, { t: 'num', label: 'Each step in by', value: s.stepIn ?? 0.5, min: 0, step: 0.1, on: (v) => re({ stepIn: Math.max(0, v || 0) }) }] } : null,
+        P.form != null ? { t: 'note', html: 'Height is the height of each step. Colour, pictures and patterns for the top, sides and bottom are under Material (Picture or gradient on). Stretch (below) distorts it.' } : null,
       ] });
     } else if (m.kind === 'text') {
       const t = m.text, re = (patch) => { Object.assign(t, patch); changed(m.id); };
@@ -760,7 +767,7 @@
         ['Help', [C('How to use', 'How to use 3DCraft', I.help, { big: true }), C('Load test scene', 'Load test scene', MI.test, { big: true, title: 'A scene for trying everything: letters spinning in and waving, glass, chrome, gold, copper, glow, plastic, matte and rubber, moves and a camera move' })]],
       ] },
       { id: 'insert', label: 'Insert', hue: '#7048e8', groups: [
-        ['Shapes', [{ col: [{ row: ['box', 'roundbox', 'sphere', 'cylinder', 'cone', 'pyramid', 'prism'].map((k) => ({ label: E.SHAPES[k][0], icon: SH_ICON[k], iconOnly: true, run: () => addShape(k) })) }, { row: ['torus', 'washer', 'capsule', 'star', 'heart', 'plane'].map((k) => ({ label: E.SHAPES[k][0], icon: SH_ICON[k], iconOnly: true, run: () => addShape(k) })) }] }]],
+        ['Shapes', [{ col: [{ row: ['box', 'roundbox', 'sphere', 'cylinder', 'cone', 'pyramid', 'prism'].map((k) => ({ label: E.SHAPES[k][0], icon: SH_ICON[k], iconOnly: true, run: () => addShape(k) })) }, { row: ['torus', 'washer', 'capsule', 'star', 'heart', 'plane', 'stage'].map((k) => ({ label: E.SHAPES[k][0], icon: SH_ICON[k], iconOnly: true, run: () => addShape(k) })) }] }]],
         ['Words and pictures', [C('3D text', '3D text', MI.text3d, { big: true }), C('Picture to 3D', 'Picture to 3D', MI.trace, { big: true, title: 'Trace a logo or drawing into colours and pull it out into 3D' }), C('Symbol or emoji', 'Symbols & emoji', MI.star, { big: true })]],
         ['Models', [C('3D model', '3D model', MI.model, { big: true, title: 'GLB, OBJ or STL' })]],
       ] },
