@@ -679,7 +679,7 @@
       // a TV at the front, low down, with shaded rainbow bars scrolling down its screen
       const tvSize = E.shapeSize({ type: 'tv', size: 12 });
       obj({ kind: 'shape', name: 'TV: colour bars', shape: { type: 'tv', size: 12 }, mat: { ...E.defaultMat('#9aa1ab', 'plastic'), faces: JSON.parse(JSON.stringify(E.PART_COLOURS.tv)), cycle: { preset: 'raster', speed: 2, bands: 12, dir: 'down', part: 'screen' } }, pos: [-0.4, tvSize.y / 2, 4.6], rot: [0, -4, 0] });
-      d.anim = { length: L, fps: 30, loop: true, tracks, camera: { move: 'turntable', amount: 360 } };
+      d.anim = { length: L, fps: 30, loop: true, tracks, camera: { move: 'turntable', amount: 360, start: 180 } };
       Object.assign(d.scene, { light: 'studio', bg: { type: 'gradient', c1: '#f4f6f9', c2: '#cfd8e3', angle: 0 }, groundColor: '#e9edf3', reflect: 1.2 });
       // the camera goes all the way round once, ending where it started, so the animation loops
       d.camera = { pos: [0, 3.4, 11.5], target: [0, 1.4, 0.5], fov: 40 };

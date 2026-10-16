@@ -23,6 +23,7 @@
       <label class="tl-f">Move <select class="input" id="tl-preset"><option value="">Add a move to the selected…</option></select></label>
       <label class="tl-f">Camera <select class="input" id="tl-cam"><option value="none">Still</option><option value="turntable">Turntable (all the way round)</option><option value="swing">Swing (to and fro)</option><optgroup label="Camera keyframes (from this view)"><option value="k:push">Push in (from far away to here)</option><option value="k:pull">Pull back (from here to far away)</option><option value="k:crane">Crane up (rise and look down)</option><option value="k:round">Fly round and in</option><option value="k:clear">Remove the camera keyframes</option></optgroup></select></label>
       <label class="tl-f" id="tl-amt-f">° <input class="input" type="number" id="tl-amt" min="5" max="1080" step="5"></label>
+      <label class="tl-f" id="tl-start-f" title="Where the turn begins: degrees round from the saved view (the loop starts from there)">from <input class="input" type="number" id="tl-start" min="-360" max="360" step="15">°</label>
       <span style="flex:1"></span>
       <button class="btn tl-ic" data-tl="zoomout" title="Shorter time ruler">−</button><button class="btn tl-ic" data-tl="zoomin" title="Longer time ruler">+</button>
       <button class="btn" data-tl="export" title="Save the animation as GIF, MP4, WebM, AVI or PNG frames">Export animation…</button>
@@ -61,7 +62,7 @@
   TL.render = function () {
     if (!E.doc) { $('tl-rows').innerHTML = ''; return; }
     const a = E.anim(), pps = pxPerSec(), W = X0 + a.length * pps + 20;
-    $('tl-len').value = a.length; $('tl-fps').value = String(a.fps); $('tl-cam').value = (a.camera && a.camera.move) || 'none'; $('tl-amt').value = (a.camera && a.camera.amount) ?? 360; $('tl-amt-f').hidden = $('tl-cam').value === 'none';
+    $('tl-len').value = a.length; $('tl-fps').value = String(a.fps); $('tl-cam').value = (a.camera && a.camera.move) || 'none'; $('tl-amt').value = (a.camera && a.camera.amount) ?? 360; $('tl-amt-f').hidden = $('tl-cam').value === 'none'; $('tl-start').value = (a.camera && a.camera.start) || 0; $('tl-start-f').hidden = $('tl-cam').value === 'none';
     host.querySelector('[data-tl="loop"]').setAttribute('aria-pressed', String(!!a.loop));
     // the ruler: seconds with marks for every frame group
     const step = pps > 120 ? 0.25 : pps > 50 ? 0.5 : pps > 20 ? 1 : 5;
@@ -150,6 +151,7 @@
     E.evalAt(0, true); changed(); TL.render(); if (!playing) TL.play();
   };
   $('tl-cam').onchange = () => { const a = E.anim(); if ($('tl-cam').value.startsWith('k:')) { const k = $('tl-cam').value.slice(2); $('tl-cam').value = (a.camera && a.camera.move) || 'none'; TL.camPreset(k); return; } a.camera = { ...(a.camera || {}), move: $('tl-cam').value, amount: $('tl-cam').value === 'swing' ? 60 : 360 }; E.evalAt(E.time); changed(); TL.render(); };
+  $('tl-start').onchange = () => { const a = E.anim(); a.camera.start = Math.max(-360, Math.min(360, +$('tl-start').value || 0)); E.evalAt(E.time); changed(); };
   $('tl-amt').onchange = () => { const a = E.anim(); a.camera.amount = +$('tl-amt').value || 360; E.evalAt(E.time); changed(); };
   $('tl-preset').onchange = () => { const k = $('tl-preset').value; $('tl-preset').value = ''; if (k) TL.preset(k); };
   TL.camera = (mode) => { if (!E.doc) return; $('tl-cam').value = mode; $('tl-cam').onchange(); if (mode !== 'none' && !playing) TL.play(); };

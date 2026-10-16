@@ -1406,7 +1406,7 @@
     if (v && E.doc.camera && (!keyed || camNow)) {
       lastCamT = tt;
       const base = keyed ? E.camAt(tt) : E.doc.camera, tgt = new T.Vector3().fromArray(base.target), off = new T.Vector3().fromArray(base.pos).sub(tgt);
-      const u = tt / Math.max(0.001, a.length), ang = cm.move === 'turntable' ? d2r(cm.amount ?? 360) * u : cm.move === 'swing' ? d2r((cm.amount ?? 60) / 2) * Math.sin(u * Math.PI * 2) : 0;
+      const u = tt / Math.max(0.001, a.length), ang = cm.move === 'turntable' ? d2r(cm.start || 0) + d2r(cm.amount ?? 360) * u : cm.move === 'swing' ? d2r(cm.start || 0) + d2r((cm.amount ?? 60) / 2) * Math.sin(u * Math.PI * 2) : 0; // start: where the turn begins (degrees round from the saved view)
       E.camAngle = cm.move && cm.move !== 'none' ? ang : 0;
       if (keyed || (cm.move && cm.move !== 'none')) {
         E.camLock = true; off.applyAxisAngle(new T.Vector3(0, 1, 0), ang); v.cam.position.copy(tgt).add(off); v.orbit.target.copy(tgt);
