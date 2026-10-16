@@ -43,7 +43,9 @@
     rainbow: ['Colour cycle', (m, a) => ({ color: [[0, '#e03131', 'linear'], [a.length / 3, '#2f9e44', 'linear'], [(2 * a.length) / 3, '#1c7ed6', 'linear'], [a.length, '#e03131']] })],
     clear: ['Remove all moves', () => null],
   };
-  $('tl-preset').innerHTML += Object.entries(PRESETS).map(([k, [n]]) => `<option value="${k}">${n}</option>`).join('');
+  $('tl-preset').innerHTML += `<optgroup label="The whole object">${Object.entries(PRESETS).filter(([k]) => k !== 'clear').map(([k, [n]]) => `<option value="${k}">${n}</option>`).join('')}</optgroup>`
+    + `<optgroup label="Letter by letter (3D text)">${Object.entries(E.LETTER_STYLES).map(([k, [n]]) => `<option value="L:${k}">Letters: ${n}</option>`).join('')}</optgroup>`
+    + `<option value="clear">${PRESETS.clear[0]}</option>`;
 
   // ---- drawing
   const ROW = 26;
@@ -52,7 +54,7 @@
   const xOf = (t) => X0 + t * pxPerSec();
   function rowsFor() {
     const out = [];
-    const walk = (pid, depth) => E.children(pid).slice().reverse().forEach((m) => { out.push({ m, depth }); if (open.has(m.id)) Object.keys(E.ANIM_PROPS).forEach((p) => { if ((p === 'color' || p === 'opacity') && m.kind === 'group') return; out.push({ m, prop: p, depth }); }); if (m.kind === 'group') walk(m.id, depth + 1); });
+    const walk = (pid, depth) => E.children(pid).slice().reverse().forEach((m) => { out.push({ m, depth }); if (open.has(m.id) && m.kind === 'text') out.push({ m, prop: 'letters', depth }); if (open.has(m.id)) Object.keys(E.ANIM_PROPS).forEach((p) => { if ((p === 'color' || p === 'opacity') && m.kind === 'group') return; out.push({ m, prop: p, depth }); }); if (m.kind === 'group') walk(m.id, depth + 1); });
     walk(null, 0);
     return out;
   }
@@ -74,6 +76,12 @@
         html += `<div class="tl-row layer${E.selectedId() === m.id ? ' on' : ''}" data-id="${m.id}" style="width:${W}px"><div class="tl-lab" style="padding-left:${6 + depth * 12}px"><button class="tl-tw" data-tw="${m.id}" aria-expanded="${open.has(m.id)}" title="Show its properties">${open.has(m.id) ? '▾' : '▸'}</button><span class="tl-name" data-sel="${m.id}">${esc(m.name || m.kind)}</span></div>`
           + `<div class="tl-timer" data-timer="${m.id}" style="left:${xOf(st)}px;width:${Math.max(4, (en - st) * pps)}px" title="Shows from ${st.toFixed(2)} s to ${en.toFixed(2)} s: drag the ends to change"><b class="tl-h l"></b><b class="tl-h r"></b></div>`
           + anyKeys.map((k) => `<i class="tl-dot" style="left:${xOf(k.t)}px"></i>`).join('') + '</div>';
+      } else if (prop === 'letters') {
+        const L = tr.letters, kind = L && (E.LETTER_STYLES[L.style] || [])[1], n = [...String(m.text.text || '').replace(/\s/g, '')].length || 1, span = L ? E.lettersSpan(L, n) : 0;
+        let bars = '';
+        if (kind === 'loop') bars = `<div class="tl-lbar loop" style="left:${xOf(tr.start ?? 0)}px;width:${Math.max(4, ((tr.end ?? a.length) - (tr.start ?? 0)) * pps)}px" title="${esc(E.LETTER_STYLES[L.style][0])}"></div>`;
+        else if (L) [['start', 'in', 'Letters come in'], ['leave', 'out', 'Letters go out']].forEach(([k, md, tip]) => { if ((L.mode || 'in') === md || L.mode === 'both') bars += `<div class="tl-lbar" data-lbar="${k}" style="left:${xOf(L[k] ?? 0)}px;width:${Math.max(4, span * pps)}px" title="${tip}: ${(+(L[k] ?? 0)).toFixed(2)} s to ${(+(L[k] ?? 0) + span).toFixed(2)} s (drag to move)"></div>`; });
+        html += `<div class="tl-row prop letters" data-id="${m.id}" data-prop="letters" style="width:${W}px"><div class="tl-lab" style="padding-left:${26 + depth * 12}px"><span class="tl-lic">Aa</span><span>Letters${L ? ': ' + esc(E.LETTER_STYLES[L.style][0].replace(/ \(.*\)$/, '')) : ''}</span></div>${bars || '<span class="tl-lnone">Pick a letter move in Move, or on the right</span>'}</div>`;
       } else {
         const keys = (tr.keys || {})[prop] || [], on = keys.length > 0, here = keys.some((k) => Math.abs(k.t - E.time) < 0.5 / a.fps);
         html += `<div class="tl-row prop" data-id="${m.id}" data-prop="${prop}" style="width:${W}px"><div class="tl-lab" style="padding-left:${26 + depth * 12}px"><button class="tl-sw${on ? ' on' : ''}" data-sw="${prop}" title="${on ? 'Stop animating (keeps the value here)' : 'Animate this: changes become keyframes'}">${STOPWATCH}</button><span>${E.ANIM_PROPS[prop]}</span><button class="tl-k${here ? ' on' : ''}" data-addkey="${prop}" title="${here ? 'Remove the keyframe here' : 'Add a keyframe here'}">◆</button></div>`
@@ -118,7 +126,7 @@
     else if (k === 'zoomout') { zoomPx = Math.max(10, pxPerSec() / 1.4); TL.render(); }
     else if (k === 'export') window.ANIM3 && window.ANIM3.open();
   });
-  $('tl-len').onchange = () => { const a = E.anim(), v = Math.max(0.5, Math.min(120, +$('tl-len').value || a.length)), k = v / a.length; Object.values(a.tracks).forEach((tr) => { Object.values(tr.keys).forEach((ks) => ks.forEach((x) => { x.t = +(x.t * k).toFixed(4); })); if (tr.start != null) tr.start *= k; if (tr.end != null) tr.end *= k; }); a.length = v; zoomPx = 0; E.evalAt(Math.min(E.time * k, v)); changed(); TL.render(); };
+  $('tl-len').onchange = () => { const a = E.anim(), v = Math.max(0.5, Math.min(120, +$('tl-len').value || a.length)), k = v / a.length; Object.values(a.tracks).forEach((tr) => { Object.values(tr.keys).forEach((ks) => ks.forEach((x) => { x.t = +(x.t * k).toFixed(4); })); if (tr.start != null) tr.start *= k; if (tr.end != null) tr.end *= k; if (tr.letters) { tr.letters.start = +((tr.letters.start || 0) * k).toFixed(3); tr.letters.leave = +((tr.letters.leave || 0) * k).toFixed(3); } }); a.length = v; zoomPx = 0; E.evalAt(Math.min(E.time * k, v)); changed(); TL.render(); };
   $('tl-fps').onchange = () => { E.anim().fps = +$('tl-fps').value; changed(); TL.render(); };
   $('tl-cam').onchange = () => { const a = E.anim(); a.camera = { ...(a.camera || {}), move: $('tl-cam').value, amount: $('tl-cam').value === 'swing' ? 60 : 360 }; E.evalAt(E.time); changed(); TL.render(); };
   $('tl-amt').onchange = () => { const a = E.anim(); a.camera.amount = +$('tl-amt').value || 360; E.evalAt(E.time); changed(); };
@@ -127,8 +135,13 @@
   TL.preset = (k) => {
     if (!E.doc) return;
     const m = E.selectedId() && E.find(E.selectedId()); if (!m) { window.UI3 && window.UI3.toast && window.UI3.toast('Click an object first, then pick a move.'); return; }
-    const a = E.anim(), made = PRESETS[k][1](m, a);
-    if (!made) { delete a.tracks[m.id]; } else { const tr = E.track(m.id, true); Object.entries(made).forEach(([prop, list]) => { tr.keys[prop] = list.map(([t, v, ease]) => ({ t: +t.toFixed(4), v: JSON.parse(JSON.stringify(v)), ease: ease || 'ease' })); }); open.add(m.id); }
+    const a = E.anim();
+    if (k.startsWith('L:')) {
+      if (m.kind !== 'text') { window.UI3 && window.UI3.toast('Letter moves are for 3D text: click a text first.'); return; }
+      window.UI3.setLetters(m, k.slice(2)); open.add(m.id); window.UI3.showProps(); TL.seek(0); TL.render(); if (!playing) TL.play(); return;
+    }
+    const made = PRESETS[k][1](m, a);
+    if (!made) { const had = a.tracks[m.id] && a.tracks[m.id].letters; delete a.tracks[m.id]; if (had) E.rebuildOne(m.id); window.UI3 && window.UI3.showProps(); } else { const tr = E.track(m.id, true); Object.entries(made).forEach(([prop, list]) => { tr.keys[prop] = list.map(([t, v, ease]) => ({ t: +t.toFixed(4), v: JSON.parse(JSON.stringify(v)), ease: ease || 'ease' })); }); open.add(m.id); }
     E.evalAt(E.time); changed(); TL.render(); if (k !== 'clear' && !playing) TL.play();
   };
   // ---- rows: twirl, select, stopwatches, keys, timers
@@ -147,7 +160,13 @@
   rows.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
     const r = rows.getBoundingClientRect(), tAt = (cx) => (cx - r.left - X0) / pxPerSec();
-    const key = e.target.closest('.tl-key'), timer = e.target.closest('.tl-timer');
+    const key = e.target.closest('.tl-key'), timer = e.target.closest('.tl-timer'), lbar = e.target.closest('[data-lbar]');
+    if (lbar) {
+      const m = E.find(lbar.closest('.tl-row').dataset.id), L = E.track(m.id).letters, f = lbar.dataset.lbar, v0 = L[f] ?? 0, t0 = tAt(e.clientX); rows.setPointerCapture(e.pointerId);
+      const move = (ev) => { L[f] = +Math.max(0, Math.min(E.anim().length, snap(v0 + tAt(ev.clientX) - t0))).toFixed(4); lbar.style.left = xOf(L[f]) + 'px'; E.evalAt(E.time); };
+      const up = () => { rows.removeEventListener('pointermove', move); rows.removeEventListener('pointerup', up); changed(); TL.render(); window.UI3 && window.UI3.showProps(); };
+      rows.addEventListener('pointermove', move); rows.addEventListener('pointerup', up); return;
+    }
     if (key) {
       const row = key.closest('.tl-row'), m = E.find(row.dataset.id), prop = row.dataset.prop, k = E.track(m.id).keys[prop][+key.dataset.key];
       selKey = { m, prop, k }; rows.setPointerCapture(e.pointerId);

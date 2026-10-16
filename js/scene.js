@@ -218,7 +218,7 @@
 
   // ------------------------------------------------------------------ geometry
   // Each geometry gets material groups with names, so pictures and gradients can go on the front, back, sides, top or bottom.
-  function splitExtrude(geo) {
+  function splitExtrude(geo, box) {
     // ExtrudeGeometry has caps (front and back together) and sides: put them in three groups (0 front, 1 back, 2 sides)
     const g = geo.index ? geo.toNonIndexed() : geo; g.computeBoundingBox();
     const bb = g.boundingBox, pos = g.attributes.position, nor = g.attributes.normal, uv = g.attributes.uv;
@@ -227,25 +227,25 @@
     groups.forEach((gr) => { for (let i = gr.start; i < gr.start + gr.count; i += 3) { let b = 2; if (gr.materialIndex === 0) { const z = (pos.getZ(i) + pos.getZ(i + 1) + pos.getZ(i + 2)) / 3; b = z > zMid ? 0 : 1; } buckets[b].push(i, i + 1, i + 2); } });
     const order = [...buckets[0], ...buckets[1], ...buckets[2]];
     const P = new Float32Array(order.length * 3), N = new Float32Array(order.length * 3), U = new Float32Array(order.length * 2);
-    const w = bb.max.x - bb.min.x || 1, h = bb.max.y - bb.min.y || 1, dz = bb.max.z - bb.min.z || 1;
+    const bx = box || { min: bb.min, max: bb.max }, w = bx.max.x - bx.min.x || 1, h = bx.max.y - bx.min.y || 1, dz = bb.max.z - bb.min.z || 1;
     order.forEach((src, k) => {
       const x = pos.getX(src), y = pos.getY(src), z = pos.getZ(src);
       P.set([x, y, z], k * 3); N.set([nor.getX(src), nor.getY(src), nor.getZ(src)], k * 3);
       const b = k < buckets[0].length ? 0 : k < buckets[0].length + buckets[1].length ? 1 : 2;
       // pictures fit the whole outline on the front and back; on the sides they run from front to back
-      if (b === 0) U.set([(x - bb.min.x) / w, (y - bb.min.y) / h], k * 2);
-      else if (b === 1) U.set([1 - (x - bb.min.x) / w, (y - bb.min.y) / h], k * 2);
-      else U.set([uv ? (uv.getX(src) - bb.min.x) / Math.max(w, h) : 0, (bb.max.z - z) / dz], k * 2);
+      if (b === 0) U.set([(x - bx.min.x) / w, (y - bx.min.y) / h], k * 2);
+      else if (b === 1) U.set([1 - (x - bx.min.x) / w, (y - bx.min.y) / h], k * 2);
+      else U.set([uv ? (uv.getX(src) - bx.min.x) / Math.max(w, h) : 0, (bb.max.z - z) / dz], k * 2);
     });
     const out = new T.BufferGeometry();
     out.setAttribute('position', new T.BufferAttribute(P, 3)); out.setAttribute('normal', new T.BufferAttribute(N, 3)); out.setAttribute('uv', new T.BufferAttribute(U, 2));
     out.addGroup(0, buckets[0].length, 0); out.addGroup(buckets[0].length, buckets[1].length, 1); out.addGroup(buckets[0].length + buckets[1].length, buckets[2].length, 2);
     return out;
   }
-  const extrudeShapes = (shapes, depth, bevel = 0, curve = 10) => {
+  const extrudeShapes = (shapes, depth, bevel = 0, curve = 10, box = null) => {
     const geo = new T.ExtrudeGeometry(shapes, { depth, bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel * 0.8, bevelSegments: bevel > 0 ? 4 : 0, curveSegments: curve });
     geo.translate(0, 0, -depth / 2);
-    return splitExtrude(geo);
+    return splitExtrude(geo, box);
   };
   const SLOTS = { box: ['sides', 'sides', 'top', 'bottom', 'front', 'back'], cyl: ['sides', 'top', 'bottom'], extrude: ['front', 'back', 'sides'] };
   function shapeGeo(s) {
@@ -301,6 +301,98 @@
       loader.parse(`<svg xmlns="http://www.w3.org/2000/svg"><g transform="scale(1,-1)"><path d="${d}"/></g></svg>`).paths.forEach((p) => T.SVGLoader.createShapes(p).forEach((s) => shapes.push(s)));
     });
     return shapes;
+  }
+  // Text with a letter animation: every letter is its own piece (in the same place as in the whole word), so each can move.
+  function letterGroup(font, m) {
+    const t = m.text, size = 1, lines = String(t.text || ' ').split('\n'), lh = size * (t.lead || 1.15), loader = new T.SVGLoader();
+    const opt = { letterSpacing: (t.spacing || 0) / 1000 }, widths = lines.map((ln) => font.getAdvanceWidth(ln, size * 100, opt) / 100), maxW = Math.max(...widths);
+    const letters = [], box = new T.Box2();
+    lines.forEach((ln, i) => {
+      const x0 = t.align === 'left' ? -maxW / 2 : t.align === 'right' ? maxW / 2 - widths[i] : -widths[i] / 2;
+      font.getPaths(ln, x0 * 100, (i * lh) * 100, size * 100, opt).forEach((gp) => {
+        const d = gp.toPathData(2); if (!d) return;
+        const shapes = [];
+        loader.parse(`<svg xmlns="http://www.w3.org/2000/svg"><g transform="scale(1,-1)"><path d="${d}"/></g></svg>`).paths.forEach((p) => T.SVGLoader.createShapes(p).forEach((sh) => shapes.push(sh)));
+        if (!shapes.length) return;
+        shapes.forEach((sh) => sh.getPoints().forEach((pt) => box.expandByPoint(pt)));
+        letters.push(shapes);
+      });
+    });
+    const k = (t.size || 1) / 100, g = new T.Group(), whole = new T.Box3();
+    const geos = letters.map((shapes) => { const geo = extrudeShapes(shapes, (t.depth || 0.4) / (t.size || 1) * 100, (t.bevel || 0) / (t.size || 1) * 100, 8, box); geo.scale(k, k, k); geo.computeBoundingBox(); whole.union(geo.boundingBox); return geo; });
+    const mid = whole.getCenter(new T.Vector3());
+    geos.forEach((geo, i) => {
+      geo.translate(-mid.x, -mid.y, -mid.z); geo.computeBoundingBox();
+      const c = geo.boundingBox.getCenter(new T.Vector3()); geo.translate(-c.x, -c.y, -c.z);
+      const mesh = new T.Mesh(geo, materialsFor(m.mat, SLOTS.extrude)); mesh.position.copy(c);
+      mesh.userData.letter = { i, home: c.clone() }; g.add(mesh);
+    });
+    g.userData.letters = geos.length;
+    return g;
+  }
+  // Letter animations: styles that bring letters in (or take them out), and styles that loop
+  E.LETTER_STYLES = {
+    type: ['Typewriter (pop on)', 'in'], fade: ['Fade in', 'in'], drop: ['Drop in (with a bounce)', 'in'], rise: ['Rise up', 'in'], grow: ['Grow in', 'in'],
+    spin: ['Spin in', 'in'], flip: ['Flip in', 'in'], slide: ['Slide in from the right', 'in'], scatter: ['Scatter (fly together)', 'in'],
+    wave: ['Wave (keeps going)', 'loop'], jump: ['Jump (keeps going)', 'loop'], rock: ['Rock (keeps going)', 'loop'], sweep: ['Colour sweep (keeps going)', 'loop'],
+  };
+  E.LETTER_ORDERS = { left: 'First to last', right: 'Last to first', middle: 'From the middle out', edges: 'From the ends in', random: 'Random' };
+  const backOut = (x) => 1 + 2.70158 * (x - 1) ** 3 + 1.70158 * (x - 1) ** 2;
+  const rnd = (i, n) => { let h = (i + 1) * 374761393 + n * 668265263; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+  E.letterRank = function (i, n, order) {
+    const mid = (n - 1) / 2;
+    if (order === 'right') return n - 1 - i;
+    if (order === 'middle') return Math.abs(i - mid);
+    if (order === 'edges') return mid - Math.abs(i - mid);
+    if (order === 'random') { const ids = [...Array(n).keys()].sort((a, b) => rnd(a, 7) - rnd(b, 7)); return ids.indexOf(i); }
+    return i;
+  };
+  // how long the letters take, from the first starting to the last finishing
+  E.lettersSpan = (L, n) => { const ranks = [...Array(n).keys()].map((i) => E.letterRank(i, n, L.order)); return Math.max(0, ...ranks) * (L.gap ?? 0.08) + (L.each ?? 0.5); };
+  // where letter i is at time t: { dx, dy, dz (in letter sizes), rx, ry, rz (degrees), s, op, hue }
+  function letterPose(L, i, n, t) {
+    const out = { dx: 0, dy: 0, dz: 0, rx: 0, ry: 0, rz: 0, s: 1, op: 1, hue: null }, amt = L.amount ?? 1, r = E.letterRank(i, n, L.order), gap = L.gap ?? 0.08;
+    const kind = (E.LETTER_STYLES[L.style] || [])[1];
+    if (kind === 'loop') {
+      const ph = (t / Math.max(0.1, L.speed ?? 2) - r * gap) % 1, w = Math.sin(ph * Math.PI * 2);
+      if (L.style === 'wave') out.dy = 0.3 * amt * w;
+      else if (L.style === 'jump') out.dy = w > 0 ? 0.6 * amt * w * w : 0;
+      else if (L.style === 'rock') out.rz = 15 * amt * w;
+      else if (L.style === 'sweep') out.hue = ((ph % 1) + 1) % 1;
+      return out;
+    }
+    const each = Math.max(0.02, L.each ?? 0.5), clamp = (x) => Math.max(0, Math.min(1, x));
+    const uIn = clamp((t - (L.start ?? 0) - r * gap) / each), uOut = 1 - clamp((t - (L.leave ?? 0) - r * gap) / each);
+    const u = L.mode === 'out' ? uOut : L.mode === 'both' ? Math.min(uIn, uOut) : uIn;
+    const e = 1 - (1 - u) ** 3, rest = 1 - e;
+    switch (L.style) {
+      case 'type': out.op = u > 0 ? 1 : 0; out.s = u > 0 ? 1 + 0.3 * (1 - u) * (u < 1 ? 1 : 0) : 0; break;
+      case 'fade': out.op = u; break;
+      case 'drop': out.dy = 3 * amt * (1 - (u >= 1 ? 1 : bounceOut(u))); out.op = Math.min(1, u * 4); break;
+      case 'rise': out.dy = -1.5 * amt * rest; out.op = u; break;
+      case 'grow': out.s = u <= 0 ? 0 : backOut(u); out.op = Math.min(1, u * 3); break;
+      case 'spin': out.ry = 360 * amt * rest; out.s = Math.sqrt(e); out.op = Math.min(1, u * 2); break;
+      case 'flip': out.rx = -90 * amt * rest; out.op = Math.min(1, u * 2); break;
+      case 'slide': out.dx = 4 * amt * rest; out.op = u; break;
+      case 'scatter': { out.dx = (rnd(i, 1) * 2 - 1) * 5 * amt * rest; out.dy = (rnd(i, 2) * 2 - 1) * 4 * amt * rest; out.dz = (rnd(i, 3) * 2 - 1) * 5 * amt * rest; out.rx = (rnd(i, 4) * 2 - 1) * 270 * rest; out.ry = (rnd(i, 5) * 2 - 1) * 270 * rest; out.rz = (rnd(i, 6) * 2 - 1) * 180 * rest; out.op = Math.min(1, u * 2); break; }
+    }
+    return out;
+  }
+  // put every letter of a lettered text where it is at time tt (or back home when there is no letter animation)
+  function poseLetters(m, o, tr, tt, baseOp) {
+    const L = tr && tr.letters, n = o.userData.letters, size = (m.text && m.text.size) || 1;
+    o.children.forEach((x) => {
+      const info = x.userData.letter; if (!info) return;
+      const q = L && E.LETTER_STYLES[L.style] ? letterPose(L, info.i, n, tt) : { dx: 0, dy: 0, dz: 0, rx: 0, ry: 0, rz: 0, s: 1, op: 1, hue: null };
+      x.position.set(info.home.x + q.dx * size, info.home.y + q.dy * size, info.home.z + q.dz * size);
+      x.rotation.set(d2r(q.rx), d2r(q.ry), d2r(q.rz)); x.scale.setScalar(Math.max(0.001, q.s));
+      x.visible = q.op > 0.002 && q.s > 0.002;
+      [].concat(x.material).forEach((mt) => {
+        mt.opacity = baseOp * q.op; mt.transparent = mt.opacity < 1 || mt.transmission > 0;
+        // the colour sweep paints plain faces; otherwise they keep the colour they were built with
+        if (!mt.map && !(tr && tr.keys && tr.keys.color)) { if (!mt.userData.base) mt.userData.base = mt.color.clone(); if (q.hue != null) mt.color.setHSL(q.hue, 0.75, 0.55); else mt.color.copy(mt.userData.base); }
+      });
+    });
   }
   // A traced picture: every colour's outlines pulled out (from the SVG the tracer made), as one group.
   function traceGroup(m) {
@@ -366,15 +458,19 @@
       let font;
       try { font = await E.loadFont(m.text.font, m.text.bold ? '700' : '400'); }
       catch (e) { console.warn('3D text font', e); E.onWarn?.('The font for 3D text could not be loaded (' + m.text.font + ').'); o = new T.Group(); o.userData = { id: m.id, kind: m.kind }; o.uid = m.id; place(o, m); return o; }
-      const t = m.text, shapes = textShapes(font, t), geo = extrudeShapes(shapes, (t.depth || 0.4) / (t.size || 1) * 100, (t.bevel || 0) / (t.size || 1) * 100, 8);
-      geo.scale((t.size || 1) / 100, (t.size || 1) / 100, (t.size || 1) / 100); geo.center();
-      o = new T.Mesh(geo, materialsFor(m.mat, SLOTS.extrude));
+      const t = m.text, tr = E.doc.anim && E.doc.anim.tracks[m.id];
+      if (tr && tr.letters && E.LETTER_STYLES[tr.letters.style]) o = letterGroup(font, m);
+      else {
+        const shapes = textShapes(font, t), geo = extrudeShapes(shapes, (t.depth || 0.4) / (t.size || 1) * 100, (t.bevel || 0) / (t.size || 1) * 100, 8);
+        geo.scale((t.size || 1) / 100, (t.size || 1) / 100, (t.size || 1) / 100); geo.center();
+        o = new T.Mesh(geo, materialsFor(m.mat, SLOTS.extrude));
+      }
     }
     else if (m.kind === 'trace') o = traceGroup(m);
     else if (m.kind === 'model') o = await loadModel(m);
     else o = new T.Group();
     o.traverse((x) => { if (x.isMesh) { x.castShadow = true; x.receiveShadow = true; } });
-    o.userData = { id: m.id, kind: m.kind }; o.uid = m.id; o.name = m.name || m.kind;
+    Object.assign(o.userData, { id: m.id, kind: m.kind }); o.uid = m.id; o.name = m.name || m.kind;
     place(o, m);
     return o;
   }
@@ -645,6 +741,7 @@
         const col = E.valueAt(m, 'color', tt), op = E.valueAt(m, 'opacity', tt);
         o.traverse((x) => { if (!x.isMesh) return; [].concat(x.material).forEach((mt) => { if (!mt.map && tr.keys.color && !(m.kind === 'trace' && m.trace.ownColours !== false)) mt.color.set(col); mt.opacity = op; mt.transparent = op < 1 || mt.transmission > 0; if (m.mat.glow && tr.keys.color) mt.emissive.set(col); }); });
       }
+      if (o.userData.letters) poseLetters(m, o, tr, tt, E.valueAt(m, 'opacity', tt));
     });
     // the camera: a turntable all the way round, or a swing to and fro
     const v = views.find((x) => !x.ortho), cm = a.camera || {};

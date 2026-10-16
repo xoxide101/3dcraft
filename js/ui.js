@@ -266,6 +266,36 @@
       { t: 'btns', buttons: [{ label: 'Stand on the ground', on: dropToGround }, { label: 'Centre', on: () => { m.pos = [0, m.pos[1], 0]; E.placeOne(m.id); changed(); showProps(); } }, { label: 'Reset turn', on: () => set('rot', [0, 0, 0]) }] },
     ] };
   }
+  // Letter by letter: each letter of a 3D text comes in, goes out, or keeps moving, one after another
+  function setLetters(m, style) {
+    const a = E.anim(), tr = E.track(m.id, true), had = !!tr.letters;
+    if (!style) { delete tr.letters; if (had) E.rebuildOne(m.id); changed(); return; }
+    const n = [...String(m.text.text || '').replace(/\s/g, '')].length || 1;
+    const L = (tr.letters = { mode: 'in', start: tr.start ?? 0, each: 0.5, gap: 0.08, order: 'left', amount: 1, speed: 2, ...(tr.letters || {}), style });
+    if (L.leave == null) L.leave = +Math.max(L.start, (tr.end ?? a.length) - E.lettersSpan(L, n) - 0.1).toFixed(2);
+    if (!had) E.rebuildOne(m.id); else E.evalAt(E.time);
+    changed();
+  }
+  function lettersSection(m) {
+    const tr = E.anim().tracks[m.id], L = tr && tr.letters, kind = L && (E.LETTER_STYLES[L.style] || [])[1];
+    const n = [...String(m.text.text || '').replace(/\s/g, '')].length || 1;
+    const set = (patch) => { Object.assign(L, patch); E.evalAt(E.time); changed(); showProps(); if (window.TL3) TL3.render(); };
+    const sec = (v) => (+v).toFixed(2) + ' s';
+    const items = [{ t: 'select', label: 'Letters move one by one', value: L ? L.style : '', options: [['', 'No (the words move as one)'], ...Object.entries(E.LETTER_STYLES).map(([k, [nm]]) => [k, nm])], on: (v) => { setLetters(m, v); showProps(); if (window.TL3) TL3.render(); if (v && window.TL3 && !TL3.playing()) { TL3.seek(0); TL3.play(); } } }];
+    if (L && kind === 'in') items.push(
+      { t: 'seg', buttons: [['in', 'Come in'], ['out', 'Go out'], ['both', 'Both']].map(([v, label]) => ({ label, pressed: (L.mode || 'in') === v, on: () => set({ mode: v }) })) },
+      { t: 'row', items: [L.mode !== 'out' ? { t: 'num', label: 'Start at (s)', value: L.start ?? 0, min: 0, step: 0.1, on: (v) => set({ start: Math.max(0, v || 0) }) } : null, L.mode !== 'in' ? { t: 'num', label: 'Leave at (s)', value: L.leave ?? 0, min: 0, step: 0.1, on: (v) => set({ leave: Math.max(0, v || 0) }) } : null] },
+      { t: 'range', label: 'Each letter takes', value: L.each ?? 0.5, min: 0.05, max: 3, step: 0.05, show: sec, on: (v) => set({ each: v }) },
+      { t: 'range', label: 'Next letter starts after', value: L.gap ?? 0.08, min: 0, max: 1, step: 0.01, show: sec, on: (v) => set({ gap: v }) });
+    if (L && kind === 'loop') items.push(
+      { t: 'range', label: 'One wave takes', value: L.speed ?? 2, min: 0.3, max: 10, step: 0.1, show: sec, on: (v) => set({ speed: v }) },
+      { t: 'range', label: 'Each letter behind the last by', value: L.gap ?? 0.08, min: 0, max: 0.5, step: 0.01, show: (v) => Math.round(v * 100) + '% of a wave', on: (v) => set({ gap: v }) });
+    if (L) items.push(
+      { t: 'row', items: [{ t: 'select', label: 'Order', value: L.order || 'left', options: Object.entries(E.LETTER_ORDERS), on: (v) => set({ order: v }) },
+        L.style !== 'type' && L.style !== 'fade' && L.style !== 'sweep' ? { t: 'range', label: 'How far', value: Math.round((L.amount ?? 1) * 100), min: 10, max: 300, step: 10, show: (v) => v + '%', on: (v) => set({ amount: v / 100 }) } : null] },
+      { t: 'note', html: kind === 'loop' ? 'Keeps going for the whole time the layer shows.' : `All ${n} letters take ${E.lettersSpan(L, n).toFixed(2)} s. The Letters row on the timeline shows when; drag it to move it.` });
+    return { title: 'Letter by letter', items };
+  }
   function dropToGround() { const m = sel(); if (!m) return; const o = E.object3d(m.id); const b = new T.Box3().setFromObject(o); m.pos[1] = r2(m.pos[1] - b.min.y); E.placeOne(m.id); changed(); showProps(); }
   function showProps() {
     if (!E.doc) { $('props').innerHTML = ''; return; }
@@ -296,6 +326,7 @@
         { t: 'range', label: 'Letter spacing', value: t.spacing || 0, min: -100, max: 400, step: 10, on: (v) => re({ spacing: v }) },
         { t: 'btns', buttons: [{ label: 'Symbols and emoji…', on: () => CraftSymbols.open({ onPick: (r) => { t.text += r.char; if (r.kind === 'emoji') t.font = 'Noto Emoji'; else if (!(window.CRAFT_FONTS3D || []).some(([f]) => f === t.font && f.startsWith('Noto'))) t.font = 'Noto Sans Symbols 2'; changed(m.id); showProps(); } }) }] },
       ] });
+      sections.push(lettersSection(m));
     } else if (m.kind === 'trace') {
       const tr = m.trace, re = (patch) => { Object.assign(tr, patch); changed(m.id); };
       sections.push({ title: 'Picture to 3D', items: [
@@ -664,7 +695,7 @@
     <h3>3. Move, turn and size</h3><p>Click something, then drag its arrows (W), rings (E) or boxes (R). The <b>dial in the corner</b> turns the whole scene, or just the selected object: drag a coloured ring to turn around X, Y or Z, drag the ball to turn freely, click a letter to look along that axis. Drag in the view to look around, wheel to zoom.</p>
     <h3>4. Materials</h3><p>Pick plastic, gloss, matte, gold, silver, chrome, copper, glass, glow or rubber, then change colour, shine, metal, glass and glow. Put a picture, gradient or pattern on every face, or only the front, back, sides, top or bottom.</p>
     <h3>5. Layers and views</h3><p>The <b>Layers</b> list hides, locks, renames and groups things. View › Four views shows top, front, right and 3D at once.</p>
-    <h3>6. Animate</h3><p>The <b>Timeline</b> under the view: pick a ready-made move (spin, bounce, fly in, fade…) for the selected object, or twirl a layer open (▸) and click a <b>stopwatch</b>; then move the playhead and change the object: each change becomes a keyframe ◆. Drag the timer bar's ends to set when a layer shows. Space plays. Export the animation as GIF, MP4, WebM, AVI or PNG frames.</p>
+    <h3>6. Animate</h3><p>The <b>Timeline</b> under the view: pick a ready-made move (spin, bounce, fly in, fade…) for the selected object, or twirl a layer open (▸) and click a <b>stopwatch</b>; then move the playhead and change the object: each change becomes a keyframe ◆. <b>3D text can move letter by letter</b>: pick a Letters move (typewriter, drop in, spin, scatter, wave…) or use Letter by letter on the right. Drag the timer bar's ends to set when a layer shows. Space plays. Export the animation as GIF, MP4, WebM, AVI or PNG frames.</p>
     <h3>7. Export</h3><p>Save a picture (up to 4K, or print sizes, see-through if you like) or a 3D model (GLB, OBJ, or STL for 3D printing).</p>`);
   const keysHtml = `<table class="keys">${[['New / Open / Save', 'Ctrl+N / O / S'], ['Export', 'Ctrl+E'], ['Undo / Redo', 'Ctrl+Z / Ctrl+Y'], ['Copy / Paste / Duplicate', 'Ctrl+C / V / D'], ['Delete', 'Delete'], ['Move / Turn / Size', 'W / E / R'], ['See everything', 'F'], ['Front / Right / Top / ¾ view', '1 / 3 / 7 / 5'], ['Play / pause', 'Space'], ['Start / end', 'Home / End'], ['Frame back / on', ', / .'], ['Group', 'Ctrl+G'], ['Deselect', 'Esc'], ['Search commands', 'Alt+Q']].map(([a, b]) => `<tr><td>${a}</td><td style="text-align:right;padding-left:20px">${b}</td></tr>`).join('')}</table>`;
   const aboutHtml = `<p><b>3DCraft</b> · version 0.2 (animation)</p><p>3D titles, logos and scenes in your browser: shapes, 3D text, pictures turned into 3D, materials, lights, pictures of the scene and 3D models in and out. Works offline.</p><p>Built with <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> (MIT), <a href="https://opentype.js.org" target="_blank" rel="noopener">opentype.js</a> (MIT) and ImageTracer (public domain). Fonts from Google Fonts (SIL Open Font License or Apache License), stored with the app.</p>`;
@@ -769,7 +800,7 @@
   // ------------------------------------------------------------------ start
   function toggleTimeline() { $('timeline').classList.toggle('closed'); try { localStorage.setItem('3dcraft-tl', $('timeline').classList.contains('closed') ? '0' : '1'); } catch (e) {} setTimeout(() => { E.redraw(); tb && tb.update(); }, 50); }
   try { if (localStorage.getItem('3dcraft-tl') === '0') $('timeline').classList.add('closed'); } catch (e) {}
-  window.UI3 = { toast, openRender, addShape, addText, addSymbol, openTrace, startScene, openDoc, changed, showProps, renderLayers };
+  window.UI3 = { toast, setLetters, openRender, addShape, addText, addSymbol, openTrace, startScene, openDoc, changed, showProps, renderLayers };
   (async () => {
     const last = localStorage.getItem(AUTOSAVE);
     if (last) { try { await openDoc(JSON.parse(last)); return; } catch (e) {} }
