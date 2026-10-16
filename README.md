@@ -12,7 +12,7 @@
 
 1. Download this repository (green **Code** button › **Download ZIP**) or clone it.
 2. Double-click `index.html`. It opens in Chrome or Edge.
-3. Pick a starter scene (3D title, retro chrome, shapes still life, glass and gold, the **test scene** or the **bouncing ball demo**: a retro checkered ball bouncing and spinning in front of a grid) or an empty one. **Load test scene** (Home › Help) is a ready-made scene for trying everything: letters spinning in and waving, glass, chrome, gold, copper, glow, plastic, matte and rubber, a gradient on a face, the checkered ball bouncing behind the title, a TV with colour bars scrolling down its screen, ready-made moves and a camera move; it starts playing straight away.
+3. Pick a starter scene (3D title, retro chrome, shapes still life, glass and gold, the **test scene** or the **bouncing ball demo**: a retro checkered ball bouncing and spinning in front of a grid) or an empty one. **Load test scene** (Home › Help) is a ready-made scene for trying everything: letters spinning in and waving, glass, chrome, gold, copper, glow, plastic, matte and rubber, a gradient on a face, the checkered ball bouncing behind the title, a TV with colour bars scrolling down its screen, ready-made moves, and the camera going all the way round; everything ends where it began, so it loops seamlessly. It starts playing straight away.
 4. Add things, change them, then **Render** or **Export**.
 
 Your scene autosaves in the browser; **Save** keeps a `.3dcraft.json` file (pictures and models are kept inside it).

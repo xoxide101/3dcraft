@@ -659,9 +659,9 @@
       const L = 6, tracks = {}, keys = (o, k) => { tracks[o.id] = { ...(tracks[o.id] || {}), keys: { ...((tracks[o.id] || {}).keys || {}), ...k } }; };
       const K = (list) => list.map(([t, v, ease]) => ({ t, v, ease: ease || 'ease' }));
       const title = text('3DCRAFT TEST', 'Archivo Black', E.defaultMat('#e6b422', 'gold'), [0, 2.9, -1.2], { size: 1.1, depth: 0.4, bevel: 0.035 });
-      tracks[title.id] = { keys: {}, letters: { style: 'spin', mode: 'in', start: 0.2, leave: 4.6, each: 0.7, gap: 0.09, order: 'left', amount: 1, speed: 2 } };
+      tracks[title.id] = { keys: {}, letters: { style: 'spin', mode: 'both', start: 0.2, leave: 4.1, each: 0.7, gap: 0.09, order: 'left', amount: 1, speed: 2 } };
       const wave = text('letters wave', 'Pacifico', E.defaultMat('#7048e8', 'gloss'), [0, 1.55, -1.2], { size: 0.75, depth: 0.25, bevel: 0.02 });
-      tracks[wave.id] = { keys: {}, start: 1.4, letters: { style: 'wave', mode: 'in', start: 0, leave: 5, each: 0.5, gap: 0.12, order: 'left', amount: 1, speed: 1.6 } };
+      tracks[wave.id] = { keys: {}, letters: { style: 'wave', mode: 'in', start: 0, leave: 5, each: 0.5, gap: 0.12, order: 'left', amount: 1, speed: 1.6 } };
       const glass = obj({ kind: 'shape', name: 'Glass ball', shape: { type: 'sphere', r: 0.6 }, mat: E.defaultMat('#ffffff', 'glass'), pos: [-4.2, 0.6, 1.4] });
       keys(glass, { pos: K([[0, [-4.2, 0.6, 1.4], 'out'], [0.75, [-4.2, 1.9, 1.4], 'in'], [1.5, [-4.2, 0.6, 1.4], 'out'], [2.25, [-4.2, 1.9, 1.4], 'in'], [3, [-4.2, 0.6, 1.4], 'out'], [3.75, [-4.2, 1.9, 1.4], 'in'], [4.5, [-4.2, 0.6, 1.4], 'out'], [5.25, [-4.2, 1.9, 1.4], 'in'], [6, [-4.2, 0.6, 1.4]]]) });
       const chrome = obj({ kind: 'shape', name: 'Chrome ring', shape: { type: 'torus', r: 0.55, tube: 0.18 }, mat: E.defaultMat('#ffffff', 'chrome'), pos: [-2.5, 0.75, 1.4] });
@@ -669,9 +669,9 @@
       const box = obj({ kind: 'shape', name: 'Red box (gradient front)', shape: { type: 'roundbox', w: 1, h: 1, d: 1, round: 0.12 }, mat: { ...E.defaultMat('#e03131', 'plastic'), faces: { front: { type: 'gradient', c1: '#ffd43b', c2: '#e03131', angle: 90 } } }, pos: [-0.8, 0.5, 1.5] });
       keys(box, { rot: K([[0, [0, 0, 0], 'ease'], [1.5, [0, 0, 12], 'ease'], [3, [0, 0, 0], 'ease'], [4.5, [0, 0, -12], 'ease'], [6, [0, 0, 0]]]) });
       const pyr = obj({ kind: 'shape', name: 'Green pyramid', shape: { type: 'pyramid', r: 0.7, h: 1.2 }, mat: E.defaultMat('#2f9e44', 'matte'), pos: [0.8, 0.6, 1.5] });
-      keys(pyr, { pos: K([[0, [0.8, -1.2, 1.5], 'out'], [1.2, [0.8, 0.6, 1.5]]]) });
+      keys(pyr, { pos: K([[0, [0.8, -1.2, 1.5], 'out'], [1.2, [0.8, 0.6, 1.5], 'hold'], [4.8, [0.8, 0.6, 1.5], 'in'], [6, [0.8, -1.2, 1.5]]]) });
       const copper = obj({ kind: 'shape', name: 'Copper star', shape: { type: 'star', r: 0.6, inner: 0.45, points: 5, d: 0.25 }, mat: E.defaultMat('#c8703f', 'copper'), pos: [2.4, 0.75, 1.4] });
-      keys(copper, { rot: K([[0, [0, 0, 0], 'linear'], [L, [0, -720, 0]]]), scale: K([[0, [0.01, 0.01, 0.01], 'bounce'], [1, [1, 1, 1]]]) });
+      keys(copper, { rot: K([[0, [0, 0, 0], 'linear'], [L, [0, -720, 0]]]), scale: K([[0, [0.01, 0.01, 0.01], 'bounce'], [1, [1, 1, 1], 'hold'], [5.2, [1, 1, 1], 'in'], [6, [0.01, 0.01, 0.01]]]) });
       const glow = obj({ kind: 'shape', name: 'Glow capsule', shape: { type: 'capsule', r: 0.3, h: 0.8 }, mat: E.defaultMat('#ff4fd8', 'glow'), pos: [4, 0.7, 1.4] });
       keys(glow, { color: K([[0, '#ff4fd8', 'linear'], [2, '#4dabf7', 'linear'], [4, '#51cf66', 'linear'], [6, '#ff4fd8']]) });
       obj({ kind: 'shape', name: 'Rubber mat', shape: { type: 'cylinder', r: 6, h: 0.02 }, mat: E.defaultMat('#495057', 'rubber'), pos: [0, 0.01, 0.6] });
@@ -679,9 +679,10 @@
       // a TV at the front, low down, with shaded rainbow bars scrolling down its screen
       const tvSize = E.shapeSize({ type: 'tv', size: 12 });
       obj({ kind: 'shape', name: 'TV: colour bars', shape: { type: 'tv', size: 12 }, mat: { ...E.defaultMat('#9aa1ab', 'plastic'), faces: JSON.parse(JSON.stringify(E.PART_COLOURS.tv)), cycle: { preset: 'raster', speed: 2, bands: 12, dir: 'down', part: 'screen' } }, pos: [-0.4, tvSize.y / 2, 4.6], rot: [0, -4, 0] });
-      d.anim = { length: L, fps: 30, loop: true, tracks, camera: { move: 'none', amount: 360, keys: [{ t: 0, pos: [-7.5, 1.4, 8.5], target: [0, 1.4, 0], fov: 40, ease: 'ease' }, { t: L, pos: [6.5, 4.2, 9], target: [0, 1.4, 0], fov: 40, ease: 'ease' }] } };
+      d.anim = { length: L, fps: 30, loop: true, tracks, camera: { move: 'turntable', amount: 360 } };
       Object.assign(d.scene, { light: 'studio', bg: { type: 'gradient', c1: '#f4f6f9', c2: '#cfd8e3', angle: 0 }, groundColor: '#e9edf3', reflect: 1.2 });
-      d.camera = { pos: [0, 2.6, 10], target: [0, 1.4, 0], fov: 40 };
+      // the camera goes all the way round once, ending where it started, so the animation loops
+      d.camera = { pos: [0, 3.4, 11.5], target: [0, 1.4, 0.5], fov: 40 };
     }
     if (kind === 'ball') {
       const L = 4, { ball, keys } = bouncingBall({ L, R: 1.6, x0: -5, x1: 5, z: 0, up: 4.2 });
