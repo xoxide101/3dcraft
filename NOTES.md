@@ -74,8 +74,10 @@ Headless Chrome over the DevTools protocol, opening `index.html` from the folder
 
 ## Planned
 
-- Talk first: Lighting (and shadow depth, strength and direction), maybe its own tab like the Backdrop.
-- More backdrop layer kinds and weather (rain, snow, fog); custom backdrops further (layer mapping, pictures traced into Modern 3D cut-outs): talk first.
+- Talk first: Lighting (and shadow depth, strength and direction), maybe its own tab like the Backdrop and Ground.
 - Ray-traced animation (every frame path-traced, smoothed, saved as video).
 - Animation and video playing on monitor and TV screens.
 - An original 3D stress-test model shared with the other Craft apps.
+- Custom backdrops further (layer mapping, pictures traced into Modern 3D cut-outs): talk first.
+- Distance haze in ray-traced renders; weather layers (rain, snow, fog).
+- More colour-cycling presets as they are described (one remembered from an old games console is still to come).

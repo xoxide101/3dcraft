@@ -2,7 +2,7 @@
 
 # 3DCraft
 
-**3D titles, logos and scenes in your browser: shapes, 3D text, pictures turned into 3D, materials, lights, animation with a timeline, ray-traced renders, and 3D models in and out.**
+**3D titles, logos and scenes in your browser: shapes, 3D text, pictures turned into 3D, objects and scenery, layered backdrops and landscapes, materials, lights, animation with a timeline, ray-traced renders, and 3D models in and out.**
 
 3DCraft brings back the easy 3D title and logo programs of the 1990s, rebuilt for today. Type a word and it stands up in 3D gold; drop a logo in and it is traced into colours and pulled out into a solid; pick plastic, chrome or glass; turn it all with the dial in the corner; then render a photo-real picture or save a model for a 3D printer. Everything works offline from this folder.
 
@@ -46,6 +46,8 @@ Plastic, glossy paint, matte, gold, silver, chrome, copper, glass, glow, **water
 ![Four views](docs/four-views.png)
 
 ### Backdrop
+
+![A sunset countryside backdrop in the Modern style behind a gold title](docs/backdrop.png)
 
 Scenery in layers behind your scene, like the flats of a stage or the layers of an old video game (the **Backdrop** tab on the left, and on the ribbon):
 - **Choose a backdrop:** Countryside, City, Seaside, Ocean and islands, Desert, Night city, Playground, Computer, Rainbow meadow, Balloon festival, Space, Open woodland, Pine forest (USA), Woodland (UK) or Rainforest (Amazon) (click again for another one), or **🎲 Surprise me**; **🎲 Shuffle shapes** keeps the layers and gives them new shapes.
