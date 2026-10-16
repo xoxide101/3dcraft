@@ -862,19 +862,22 @@
     ocean: ['Ocean', ['#03256c', '#2541b2', '#1768ac', '#06bee1', '#b8f3ff', '#06bee1', '#1768ac', '#2541b2'], false],
     neon: ['Neon', ['#ff00e5', '#7a00ff', '#00e1ff', '#00ff9d', '#00e1ff', '#7a00ff'], false],
     gold: ['Gold shimmer', ['#5c3d00', '#a67c00', '#e6b422', '#fff1b0', '#e6b422', '#a67c00'], false],
+    glow: ['Sunset glow (smooth)', ['#f5a742', '#ec7a64', '#e2508f', '#c53fb4', '#8f35c4', '#c53fb4', '#e2508f', '#ec7a64'], false],
+    raster: ['Shaded rainbow bars', ['#ffffff', '#e8e04a', '#f0a03a', '#ee6a3a', '#e8435c', '#d84b9b', '#a64bd8', '#6a4be0', '#3f62e0', '#3aa0e8', '#3ad0d0', '#3ac69a'], true, true],
     copper: ['Copper bars', ['#120018', '#4b0f6b', '#a33dd1', '#ffd1ff', '#a33dd1', '#4b0f6b', '#120018', '#0d2a63', '#2f74d0', '#c9ecff', '#2f74d0', '#0d2a63'], false],
   };
   const cycleCache = new Map();
   function cycleTexture(c) {
-    const along = c.dir === 'left' || c.dir === 'right', key = [c.preset, c.bands, along].join('|');
+    const along = c.dir === 'left' || c.dir === 'right' || c.dir === 'sideways', key = [c.preset, c.bands, along].join('|');
     if (!cycleCache.has(key)) {
-      const [, cols, hard] = E.CYCLES[c.preset] || E.CYCLES.retro, N = 1024, cv = document.createElement('canvas'); cv.width = along ? N : 4; cv.height = along ? 4 : N;
+      const [, cols, hard, shaded] = E.CYCLES[c.preset] || E.CYCLES.retro, N = 1024, cv = document.createElement('canvas'); cv.width = along ? N : 4; cv.height = along ? 4 : N;
       const x = cv.getContext('2d'), bands = Math.max(1, c.bands || 8);
       for (let i = 0; i < N; i++) {
         const u = (i / N) * bands, k = Math.floor(u), f = u - k;
         let col;
         if (!cols) col = new T.Color().setHSL(((i / N) * bands) % 1, 0.9, 0.55);
         else { const a = new T.Color(cols[k % cols.length]), b = new T.Color(cols[(k + 1) % cols.length]); col = hard ? a : a.lerp(b, f * f * (3 - 2 * f)); }
+        if (shaded) { const top = 1 - f; col = col.clone(); if (top > 0.72) col.lerp(new T.Color('#ffffff'), (top - 0.72) * 1.6); else if (top < 0.35) col.multiplyScalar(0.55 + 0.45 * (top / 0.35)); }
         x.fillStyle = '#' + col.getHexString(); if (along) x.fillRect(i, 0, 1, 4); else x.fillRect(0, N - 1 - i, 4, 1);
       }
       cycleCache.set(key, cv);
@@ -885,7 +888,10 @@
   }
   // where the bands are at time t
   function poseCycles(t) {
-    root.traverse((o) => { if (!o.isMesh) return; [].concat(o.material).forEach((m) => { const c = m.userData && m.userData.cycle; if (!c || !m.map) return; const off = (t * (c.speed ?? 1)) / Math.max(1, c.bands || 8); if (c.dir === 'left' || c.dir === 'right') m.map.offset.x = c.dir === 'left' ? off : -off; else m.map.offset.y = c.dir === 'down' ? off : -off; }); });
+    root.traverse((o) => { if (!o.isMesh) return; [].concat(o.material).forEach((m) => { const c = m.userData && m.userData.cycle; if (!c || !m.map) return; let off = (t * (c.speed ?? 1)) / Math.max(1, c.bands || 8);
+      // back and forth: along one whole set of bands, then back again
+      if (c.dir === 'updown' || c.dir === 'sideways') { const u = off % 2; off = u < 1 ? u : 2 - u; }
+      if (c.dir === 'left' || c.dir === 'right' || c.dir === 'sideways') m.map.offset.x = c.dir === 'left' ? off : -off; else m.map.offset.y = c.dir === 'down' ? off : -off; }); });
   }
   function material(m, face, slot) {
     const glass = m.glass || 0;
@@ -904,7 +910,8 @@
     if (m.waves) { mat.normalMap = waveTexture(); mat.normalScale.set(0.45, 0.45); mat.attenuationColor = new T.Color(m.color || '#3d8fd1'); mat.attenuationDistance = 2.5; mat.color.lerp(new T.Color('#ffffff'), 0.55); }
     // a screen: glossy glass, and a picture on it lights up like a real screen
     if (m.cycle && m.cycle.preset && m.cycle.preset !== 'none' && !tex && (!m.cycle.front || !slot || slot === 'front')) {
-      const ct = cycleTexture(m.cycle); mat.map = ct; mat.color.set('#ffffff'); mat.emissive = new T.Color('#ffffff'); mat.emissiveMap = ct; mat.emissiveIntensity = 0.45; mat.userData.cycle = { ...m.cycle };
+      // the bands show at full strength (not softened by the scene's brightening), with a little of the light for shape
+      const ct = cycleTexture(m.cycle); mat.map = ct; mat.color.set('#4d4d4d'); mat.emissive = new T.Color('#ffffff'); mat.emissiveMap = ct; mat.emissiveIntensity = 0.85; mat.toneMapped = false; mat.metalness = Math.min(mat.metalness, 0.3); mat.userData.cycle = { ...m.cycle };
     }
     if (slot === 'sails' || slot === 'canopy' || slot === 'stripes') mat.side = T.DoubleSide;
     if (slot === 'lamp' || slot === 'lantern' || slot === 'lights') { mat.emissive.copy(mat.color); mat.emissiveIntensity = 1.2; }
