@@ -58,6 +58,8 @@ Background (see-through, colour, gradient, pattern or picture), ground (none, sh
 
 ![The Render window](docs/render.png)
 
+![The test scene: letters spinning in, every material, moves and a camera move](docs/test-scene.png)
+
 ## Keyboard shortcuts
 
 | Keys | What they do |

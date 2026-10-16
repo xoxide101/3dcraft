@@ -30,6 +30,7 @@ How 3DCraft is built and what to keep in mind when changing it. For what it does
 ## Things to know
 
 - **Letters are drawn from their TrueType points** (`glyphPathData`), one letter at a time (so overlapping letters cannot cut holes in each other): opentype.js 2.0's own drawing gives NaN for some letters (Bungee's E). Lines are laid out with `forEachGlyph`, or plainly with kerning when a font uses a feature opentype.js stops on (`lineGlyphs`). Spacing leaves room for the bevel plus 2% of the size. Height scales letters by h up and 1/√h across.
+- **Stage** is a shape (`stageGeo`): an outline from `stageOutline` (round, oval, or a polygon with its corners cut and curved by `corner`) extruded per step with the rim as a bevel (the outline starts smaller by the bevel so the size stays as typed), turned to lie flat; the steps are joined keeping three face groups (top, bottom, sides).
 - **Objects** are shape types with a third entry in `E3.SHAPES` (their fields for the panel; `E3.isObjectShape`). Each is built from parts (`partsGeo`: one group per part name, which are its faces), with starting colours in `E3.PART_COLOURS`. A `screen` part gets a glossy finish, and a picture on it is stretched to fill it and lights up (emissive map). Water is a material preset with `ior` 1.33 and `waves` (a tiling normal map made from crossing sine waves; its offset follows the time).
 - **Face pictures** start on a blank 1024 × 1024 stand-in: the picture loads a moment later, and WebGL keeps a texture's first size.
 - **Text outlines** come from opentype.js as SVG path data and are read with SVGLoader inside `<g transform="scale(1,-1)">`, so they face the right way before extruding (flipping afterwards turns faces inside out). Traced pictures are flipped the same way.
@@ -53,3 +54,14 @@ Headless Chrome over the DevTools protocol, opening `index.html` from the folder
 - **Camera keys:** `anim.camera.keys = [{ t, pos, target, fov, ease }]` (with the turntable or swing still added on top). `E3.camAt(t)` moves the target in a line and the camera round it in spherical coordinates. `evalAt(t, moveCamera)` only puts the keyed camera in place when the time changed or `moveCamera` is set (seeking, export frames), so looking around while editing is not undone by every change. `E3.setCamKey(t)` keeps the current view.
 - Export: `E3.beginFrames(w, h)` sizes the renderer once; `frame(t)` evaluates and renders one frame; `end()` puts everything back.
 
+## Title bar and starter scenes
+
+- **Render now** is a button put in front of the title bar's search box (`renderNow`): it opens the Render window and clicks Render.
+- **Load test scene** (`startScene('test')`) builds a 6-second scene with letter animations, every kind of material, keyed moves and camera keys, and starts playing; it is the quickest check that rendering, colours and animation all still work.
+
+## Planned
+
+- Talk first: moving Background and Lighting onto their own tabs, with shadow depth, strength and direction.
+- Ray-traced animation (every frame path-traced, smoothed, saved as video).
+- Animation and video playing on monitor and TV screens.
+- An original 3D stress-test model shared with the other Craft apps.
