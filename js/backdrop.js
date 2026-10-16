@@ -241,7 +241,7 @@
         const shapes = []; puffs.forEach((c) => c.forEach(([x, y, r]) => shapes.push(new T.Shape().absarc(x, y, r, 0, Math.PI * 2, false))));
         cardboard(g, shapes, col, d, per, null, puffs, bd.stands !== false);
       } else if (style === 'modern') {
-        const list = []; puffs.forEach((c) => c.forEach(([x, y, r]) => { const s = new T.IcosahedronGeometry(r, 3); s.scale(1, 0.72, 0.6); s.translate(x, y, 0); list.push(s); }));
+        const list = []; puffs.forEach((c) => c.forEach(([x, y, r]) => { const s = new T.IcosahedronGeometry(r, 2); s.scale(1, 0.72, 0.6); s.translate(x, y, 0); list.push(s); }));
         g.add(mesh(merge(list), new T.MeshStandardMaterial({ color: col, roughness: 1, emissive: col, emissiveIntensity: 0.15 })));
       } else {
         const list = [], hi = []; puffs.forEach((c) => c.forEach(([x, y, r]) => { list.push(new T.CircleGeometry(r, 40).translate(x, y, 0)); hi.push(new T.CircleGeometry(r * 0.7, 32).translate(x - r * 0.15, y + r * 0.18, 0)); }));

@@ -559,15 +559,19 @@
   $('rd-go').onclick = () => {
     const [w, h] = RSIZES[+$('rd-size').value], t0 = performance.now();
     $('rd-view').innerHTML = ''; $('rd-view').style.aspectRatio = `${w} / ${h}`; rdBusy(true); $('rd-png').disabled = $('rd-jpg').disabled = true;
-    $('rd-status').textContent = 'Getting the scene ready…'; $('rd-bar').style.width = '0';
+    $('rd-status').textContent = 'Getting the scene ready… (a very detailed scene can take a few seconds)'; $('rd-bar').style.width = '0';
     const show = (c) => { if (!$('rd-view').contains(c)) { $('rd-view').innerHTML = ''; $('rd-view').append(c); } };
     if (rdSmoother) rdSmoother.dispose(); rdRaw = rdSmoother = null;
-    rdJob = E.pathRender(w, h, { quality: rdQ, transparent: $('rd-transp').checked, edges: +$('rd-aa').value || 1,
+    // let the message show before the heavy preparing starts (it holds the window for a moment)
+    let cancelled = false; rdJob = { stop: () => { cancelled = true; rdJob = null; rdBusy(false); $('rd-status').textContent = 'Stopped.'; } };
+    setTimeout(() => requestAnimationFrame(() => { if (cancelled) return; startRender(); }), 30);
+    const startRender = () => { rdJob = E.pathRender(w, h, { quality: rdQ, transparent: $('rd-transp').checked, edges: +$('rd-aa').value || 1,
       onProgress: (c, n, of) => { show(c); $('rd-bar').style.width = Math.round((n / of) * 100) + '%'; $('rd-status').textContent = `${n} of ${of} samples · ${Math.round((performance.now() - t0) / 1000)} s`; },
       onDone: (c, n, early, smoother) => { rdRaw = c; rdSmoother = smoother; rdOut = rdPick(); show(rdOut); rdJob = null; rdBusy(false); $('rd-png').disabled = $('rd-jpg').disabled = false; $('rd-bar').style.width = early ? $('rd-bar').style.width : '100%';
         const aa = rdJob0 && rdJob0.edges > 1 ? `, edges ${rdJob0.edges}× smoother` : '', capped = rdJob0 && +$('rd-aa').value > Math.max(1, rdJob0.edges) ? ' (as smooth as fits at this size)' : '';
         $('rd-status').textContent = `${early ? 'Stopped at' : 'Done:'} ${n} samples, ${w} × ${h}${aa}${capped}, in ${Math.round((performance.now() - t0) / 1000)} s.`; } });
-    const rdJob0 = rdJob;
+    rdJob0 = rdJob; };
+    let rdJob0 = null;
   };
   $('rd-stop').onclick = () => { if (rdJob) rdJob.stop(); };
   // switch between the smoothed and the raw picture after rendering, to compare (what shows is what is saved)

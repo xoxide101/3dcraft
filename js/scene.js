@@ -1272,10 +1272,11 @@
     };
     const step = () => {
       if (stopped) return;
-      for (let i = 0; i < tiles * tiles; i++) pt.renderSample();
+      // one tile a frame, so the window keeps responding (and Stop works) even with a very detailed scene
+      pt.renderSample();
       const n = Math.floor(pt.samples); frame++;
       if (n >= samples) { copy(); stopped = true; finish(); o.onDone && o.onDone(out, n, false, smoother); return; }
-      if (frame % 3 === 0) { copy(); o.onProgress && o.onProgress(out, n, samples); }
+      if (frame % (tiles * tiles * 2) === 0) { copy(); o.onProgress && o.onProgress(out, n, samples); }
       requestAnimationFrame(step);
     };
     requestAnimationFrame(step);
