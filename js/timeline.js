@@ -21,7 +21,7 @@
       <label class="tl-f">Length <input class="input" type="number" id="tl-len" min="0.5" max="120" step="0.5"> s</label>
       <label class="tl-f">Frames/s <select class="input" id="tl-fps"><option>12</option><option>15</option><option>24</option><option>25</option><option>30</option><option>60</option></select></label>
       <label class="tl-f">Move <select class="input" id="tl-preset"><option value="">Add a move to the selected…</option></select></label>
-      <label class="tl-f">Camera <select class="input" id="tl-cam"><option value="none">Still</option><option value="turntable">Turntable (all the way round)</option><option value="swing">Swing (to and fro)</option></select></label>
+      <label class="tl-f">Camera <select class="input" id="tl-cam"><option value="none">Still</option><option value="turntable">Turntable (all the way round)</option><option value="swing">Swing (to and fro)</option><optgroup label="Camera keyframes (from this view)"><option value="k:push">Push in (from far away to here)</option><option value="k:pull">Pull back (from here to far away)</option><option value="k:crane">Crane up (rise and look down)</option><option value="k:round">Fly round and in</option><option value="k:clear">Remove the camera keyframes</option></optgroup></select></label>
       <label class="tl-f" id="tl-amt-f">° <input class="input" type="number" id="tl-amt" min="5" max="1080" step="5"></label>
       <span style="flex:1"></span>
       <button class="btn tl-ic" data-tl="zoomout" title="Shorter time ruler">−</button><button class="btn tl-ic" data-tl="zoomin" title="Longer time ruler">+</button>
@@ -69,6 +69,12 @@
     for (let t = 0; t <= a.length + 1e-6; t += step) { const whole = Math.abs(t - Math.round(t)) < 1e-6; ruler += `<i style="left:${xOf(t)}px" class="${whole ? 'tl-whole' : ''}"></i>` + (whole ? `<span class="tl-sec" style="left:${xOf(t) + 3}px">${Math.round(t)} s</span>` : ''); }
     ruler += `<div class="tl-end" style="left:${xOf(a.length)}px"></div></div>`;
     let html = ruler;
+    {
+      const ks = E.camKeys(), here = ks.some((k) => Math.abs(k.t - E.time) < 0.5 / a.fps);
+      html += `<div class="tl-row prop cam" data-prop="camera" style="width:${W}px"><div class="tl-lab" style="padding-left:6px"><button class="tl-sw${ks.length ? ' on' : ''}" data-camsw title="${ks.length ? 'Remove the camera keyframes' : 'Animate the camera: keeps this view as a keyframe'}">${STOPWATCH}</button><span>🎥 Camera</span><button class="tl-k${here ? ' on' : ''}" data-camkey title="${here ? 'Keep this view here instead (Shift+click removes this keyframe)' : 'Keep this view as a keyframe here'}">◆</button></div>`
+        + ks.map((k, i) => `<i class="tl-key${selKey && selKey.k === k ? ' sel' : ''} e-${k.ease || 'ease'}" data-key="${i}" style="left:${xOf(k.t)}px" title="${k.t.toFixed(2)} s · ${E.EASES[k.ease || 'ease']} (double-click to change; click to go there)"></i>`).join('')
+        + (ks.length ? '' : '<span class="tl-lnone">Look around in the view, then ◆ keeps that view here. Or pick a camera move above.</span>') + '</div>';
+    }
     rowsFor().forEach(({ m, prop, depth }) => {
       const tr = a.tracks[m.id] || { keys: {} };
       if (!prop) {
@@ -102,7 +108,7 @@
   // ---- time
   const frame = () => 1 / (E.anim().fps || 30);
   const snap = (t) => Math.round(t / frame()) * frame();
-  TL.seek = (t) => { E.evalAt(snap(Math.max(0, Math.min(E.anim().length, t)))); TL.updateHead(); if (!playing) TL.render(); };
+  TL.seek = (t) => { E.evalAt(snap(Math.max(0, Math.min(E.anim().length, t))), true); TL.updateHead(); if (!playing) TL.render(); };
   TL.play = () => { if (!E.doc) return; if (playing) { playing = false; TL.render(); return; } const a = E.anim(); if (E.time >= a.length - 1e-3) E.evalAt(0); playing = true; last = performance.now(); requestAnimationFrame(tick); TL.updateHead(); };
   TL.playing = () => playing;
   function tick(now) {
@@ -126,9 +132,24 @@
     else if (k === 'zoomout') { zoomPx = Math.max(10, pxPerSec() / 1.4); TL.render(); }
     else if (k === 'export') window.ANIM3 && window.ANIM3.open();
   });
-  $('tl-len').onchange = () => { const a = E.anim(), v = Math.max(0.5, Math.min(120, +$('tl-len').value || a.length)), k = v / a.length; Object.values(a.tracks).forEach((tr) => { Object.values(tr.keys).forEach((ks) => ks.forEach((x) => { x.t = +(x.t * k).toFixed(4); })); if (tr.start != null) tr.start *= k; if (tr.end != null) tr.end *= k; if (tr.letters) { tr.letters.start = +((tr.letters.start || 0) * k).toFixed(3); tr.letters.leave = +((tr.letters.leave || 0) * k).toFixed(3); } }); a.length = v; zoomPx = 0; E.evalAt(Math.min(E.time * k, v)); changed(); TL.render(); };
+  $('tl-len').onchange = () => { const a = E.anim(), v = Math.max(0.5, Math.min(120, +$('tl-len').value || a.length)), k = v / a.length; E.camKeys().forEach((x) => { x.t = +(x.t * k).toFixed(4); }); Object.values(a.tracks).forEach((tr) => { Object.values(tr.keys).forEach((ks) => ks.forEach((x) => { x.t = +(x.t * k).toFixed(4); })); if (tr.start != null) tr.start *= k; if (tr.end != null) tr.end *= k; if (tr.letters) { tr.letters.start = +((tr.letters.start || 0) * k).toFixed(3); tr.letters.leave = +((tr.letters.leave || 0) * k).toFixed(3); } }); a.length = v; zoomPx = 0; E.evalAt(Math.min(E.time * k, v)); changed(); TL.render(); };
   $('tl-fps').onchange = () => { E.anim().fps = +$('tl-fps').value; changed(); TL.render(); };
-  $('tl-cam').onchange = () => { const a = E.anim(); a.camera = { ...(a.camera || {}), move: $('tl-cam').value, amount: $('tl-cam').value === 'swing' ? 60 : 360 }; E.evalAt(E.time); changed(); TL.render(); };
+  // ready-made camera moves: keys made from the view as it is now (it becomes the end, or the start for Pull back)
+  TL.camPreset = (k) => {
+    const a = E.anim(); E.saveCamera();
+    if (k === 'clear') { if (a.camera) delete a.camera.keys; E.evalAt(E.time); changed(); TL.render(); return; }
+    const c = E.doc.camera, V = (x) => new THREE.Vector3().fromArray(x), tg = V(c.target), sp = new THREE.Spherical().setFromVector3(V(c.pos).sub(tg));
+    const at = (s) => tg.clone().add(new THREE.Vector3().setFromSpherical(s)).toArray().map((x) => +x.toFixed(3));
+    const far = sp.clone(); far.radius *= 2.4;
+    const low = sp.clone(); low.phi = Math.min(Math.PI / 2 - 0.02, sp.phi + 0.45); low.radius *= 1.1;
+    const high = sp.clone(); high.phi = Math.max(0.15, sp.phi - 0.55);
+    const round = sp.clone(); round.theta -= (2 * Math.PI) / 3; round.radius *= 1.9; round.phi = Math.max(0.2, sp.phi - 0.25);
+    const here = { pos: c.pos.slice(), target: c.target.slice(), fov: c.fov || 40 };
+    const plan = { push: [[at(far)], [here.pos]], pull: [[here.pos], [at(far)]], crane: [[at(low)], [at(high)]], round: [[at(round)], [here.pos]] }[k];
+    a.camera = { ...(a.camera || {}), move: 'none', keys: plan.map(([pos], i) => ({ t: i ? a.length : 0, pos, target: here.target.slice(), fov: here.fov, ease: 'ease' })) };
+    E.evalAt(0, true); changed(); TL.render(); if (!playing) TL.play();
+  };
+  $('tl-cam').onchange = () => { const a = E.anim(); if ($('tl-cam').value.startsWith('k:')) { const k = $('tl-cam').value.slice(2); $('tl-cam').value = (a.camera && a.camera.move) || 'none'; TL.camPreset(k); return; } a.camera = { ...(a.camera || {}), move: $('tl-cam').value, amount: $('tl-cam').value === 'swing' ? 60 : 360 }; E.evalAt(E.time); changed(); TL.render(); };
   $('tl-amt').onchange = () => { const a = E.anim(); a.camera.amount = +$('tl-amt').value || 360; E.evalAt(E.time); changed(); };
   $('tl-preset').onchange = () => { const k = $('tl-preset').value; $('tl-preset').value = ''; if (k) TL.preset(k); };
   TL.camera = (mode) => { if (!E.doc) return; $('tl-cam').value = mode; $('tl-cam').onchange(); if (mode !== 'none' && !playing) TL.play(); };
@@ -149,6 +170,9 @@
   rows.addEventListener('click', (e) => {
     const tw = e.target.closest('[data-tw]'); if (tw) { open.has(tw.dataset.tw) ? open.delete(tw.dataset.tw) : open.add(tw.dataset.tw); TL.render(); return; }
     const sl = e.target.closest('[data-sel]'); if (sl) { E.select(sl.dataset.sel); return; }
+    if (e.target.closest('[data-camsw]')) { if (E.camKeys().length) TL.camPreset('clear'); else { E.setCamKey(E.time); changed(); TL.render(); } return; }
+    const ck = e.target.closest('[data-camkey]');
+    if (ck) { const here = E.camKeys().find((k) => Math.abs(k.t - E.time) < 0.5 / E.anim().fps); if (here && e.shiftKey) E.removeCamKey(here); else E.setCamKey(E.time); E.evalAt(E.time, true); changed(); TL.render(); return; }
     const row = e.target.closest('.tl-row'); if (!row) return;
     const m = E.find(row.dataset.id); if (!m) return;
     const sw = e.target.closest('[data-sw]');
@@ -168,10 +192,11 @@
       rows.addEventListener('pointermove', move); rows.addEventListener('pointerup', up); return;
     }
     if (key) {
-      const row = key.closest('.tl-row'), m = E.find(row.dataset.id), prop = row.dataset.prop, k = E.track(m.id).keys[prop][+key.dataset.key];
+      const row = key.closest('.tl-row'), m = E.find(row.dataset.id), prop = row.dataset.prop, list = keyList(m, prop), k = list[+key.dataset.key], t0 = k.t;
       selKey = { m, prop, k }; rows.setPointerCapture(e.pointerId);
       const move = (ev) => { k.t = +Math.max(0, Math.min(E.anim().length, snap(tAt(ev.clientX)))).toFixed(4); key.style.left = xOf(k.t) + 'px'; };
-      const up = () => { rows.removeEventListener('pointermove', move); rows.removeEventListener('pointerup', up); E.track(m.id).keys[prop].sort((a, b) => a.t - b.t); E.evalAt(E.time); changed(); TL.render(); };
+      // a camera key that was clicked (not dragged) takes the playhead there, so you can see that view
+      const up = () => { rows.removeEventListener('pointermove', move); rows.removeEventListener('pointerup', up); keyList(m, prop).sort((a, b) => a.t - b.t); if (prop === 'camera' && k.t === t0) E.evalAt(k.t, true); else E.evalAt(E.time, prop === 'camera'); changed(); TL.render(); };
       rows.addEventListener('pointermove', move); rows.addEventListener('pointerup', up); TL.render(); return;
     }
     if (timer) {
@@ -190,7 +215,7 @@
   // double-click a key: how it moves on to the next key
   rows.addEventListener('dblclick', (e) => {
     const key = e.target.closest('.tl-key'); if (!key) return;
-    const row = key.closest('.tl-row'), m = E.find(row.dataset.id), prop = row.dataset.prop, k = E.track(m.id).keys[prop][+key.dataset.key];
+    const row = key.closest('.tl-row'), m = E.find(row.dataset.id), prop = row.dataset.prop, k = keyList(m, prop)[+key.dataset.key];
     const pop = document.createElement('div'); pop.className = 'tl-pop';
     pop.innerHTML = `<b>From this key to the next</b>${Object.entries(E.EASES).map(([v, n]) => `<button type="button" data-ease="${v}" aria-pressed="${(k.ease || 'ease') === v}">${n}</button>`).join('')}<button type="button" data-ease="del" class="danger">Delete this key</button>`;
     const kr = key.getBoundingClientRect(); pop.style.left = Math.min(innerWidth - 220, kr.left) + 'px'; pop.style.top = Math.max(8, kr.top - 250) + 'px';
@@ -198,10 +223,12 @@
     const close = () => { pop.remove(); document.removeEventListener('pointerdown', out, true); };
     const out = (ev) => { if (!pop.contains(ev.target)) close(); };
     setTimeout(() => document.addEventListener('pointerdown', out, true), 0);
-    pop.onclick = (ev) => { const b = ev.target.closest('[data-ease]'); if (!b) return; if (b.dataset.ease === 'del') E.removeKey(m, prop, k); else k.ease = b.dataset.ease; close(); E.evalAt(E.time); changed(); TL.render(); };
+    pop.onclick = (ev) => { const b = ev.target.closest('[data-ease]'); if (!b) return; if (b.dataset.ease === 'del') removeKey(m, prop, k); else k.ease = b.dataset.ease; close(); E.evalAt(E.time, prop === 'camera'); changed(); TL.render(); };
   });
   // Delete removes the selected key (the app's own Delete is used when no key is selected)
-  TL.deleteSelectedKey = () => { if (!selKey) return false; E.removeKey(selKey.m, selKey.prop, selKey.k); selKey = null; E.evalAt(E.time); changed(); TL.render(); return true; };
+  const keyList = (m, prop) => (prop === 'camera' ? E.camKeys() : E.track(m.id).keys[prop]);
+  const removeKey = (m, prop, k) => (prop === 'camera' ? E.removeCamKey(k) : E.removeKey(m, prop, k));
+  TL.deleteSelectedKey = () => { if (!selKey) return false; removeKey(selKey.m, selKey.prop, selKey.k); selKey = null; E.evalAt(E.time); changed(); TL.render(); return true; };
   TL.hasSelectedKey = () => !!selKey;
   document.addEventListener('pointerdown', (e) => { if (selKey && !e.target.closest('.tl-key') && !e.target.closest('.tl-pop')) { selKey = null; if (!playing) TL.render(); } });
   E.on('select', () => { if (!playing) TL.render(); });

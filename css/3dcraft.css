@@ -122,3 +122,8 @@
 .tl-lbar.loop { cursor: default; background: repeating-linear-gradient(90deg, color-mix(in srgb, #7048e8 35%, transparent) 0 10px, color-mix(in srgb, #7048e8 15%, transparent) 10px 20px); }
 .tl-lic { font: 700 11px/1 Georgia, serif; color: #7048e8; width: 18px; text-align: center; }
 .tl-lnone { position: absolute; left: 270px; top: 6px; font-size: 11px; opacity: .6; }
+.tl-row.cam { background: color-mix(in srgb, #1c7ed6 7%, transparent); }
+.tl-row.cam .tl-lab { font-weight: 600; }
+.ctb-render { margin-right: 8px; font-weight: 700; color: #fff; background: rgba(255,255,255,.28) !important; border: 1px solid rgba(255,255,255,.55) !important; white-space: nowrap; }
+.ctb-render:hover { background: rgba(255,255,255,.4) !important; }
+@media (max-width: 820px) { .ctb-render { display: inline-grid !important; } }

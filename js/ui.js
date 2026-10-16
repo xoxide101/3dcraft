@@ -323,7 +323,8 @@
         { t: 'range', label: 'Letter size', value: t.size, min: 0.2, max: 6, step: 0.1, on: (v) => re({ size: v }) },
         { t: 'range', label: 'Depth', value: t.depth, min: 0.02, max: 3, step: 0.02, on: (v) => re({ depth: v }) },
         { t: 'range', label: 'Rounded edges (bevel)', value: t.bevel || 0, min: 0, max: 0.2, step: 0.005, on: (v) => re({ bevel: v }) },
-        { t: 'range', label: 'Letter spacing', value: t.spacing || 0, min: -100, max: 400, step: 10, on: (v) => re({ spacing: v }) },
+        { t: 'range', label: 'Letter spacing (below 0 they touch)', value: t.spacing || 0, min: -150, max: 400, step: 5, on: (v) => re({ spacing: v }) },
+        { t: 'range', label: 'Height (short and fat ↔ tall and thin)', value: Math.round((t.height || 1) * 100), min: 40, max: 250, step: 5, show: (v) => v + '%' + (v === 100 ? ' (normal)' : ''), on: (v) => re({ height: v / 100 }) },
         { t: 'btns', buttons: [{ label: 'Symbols and emoji…', on: () => CraftSymbols.open({ onPick: (r) => { t.text += r.char; if (r.kind === 'emoji') t.font = 'Noto Emoji'; else if (!(window.CRAFT_FONTS3D || []).some(([f]) => f === t.font && f.startsWith('Noto'))) t.font = 'Noto Sans Symbols 2'; changed(m.id); showProps(); } }) }] },
       ] });
       sections.push(lettersSection(m));
@@ -629,6 +630,7 @@
       { label: 'Save', key: 'Ctrl+S', run: () => save(false), disabled: () => !E.doc },
       { label: 'Save as…', run: () => save(true), disabled: () => !E.doc },
       '-',
+      { label: 'Render now (ray-traced picture)', run: () => renderNow(), disabled: () => !E.doc },
       { label: 'Render (ray-traced)…', key: 'F9', run: () => openRender(), disabled: () => !E.doc },
       { label: 'Export picture or 3D model…', key: 'Ctrl+E', run: openExport, disabled: () => !E.doc },
       { label: 'Bring in a 3D model (GLB, OBJ, STL)…', run: () => $('model-input').click(), disabled: () => !E.doc },
@@ -695,7 +697,7 @@
     <h3>3. Move, turn and size</h3><p>Click something, then drag its arrows (W), rings (E) or boxes (R). The <b>dial in the corner</b> turns the whole scene, or just the selected object: drag a coloured ring to turn around X, Y or Z, drag the ball to turn freely, click a letter to look along that axis. Drag in the view to look around, wheel to zoom.</p>
     <h3>4. Materials</h3><p>Pick plastic, gloss, matte, gold, silver, chrome, copper, glass, glow or rubber, then change colour, shine, metal, glass and glow. Put a picture, gradient or pattern on every face, or only the front, back, sides, top or bottom.</p>
     <h3>5. Layers and views</h3><p>The <b>Layers</b> list hides, locks, renames and groups things. View › Four views shows top, front, right and 3D at once.</p>
-    <h3>6. Animate</h3><p>The <b>Timeline</b> under the view: pick a ready-made move (spin, bounce, fly in, fade…) for the selected object, or twirl a layer open (▸) and click a <b>stopwatch</b>; then move the playhead and change the object: each change becomes a keyframe ◆. <b>3D text can move letter by letter</b>: pick a Letters move (typewriter, drop in, spin, scatter, wave…) or use Letter by letter on the right. Drag the timer bar's ends to set when a layer shows. Space plays. Export the animation as GIF, MP4, WebM, AVI or PNG frames.</p>
+    <h3>6. Animate</h3><p>The <b>Timeline</b> under the view: pick a ready-made move (spin, bounce, fly in, fade…) for the selected object, or twirl a layer open (▸) and click a <b>stopwatch</b>; then move the playhead and change the object: each change becomes a keyframe ◆. The <b>Camera</b> row: look around, then ◆ keeps that view at the playhead (or pick a camera move). <b>3D text can move letter by letter</b>: pick a Letters move (typewriter, drop in, spin, scatter, wave…) or use Letter by letter on the right. Drag the timer bar's ends to set when a layer shows. Space plays. Export the animation as GIF, MP4, WebM, AVI or PNG frames.</p>
     <h3>7. Export</h3><p>Save a picture (up to 4K, or print sizes, see-through if you like) or a 3D model (GLB, OBJ, or STL for 3D printing).</p>`);
   const keysHtml = `<table class="keys">${[['New / Open / Save', 'Ctrl+N / O / S'], ['Export', 'Ctrl+E'], ['Undo / Redo', 'Ctrl+Z / Ctrl+Y'], ['Copy / Paste / Duplicate', 'Ctrl+C / V / D'], ['Delete', 'Delete'], ['Move / Turn / Size', 'W / E / R'], ['See everything', 'F'], ['Front / Right / Top / ¾ view', '1 / 3 / 7 / 5'], ['Play / pause', 'Space'], ['Start / end', 'Home / End'], ['Frame back / on', ', / .'], ['Group', 'Ctrl+G'], ['Deselect', 'Esc'], ['Search commands', 'Alt+Q']].map(([a, b]) => `<tr><td>${a}</td><td style="text-align:right;padding-left:20px">${b}</td></tr>`).join('')}</table>`;
   const aboutHtml = `<p><b>3DCraft</b> · version 0.2 (animation)</p><p>3D titles, logos and scenes in your browser: shapes, 3D text, pictures turned into 3D, materials, lights, pictures of the scene and 3D models in and out. Works offline.</p><p>Built with <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> (MIT), <a href="https://opentype.js.org" target="_blank" rel="noopener">opentype.js</a> (MIT) and ImageTracer (public domain). Fonts from Google Fonts (SIL Open Font License or Apache License), stored with the app.</p>`;
@@ -800,7 +802,13 @@
   // ------------------------------------------------------------------ start
   function toggleTimeline() { $('timeline').classList.toggle('closed'); try { localStorage.setItem('3dcraft-tl', $('timeline').classList.contains('closed') ? '0' : '1'); } catch (e) {} setTimeout(() => { E.redraw(); tb && tb.update(); }, 50); }
   try { if (localStorage.getItem('3dcraft-tl') === '0') $('timeline').classList.add('closed'); } catch (e) {}
-  window.UI3 = { toast, setLetters, openRender, addShape, addText, addSymbol, openTrace, startScene, openDoc, changed, showProps, renderLayers };
+  // Render now (title bar, left of Search): open the Render window and start a ray-traced still straight away
+  const renderNow = () => { if (!E.doc || E.busy) return; openRender(); if (!$('rd-go').disabled) $('rd-go').click(); };
+  {
+    const sb = document.querySelector('.ctb-search');
+    if (sb) { const b = document.createElement('button'); b.type = 'button'; b.className = 'ctb-q text ctb-render'; b.id = 'render-now'; b.title = 'Render now: a ray-traced picture of the scene as it is (F9 opens the Render window)'; b.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m3 16 9 5 9-5M3 12l9 5 9-5"/></svg> Render now'; b.onclick = renderNow; sb.before(b); }
+  }
+  window.UI3 = { toast, setLetters, renderNow, openRender, addShape, addText, addSymbol, openTrace, startScene, openDoc, changed, showProps, renderLayers };
   (async () => {
     const last = localStorage.getItem(AUTOSAVE);
     if (last) { try { await openDoc(JSON.parse(last)); return; } catch (e) {} }

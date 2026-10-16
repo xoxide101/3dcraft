@@ -289,35 +289,75 @@
       document.head.append(sc);
     });
   }
-  function textShapes(font, t) {
-    const size = 1, lines = String(t.text || ' ').split('\n'), lh = size * (t.lead || 1.15), loader = new T.SVGLoader();
-    const shapes = [], widths = lines.map((ln) => font.getAdvanceWidth(ln, size * 100, { letterSpacing: (t.spacing || 0) / 1000 }) / 100);
-    const maxW = Math.max(...widths);
-    lines.forEach((ln, i) => {
-      const x0 = t.align === 'left' ? -maxW / 2 : t.align === 'right' ? maxW / 2 - widths[i] : -widths[i] / 2;
-      const path = font.getPath(ln, x0 * 100, (i * lh) * 100, size * 100, { letterSpacing: (t.spacing || 0) / 1000 });
-      const d = path.toPathData(2); if (!d) return;
-      // letters come with y going down: flip them while reading, so the outlines face the right way
-      loader.parse(`<svg xmlns="http://www.w3.org/2000/svg"><g transform="scale(1,-1)"><path d="${d}"/></g></svg>`).paths.forEach((p) => T.SVGLoader.createShapes(p).forEach((s) => shapes.push(s)));
-    });
-    return shapes;
+  // Letters one by one: each letter's outlines are read on their own, so letters that overlap (tight fonts such as
+  // Bungee) cannot cut holes in each other. Spacing leaves room for the rounded edges plus a small gap, so letters
+  // only touch when Letter spacing is turned below zero.
+  // A letter's outline as SVG path data (y going down), read straight from its TrueType points: opentype.js 2.0's own
+  // drawing gives NaN for some letters (Bungee's E, for one). Letters without points (CFF fonts) use opentype's drawing.
+  function glyphPathData(font, glyph, x, y, fs, kx = 1, ky = 1) {
+    let pts; try { glyph.getPath(0, 0, fs); pts = glyph.points; } catch (e) { pts = null; }
+    if (!pts || !pts.length) { const d = glyph.getPath(x, y, fs).toPathData(2); return /NaN/.test(d) ? '' : d; }
+    const k = fs / font.unitsPerEm, X = (p) => +(x + p.x * k * kx).toFixed(2), Y = (p) => +(y - p.y * k * ky).toFixed(2);
+    const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, onCurve: true });
+    let d = '', contour = [];
+    const flush = () => {
+      const c = contour; contour = []; if (c.length < 2) return;
+      // start on an on-curve point (or between two off-curve ones)
+      let s = c.findIndex((p) => p.onCurve), pts2;
+      if (s < 0) { const m = mid(c[0], c[1]); pts2 = [m, ...c.slice(1), c[0]]; } else pts2 = [...c.slice(s), ...c.slice(0, s)];
+      const start = pts2[0]; d += `M${X(start)} ${Y(start)}`;
+      for (let i = 1; i <= pts2.length; i++) {
+        const p = pts2[i % pts2.length];
+        if (p.onCurve) { if (i < pts2.length) d += `L${X(p)} ${Y(p)}`; continue; }
+        const n = pts2[(i + 1) % pts2.length], end = n.onCurve ? n : mid(p, n);
+        d += `Q${X(p)} ${Y(p)} ${X(end)} ${Y(end)}`; if (n.onCurve) i++;
+      }
+      d += 'Z';
+    };
+    pts.forEach((p) => { contour.push(p); if (p.lastPointOfContour) flush(); }); flush();
+    return d;
   }
-  // Text with a letter animation: every letter is its own piece (in the same place as in the whole word), so each can move.
-  function letterGroup(font, m) {
-    const t = m.text, size = 1, lines = String(t.text || ' ').split('\n'), lh = size * (t.lead || 1.15), loader = new T.SVGLoader();
-    const opt = { letterSpacing: (t.spacing || 0) / 1000 }, widths = lines.map((ln) => font.getAdvanceWidth(ln, size * 100, opt) / 100), maxW = Math.max(...widths);
-    const letters = [], box = new T.Box2();
-    lines.forEach((ln, i) => {
+  // The letters of one line and where each starts. Some fonts use features opentype.js cannot do yet (it stops with
+  // "not yet supported"): those are laid out plainly, letter by letter with kerning.
+  function lineGlyphs(font, ln, fs, opt) {
+    const list = [], k = fs / font.unitsPerEm;
+    try {
+      let end = font.forEachGlyph(ln, 0, 0, fs, opt, (g, gx) => list.push({ g, x: gx }));
+      if (typeof end !== 'number') { const l = list[list.length - 1]; end = l ? l.x + (l.g.advanceWidth || 0) * k + (opt.letterSpacing || 0) * fs : 0; }
+      return { list, end };
+    } catch (e) {
+      list.length = 0; let x = 0, prev = null;
+      for (const ch of ln) { const g = font.charToGlyph(ch); if (prev) x += (font.getKerningValue(prev, g) || 0) * k; list.push({ g, x }); x += (g.advanceWidth || 0) * k + (opt.letterSpacing || 0) * fs; prev = g; }
+      return { list, end: x };
+    }
+  }
+  // Height: 100% is the font as drawn; taller is also narrower (tall and thin), shorter is wider (short and fat)
+  function glyphLayout(font, t) {
+    const fs = 100, h = Math.max(0.2, t.height || 1), kx = 1 / Math.sqrt(h), ky = h;
+    const lines = String(t.text || ' ').split('\n'), lh = (t.lead || 1.15) * fs * ky, loader = new T.SVGLoader();
+    const room = ((2 * 0.8 * (t.bevel || 0)) / (t.size || 1) + 0.02) / kx;
+    const opt = { letterSpacing: (t.spacing || 0) / 1000 + room };
+    const laid = lines.map((ln) => lineGlyphs(font, ln, fs, opt));
+    // a line's width without the extra space after its last letter
+    const widths = laid.map((l, i) => Math.max(0, (l.end - (lines[i].length ? opt.letterSpacing * fs : 0)) * kx));
+    const maxW = Math.max(...widths), letters = [];
+    laid.forEach((l, i) => {
       const x0 = t.align === 'left' ? -maxW / 2 : t.align === 'right' ? maxW / 2 - widths[i] : -widths[i] / 2;
-      font.getPaths(ln, x0 * 100, (i * lh) * 100, size * 100, opt).forEach((gp) => {
-        const d = gp.toPathData(2); if (!d) return;
+      l.list.forEach(({ g, x }) => {
+        const d = glyphPathData(font, g, x0 + x * kx, i * lh, fs, kx, ky); if (!d) return;
         const shapes = [];
+        // letters come with y going down: flip them while reading, so the outlines face the right way
         loader.parse(`<svg xmlns="http://www.w3.org/2000/svg"><g transform="scale(1,-1)"><path d="${d}"/></g></svg>`).paths.forEach((p) => T.SVGLoader.createShapes(p).forEach((sh) => shapes.push(sh)));
-        if (!shapes.length) return;
-        shapes.forEach((sh) => sh.getPoints().forEach((pt) => box.expandByPoint(pt)));
-        letters.push(shapes);
+        if (shapes.length) letters.push(shapes);
       });
     });
+    return letters;
+  }
+  const textShapes = (font, t) => glyphLayout(font, t).flat();
+  // Text with a letter animation: every letter is its own piece (in the same place as in the whole word), so each can move.
+  function letterGroup(font, m) {
+    const t = m.text, letters = glyphLayout(font, t), box = new T.Box2();
+    letters.forEach((shapes) => shapes.forEach((sh) => sh.getPoints().forEach((pt) => box.expandByPoint(pt))));
     const k = (t.size || 1) / 100, g = new T.Group(), whole = new T.Box3();
     const geos = letters.map((shapes) => { const geo = extrudeShapes(shapes, (t.depth || 0.4) / (t.size || 1) * 100, (t.bevel || 0) / (t.size || 1) * 100, 8, box); geo.scale(k, k, k); geo.computeBoundingBox(); whole.union(geo.boundingBox); return geo; });
     const mid = whole.getCenter(new T.Vector3());
@@ -726,8 +766,34 @@
     if (E.isAnimated(m, prop)) E.setKey(m, prop, E.time, v);
     else if (prop === 'color') m.mat.color = v; else if (prop === 'opacity') m.mat.opacity = v; else m[prop] = v;
   };
-  // Show the scene as it is at time t (seconds)
-  E.evalAt = function (t) {
+  // Camera keys: anim.camera.keys = [{ t, pos, target, fov, ease }]. Between keys the camera swings round its target
+  // (the distance and angles change smoothly), rather than cutting across in a straight line.
+  E.camKeys = () => (E.doc && E.doc.anim && E.doc.anim.camera && E.doc.anim.camera.keys) || [];
+  E.camAt = function (t) {
+    const ks = E.camKeys(); if (!ks.length) return E.doc.camera;
+    if (t <= ks[0].t) return ks[0];
+    const last = ks[ks.length - 1]; if (t >= last.t) return last;
+    let i = 0; while (i < ks.length - 1 && ks[i + 1].t <= t) i++;
+    const k0 = ks[i], k1 = ks[i + 1], u = (EASE[k0.ease || 'ease'] || EASE.ease)(Math.max(0, Math.min(1, (t - k0.t) / Math.max(1e-6, k1.t - k0.t))));
+    const V = (a) => new T.Vector3().fromArray(a), t0 = V(k0.target), t1 = V(k1.target), tg = t0.clone().lerp(t1, u);
+    const s0 = new T.Spherical().setFromVector3(V(k0.pos).sub(t0)), s1 = new T.Spherical().setFromVector3(V(k1.pos).sub(t1));
+    let dth = s1.theta - s0.theta; while (dth > Math.PI) dth -= Math.PI * 2; while (dth < -Math.PI) dth += Math.PI * 2;
+    const sp = new T.Spherical(s0.radius + (s1.radius - s0.radius) * u, s0.phi + (s1.phi - s0.phi) * u, s0.theta + dth * u);
+    return { pos: tg.clone().add(new T.Vector3().setFromSpherical(sp)).toArray(), target: tg.toArray(), fov: (k0.fov || 40) + ((k1.fov || 40) - (k0.fov || 40)) * u };
+  };
+  // keep the view as it is now as a camera key at time t (replacing one within half a frame)
+  E.setCamKey = function (t, ease) {
+    E.saveCamera(); const a = E.anim(); a.camera = { move: 'none', amount: 360, ...(a.camera || {}) };
+    const ks = (a.camera.keys = a.camera.keys || []), half = 0.5 / (a.fps || 30), c = JSON.parse(JSON.stringify(E.doc.camera));
+    const old = ks.find((k) => Math.abs(k.t - t) < half);
+    if (old) Object.assign(old, c, ease ? { ease } : {}); else ks.push({ t: +t.toFixed(4), ...c, ease: ease || 'ease' });
+    ks.sort((x, y) => x.t - y.t); lastCamT = null;
+  };
+  E.removeCamKey = (k) => { const a = E.anim(); if (!a.camera || !a.camera.keys) return; a.camera.keys = a.camera.keys.filter((x) => x !== k); if (!a.camera.keys.length) delete a.camera.keys; };
+  let lastCamT = null;
+  // Show the scene as it is at time t (seconds). The keyed camera takes over when the time changes (play, scrub, export)
+  // or when asked (moveCamera), so looking around while working is not undone by every change.
+  E.evalAt = function (t, moveCamera) {
     const a = E.anim(); if (!a) return;
     E.time = Math.max(0, Math.min(a.length, t));
     const tt = E.time;
@@ -744,12 +810,18 @@
       if (o.userData.letters) poseLetters(m, o, tr, tt, E.valueAt(m, 'opacity', tt));
     });
     // the camera: a turntable all the way round, or a swing to and fro
-    const v = views.find((x) => !x.ortho), cm = a.camera || {};
-    if (v && E.doc.camera) {
-      const base = E.doc.camera, tgt = new T.Vector3().fromArray(base.target), off = new T.Vector3().fromArray(base.pos).sub(tgt);
+    const v = views.find((x) => !x.ortho), cm = a.camera || {}, keyed = !!(cm.keys && cm.keys.length);
+    const camNow = keyed && (moveCamera || lastCamT === null || Math.abs(lastCamT - tt) > 1e-6);
+    if (v && E.doc.camera && (!keyed || camNow)) {
+      lastCamT = tt;
+      const base = keyed ? E.camAt(tt) : E.doc.camera, tgt = new T.Vector3().fromArray(base.target), off = new T.Vector3().fromArray(base.pos).sub(tgt);
       const u = tt / Math.max(0.001, a.length), ang = cm.move === 'turntable' ? d2r(cm.amount ?? 360) * u : cm.move === 'swing' ? d2r((cm.amount ?? 60) / 2) * Math.sin(u * Math.PI * 2) : 0;
       E.camAngle = cm.move && cm.move !== 'none' ? ang : 0;
-      if (cm.move && cm.move !== 'none') { E.camLock = true; off.applyAxisAngle(new T.Vector3(0, 1, 0), ang); v.cam.position.copy(tgt).add(off); v.orbit.target.copy(tgt); v.orbit.update(); E.camLock = false; }
+      if (keyed || (cm.move && cm.move !== 'none')) {
+        E.camLock = true; off.applyAxisAngle(new T.Vector3(0, 1, 0), ang); v.cam.position.copy(tgt).add(off); v.orbit.target.copy(tgt);
+        if (keyed) { v.cam.fov = base.fov || 40; v.cam.updateProjectionMatrix(); }
+        v.orbit.update(); E.camLock = false;
+      }
     }
     needs = true; emit('time', tt);
   };
@@ -764,7 +836,7 @@
     const v = views.find((x) => !x.ortho);
     return {
       canvas: renderer.domElement,
-      frame(t) { E.evalAt(t); const cam = v.cam.clone(); cam.aspect = w / h; cam.updateProjectionMatrix(); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(scene, cam); return renderer.domElement; },
+      frame(t) { E.evalAt(t, true); const cam = v.cam.clone(); cam.aspect = w / h; cam.updateProjectionMatrix(); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(scene, cam); return renderer.domElement; },
       end() { scene.background = keep.bg; grid.visible = keep.grid; floor.visible = keep.floor; keep.helpers.forEach((x) => (x.visible = true)); renderer.setPixelRatio(keep.ratio); renderer.setSize(keep.size.x, keep.size.y, false); E.busy = false; E.evalAt(keep.time); if (selected) tc.attach(selected); needs = true; },
     };
   };
