@@ -21,7 +21,9 @@
     if (!E.doc) { host.innerHTML = ''; return; }
     const b = bd();
     let html = `<div class="pad bd">
-      <div class="row"><button class="btn primary" type="button" data-bd="new" title="A whole new random backdrop: sky, palette and layers">🎲 New backdrop</button><button class="btn outline" type="button" data-bd="shuffle" ${b && b.layers.length ? '' : 'disabled'} title="Keep the layers, give them new shapes">🎲 Shuffle shapes</button></div>`;
+      <h3>Choose a backdrop</h3>
+      <div class="bd-themes">${Object.entries(BD.THEMES).map(([k, [n]]) => `<button class="btn" type="button" data-theme="${k}" aria-pressed="${!!(b && b.theme === k)}" title="${esc(n)}: click again for another one">${esc(n)}</button>`).join('')}</div>
+      <div class="row"><button class="btn primary" type="button" data-bd="new" title="A random kind of backdrop">🎲 Surprise me</button><button class="btn outline" type="button" data-bd="shuffle" ${b && b.layers.length ? '' : 'disabled'} title="Keep the layers, give them new shapes">🎲 Shuffle shapes</button></div>`;
     if (!b) {
       html += `<p class="hint">A backdrop is scenery behind your scene in layers, like the flats of a stage or the layers of an old video game: sun or moon, stars, clouds, mountains, hills, trees, a city or the sea. Farther layers are hazier, and each can scroll at its own speed for depth.</p><h3>Sky</h3><div id="bd-sky"></div></div>`;
       host.innerHTML = html; mountSky(); return;
@@ -48,7 +50,13 @@
       html += `<div class="bd-edit"><h3>${esc(BD.KINDS[L.kind][0])}</h3>
         <div class="row"><label class="field"><span>Kind</span><select class="input" id="bdl-kind">${opts(BD.KINDS, L.kind)}</select></label><label class="field"><span>Style</span><select class="input" id="bdl-style">${opts({ '': 'Same as the backdrop', classic: 'Classic (flat)', modern: 'Modern (3D)', cardboard: 'Cardboard' }, L.style || '')}</select></label></div>
         <button class="btn outline" type="button" data-bd="reseed" title="A new shape for this layer">🎲 New shape</button>
-        ${range('bdl-height', 'Height', L.height ?? 1, 0.2, 3, 0.05, (v) => Math.round(v * 100) + '%')}
+        ${L.kind === 'picture' ? `<button class="btn primary" type="button" data-bd="pic">${L.src ? 'Change the picture…' : 'Choose a picture…'}</button>
+          ${range('bdl-size', 'Size', L.size ?? 1, 0.1, 4, 0.05, (v) => Math.round(v * 100) + '%')}
+          <label class="field"><span>Repeat along the layer (0 = once)</span><input class="input" type="number" id="bdl-repeat" min="0" max="12" step="1" value="${L.repeat ?? 1}"></label>
+          <label class="check"><input type="checkbox" id="bdl-rbg" ${L.removeBg !== false ? 'checked' : ''}> Remove a plain background</label>
+          <label class="check"><input type="checkbox" id="bdl-border" ${L.border !== false ? 'checked' : ''}> White cut-out border</label>
+          ${range('bdl-emboss', 'Emboss', L.emboss ?? 1, 0, 2, 0.05, (v) => Math.round(v * 100) + '%')}` : ''}
+        ${L.kind !== 'picture' ? range('bdl-height', 'Height', L.height ?? 1, 0.2, 3, 0.05, (v) => Math.round(v * 100) + '%') : ''}
         ${range('bdl-y', 'Raise or lower', L.y || 0, -30, 30, 0.5)}
         ${range('bdl-haze', 'Haze (distance)', L.haze ?? 1, 0, 2, 0.05, (v) => Math.round(v * 100) + '%')}
         <div class="row"><label class="check"><input type="checkbox" id="bdl-auto" ${L.color ? '' : 'checked'}> Palette colour</label><label class="field"><span>Own colour</span><input class="input" type="color" id="bdl-color" value="${L.color || '#7a8aa0'}" ${L.color ? '' : 'disabled'}></label></div>
@@ -75,10 +83,13 @@
     on('bd-speed', 'oninput', (e) => { b.speed = +e.target.value; $('bd-speed-v').textContent = +e.target.value === 0 ? 'still' : (e.target.value > 0 ? 'to the left, ' : 'to the right, ') + Math.abs(e.target.value); BD.pose(E.time); });
     on('bd-speed', 'onchange', () => changed(false));
     on('bd-y', 'oninput', (e) => { b.y = +e.target.value; $('bd-y-v').textContent = e.target.value; BD.pose(E.time); }); on('bd-y', 'onchange', () => changed(false));
-    on('bd-add', 'onchange', (e) => { const k = e.target.value; if (!k) return; const l = BD.newLayer(k); b.layers.push(l); cur = l.id; changed(); });
+    on('bd-add', 'onchange', (e) => { const k = e.target.value; if (!k) return; const l = BD.newLayer(k); b.layers.push(l); cur = l.id; changed(); if (k === 'picture') choosePicture(l); });
     if (!L) return;
     const live = (id, key, fmt) => { on(id, 'oninput', (e) => { L[key] = +e.target.value; $(id + '-v').textContent = fmt ? fmt(+e.target.value) : e.target.value; }); on(id, 'onchange', () => changed()); };
-    live('bdl-height', 'height', (v) => Math.round(v * 100) + '%'); live('bdl-y', 'y'); live('bdl-haze', 'haze', (v) => Math.round(v * 100) + '%');
+    live('bdl-height', 'height', (v) => Math.round(v * 100) + '%'); live('bdl-size', 'size', (v) => Math.round(v * 100) + '%'); live('bdl-emboss', 'emboss', (v) => Math.round(v * 100) + '%');
+    on('bdl-repeat', 'onchange', (e) => { L.repeat = Math.max(0, Math.min(12, +e.target.value | 0)); changed(); });
+    on('bdl-rbg', 'onchange', (e) => { L.removeBg = e.target.checked; changed(); });
+    on('bdl-border', 'onchange', (e) => { L.border = e.target.checked; changed(); }); live('bdl-y', 'y'); live('bdl-haze', 'haze', (v) => Math.round(v * 100) + '%');
     on('bdl-speed', 'oninput', (e) => { L.speed = +e.target.value; $('bdl-speed-v').textContent = (+e.target.value).toFixed(2) + '×'; BD.pose(E.time); }); on('bdl-speed', 'onchange', () => changed(false));
     on('bdl-bob', 'oninput', (e) => { L.bob = +e.target.value; $('bdl-bob-v').textContent = e.target.value; BD.pose(E.time); }); on('bdl-bob', 'onchange', () => changed(false));
     on('bdl-kind', 'onchange', (e) => { L.kind = e.target.value; Object.assign(L, { speed: BD.KINDS[L.kind][1].speed, bob: BD.KINDS[L.kind][1].bob }); changed(); });
@@ -91,6 +102,8 @@
   host && host.addEventListener('click', (e) => {
     const b = bd(), t = e.target.closest('[data-bd],[data-style],[data-pal],[data-mode],[data-la]'); if (!t || !E.doc) return;
     if (t.dataset.bd === 'new') { BD.random(); cur = null; changed(); return; }
+    if (t.dataset.theme) { BD.useTheme(t.dataset.theme); cur = null; changed(); return; }
+    if (t.dataset.bd === 'pic') { const l = b && b.layers.find((x) => x.id === cur); if (l) choosePicture(l); return; }
     if (!b) return;
     if (t.dataset.bd === 'shuffle') { BD.shuffle(); changed(); return; }
     if (t.dataset.bd === 'del') { b.layers = b.layers.filter((l) => l.id !== cur); cur = null; changed(); return; }
@@ -105,6 +118,17 @@
     else if (t.dataset.la === 'front' && i < b.layers.length - 1) { b.layers.splice(i, 1); b.layers.splice(i + 1, 0, l); changed(); }
     else if (t.dataset.la === 'sel') { cur = cur === l.id ? null : l.id; render(); }
   });
+  // your own picture for a Picture layer: kept in the scene file (made smaller if it is very big)
+  const picInput = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*', hidden: true }); document.body.append(picInput);
+  let picFor = null;
+  function choosePicture(l) { picFor = l; picInput.value = ''; picInput.click(); }
+  picInput.onchange = () => {
+    const f = picInput.files[0], l = picFor; if (!f || !l) return;
+    const rd = new FileReader();
+    rd.onload = () => { const img = new Image(); img.onload = () => { const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); l.src = c.toDataURL('image/png'); l.aspect = c.width / c.height; l.name = f.name; changed(); }; img.src = rd.result; };
+    rd.readAsDataURL(f);
+  };
+  BD.setPicture = (l, src, aspect) => { l.src = src; l.aspect = aspect; changed(); };
   E.on('built', () => { BD.sync(); render(); });
   window.BD3UI = {
     render,

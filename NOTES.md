@@ -59,6 +59,8 @@ Headless Chrome over the DevTools protocol, opening `index.html` from the folder
 - `js/backdrop.js` (`window.BD3`) builds `doc.backdrop = { on, style: classic | modern | cardboard, palette, speed, mode: loop | once, y, stands, layers: [{ id, kind, seed, height, y, haze, color, style, speed, bob, enter, exit, visible }] }` into a `backdrop` group in the scene (outside `root`, so it is not picked, fitted or exported as a model). It is rebuilt when its JSON changes (`BD3.sync`, on every `built`), and placed for the time on every `time` event (`BD3.pose`).
 - Layer distances come from their order (`BD3.distOf`: back 100, front 75). Shapes come from the seed with waves that have a whole number of cycles per period, so a layer joins up with itself; each layer is built over three periods and scrolls modulo one. Scrolling speed falls off with (75 / distance)³, stronger than true parallax, like old games.
 - The group stands at the scene's centre and turns to face the camera (`face`, on `view` and `camera` events).
+- Themes (`BD3.THEMES`: layers and suitable palettes; `BD3.useTheme`). Layers made of separate pieces (islands, playground, circuit, pixels, birds, balloons, rainbow, planets) come from `makeItems` as flat shapes with colours, built per style by `buildItems` (Classic flat with one drop shadow, Modern extruded, Cardboard with stands or sticks; glowing pieces stay flat and unlit).
+- **Picture layers** (`buildPicture`, `cutout`): the picture's mask (its alpha, or the corner colour made see-through) gives a die-cut white border (the mask drawn round in a ring), a blurred drop shadow and an emboss from the slope of a blurred mask; drawn on a canvas and shown on flat cards, repeated along the layer.
 - `js/backdrop-ui.js` is the Backdrop tab; the sky (`scene.bg`) moved there from the Scene properties.
 
 ## Title bar and starter scenes
@@ -69,7 +71,7 @@ Headless Chrome over the DevTools protocol, opening `index.html` from the folder
 ## Planned
 
 - Talk first: Lighting (and shadow depth, strength and direction), maybe its own tab like the Backdrop.
-- More backdrop layer kinds and weather (rain, snow, fog).
+- More backdrop layer kinds and weather (rain, snow, fog); custom backdrops further (layer mapping, pictures traced into Modern 3D cut-outs): talk first.
 - Ray-traced animation (every frame path-traced, smoothed, saved as video).
 - Animation and video playing on monitor and TV screens.
 - An original 3D stress-test model shared with the other Craft apps.

@@ -141,3 +141,6 @@
 .bd .seg { flex-wrap: wrap; }
 .bd-layers { padding: 0; }
 .bd-edit { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 6px; }
+.bd-themes { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.bd-themes .btn { font-size: 12px; min-height: 28px; }
+.bd-themes .btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
