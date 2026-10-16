@@ -573,6 +573,7 @@
     title: ['3D title', 'Gold letters standing on a floor', '<rect x="4" y="10" width="66" height="52" rx="4" fill="#dfe7f2"/><text x="37" y="42" text-anchor="middle" font-family="Archivo Black, Impact, sans-serif" font-size="18" fill="#b8860b" stroke="#7a5a08" stroke-width="1">3D</text><ellipse cx="37" cy="52" rx="24" ry="4" fill="#0002"/>'],
     chrome: ['Retro chrome', 'Shiny 80s letters on a night sky', '<defs><linearGradient id="st-c" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b1035"/><stop offset="1" stop-color="#7a2a8f"/></linearGradient><linearGradient id="st-m" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".5" stop-color="#7f8fa6"/><stop offset=".55" stop-color="#2c3e50"/><stop offset="1" stop-color="#dfe6ee"/></linearGradient></defs><rect x="4" y="10" width="66" height="52" rx="4" fill="url(#st-c)"/><text x="37" y="44" text-anchor="middle" font-family="Orbitron, sans-serif" font-size="16" font-weight="bold" fill="url(#st-m)">RAD</text>'],
     still: ['Shapes still life', 'A few shapes in a soft studio light', '<rect x="4" y="10" width="66" height="52" rx="4" fill="#eef1f5"/><circle cx="26" cy="40" r="10" fill="#e8590c"/><path d="M40 50l8-18 8 18z" fill="#3f7fe0"/><rect x="48" y="38" width="12" height="12" fill="#2f9e44"/>'],
+    test: ['Test scene', 'Everything at once: moving letters, materials, moves and a camera move', '<rect x="4" y="10" width="66" height="52" rx="4" fill="#e9edf3"/><text x="37" y="30" text-anchor="middle" font-family="Archivo Black, Impact, sans-serif" font-size="13" fill="#e6b422" transform="rotate(-6 37 30)">TEST</text><circle cx="17" cy="48" r="6" fill="#cfe8ff" stroke="#9fc3e0"/><rect x="28" y="42" width="11" height="11" fill="#e03131"/><path d="M44 53l6-12 6 12z" fill="#2f9e44"/><circle cx="62" cy="48" r="5" fill="none" stroke="#adb5bd" stroke-width="3"/>'],
     glass: ['Glass and gold', 'A glass ball and a gold ring', '<rect x="4" y="10" width="66" height="52" rx="4" fill="#f4efe6"/><circle cx="28" cy="38" r="12" fill="#cfe8ff" stroke="#9fc3e0" stroke-width="2" opacity=".8"/><ellipse cx="50" cy="44" rx="11" ry="6" fill="none" stroke="#e6b422" stroke-width="4"/>'],
   };
   $('kinds').innerHTML = Object.entries(STARTERS).map(([k, s]) => `<button class="kind" data-kind="${k}"><svg viewBox="0 0 74 74">${s[2]}</svg><b>${s[0]}</b><small>${s[1]}</small></button>`).join('');
@@ -582,7 +583,7 @@
   $('start-resume').onclick = async () => { if (!E.doc) { try { await openDoc(JSON.parse(localStorage.getItem(AUTOSAVE))); } catch (e) { toast('The last scene could not be opened.'); return; } } $('start').hidden = true; };
   async function startScene(kind) {
     const d = E.newDoc({ name: STARTERS[kind][0] === 'Empty scene' ? 'My scene' : STARTERS[kind][0] });
-    const obj = (m) => d.objects.push({ id: E.uid(), parent: null, visible: true, locked: false, rot: [0, 0, 0], scale: [1, 1, 1], ...m });
+    const obj = (m) => { const o = { id: E.uid(), parent: null, visible: true, locked: false, rot: [0, 0, 0], scale: [1, 1, 1], ...m }; d.objects.push(o); return o; };
     const text = (t, font, mat, pos, o = {}) => obj({ kind: 'text', name: 'Text: ' + t, text: { text: t, font, bold: false, size: o.size || 1.4, depth: o.depth || 0.45, bevel: o.bevel ?? 0.04, spacing: o.spacing || 0, align: 'center', lead: 1.1 }, mat, pos });
     if (kind === 'title') { text('3D CRAFT', 'Archivo Black', E.defaultMat('#e6b422', 'gold'), [0, 0.75, 0]); d.camera = { pos: [3.5, 2.6, 7.5], target: [0, 0.8, 0], fov: 40 }; }
     if (kind === 'chrome') {
@@ -606,8 +607,34 @@
       Object.assign(d.scene, { light: 'studio', bg: { type: 'gradient', c1: '#fbf7f0', c2: '#e2d6c2', angle: 0 }, groundColor: '#efe7da', reflect: 1.3 });
       d.camera = { pos: [3.2, 2.8, 5.6], target: [0.1, 0.6, 0], fov: 38 };
     }
+    // A scene for trying everything: letters that spin in and wave, every kind of material, ready-made moves and a camera move
+    if (kind === 'test') {
+      const L = 6, tracks = {}, keys = (o, k) => { tracks[o.id] = { ...(tracks[o.id] || {}), keys: { ...((tracks[o.id] || {}).keys || {}), ...k } }; };
+      const K = (list) => list.map(([t, v, ease]) => ({ t, v, ease: ease || 'ease' }));
+      const title = text('3DCRAFT TEST', 'Archivo Black', E.defaultMat('#e6b422', 'gold'), [0, 2.9, -1.2], { size: 1.1, depth: 0.4, bevel: 0.035 });
+      tracks[title.id] = { keys: {}, letters: { style: 'spin', mode: 'in', start: 0.2, leave: 4.6, each: 0.7, gap: 0.09, order: 'left', amount: 1, speed: 2 } };
+      const wave = text('letters wave', 'Pacifico', E.defaultMat('#7048e8', 'gloss'), [0, 1.55, -1.2], { size: 0.75, depth: 0.25, bevel: 0.02 });
+      tracks[wave.id] = { keys: {}, start: 1.4, letters: { style: 'wave', mode: 'in', start: 0, leave: 5, each: 0.5, gap: 0.12, order: 'left', amount: 1, speed: 1.6 } };
+      const glass = obj({ kind: 'shape', name: 'Glass ball', shape: { type: 'sphere', r: 0.6 }, mat: E.defaultMat('#ffffff', 'glass'), pos: [-4.2, 0.6, 1.4] });
+      keys(glass, { pos: K([[0, [-4.2, 0.6, 1.4], 'out'], [0.75, [-4.2, 1.9, 1.4], 'in'], [1.5, [-4.2, 0.6, 1.4], 'out'], [2.25, [-4.2, 1.9, 1.4], 'in'], [3, [-4.2, 0.6, 1.4], 'out'], [3.75, [-4.2, 1.9, 1.4], 'in'], [4.5, [-4.2, 0.6, 1.4], 'out'], [5.25, [-4.2, 1.9, 1.4], 'in'], [6, [-4.2, 0.6, 1.4]]]) });
+      const chrome = obj({ kind: 'shape', name: 'Chrome ring', shape: { type: 'torus', r: 0.55, tube: 0.18 }, mat: E.defaultMat('#ffffff', 'chrome'), pos: [-2.5, 0.75, 1.4] });
+      keys(chrome, { rot: K([[0, [0, 0, 0], 'linear'], [L, [0, 360, 0]]]) });
+      const box = obj({ kind: 'shape', name: 'Red box (gradient front)', shape: { type: 'roundbox', w: 1, h: 1, d: 1, round: 0.12 }, mat: { ...E.defaultMat('#e03131', 'plastic'), faces: { front: { type: 'gradient', c1: '#ffd43b', c2: '#e03131', angle: 90 } } }, pos: [-0.8, 0.5, 1.5] });
+      keys(box, { rot: K([[0, [0, 0, 0], 'ease'], [1.5, [0, 0, 12], 'ease'], [3, [0, 0, 0], 'ease'], [4.5, [0, 0, -12], 'ease'], [6, [0, 0, 0]]]) });
+      const pyr = obj({ kind: 'shape', name: 'Green pyramid', shape: { type: 'pyramid', r: 0.7, h: 1.2 }, mat: E.defaultMat('#2f9e44', 'matte'), pos: [0.8, 0.6, 1.5] });
+      keys(pyr, { pos: K([[0, [0.8, -1.2, 1.5], 'out'], [1.2, [0.8, 0.6, 1.5]]]) });
+      const copper = obj({ kind: 'shape', name: 'Copper star', shape: { type: 'star', r: 0.6, inner: 0.45, points: 5, d: 0.25 }, mat: E.defaultMat('#c8703f', 'copper'), pos: [2.4, 0.75, 1.4] });
+      keys(copper, { rot: K([[0, [0, 0, 0], 'linear'], [L, [0, -720, 0]]]), scale: K([[0, [0.01, 0.01, 0.01], 'bounce'], [1, [1, 1, 1]]]) });
+      const glow = obj({ kind: 'shape', name: 'Glow capsule', shape: { type: 'capsule', r: 0.3, h: 0.8 }, mat: E.defaultMat('#ff4fd8', 'glow'), pos: [4, 0.7, 1.4] });
+      keys(glow, { color: K([[0, '#ff4fd8', 'linear'], [2, '#4dabf7', 'linear'], [4, '#51cf66', 'linear'], [6, '#ff4fd8']]) });
+      obj({ kind: 'shape', name: 'Rubber mat', shape: { type: 'cylinder', r: 6, h: 0.02 }, mat: E.defaultMat('#495057', 'rubber'), pos: [0, 0.01, 0.6] });
+      d.anim = { length: L, fps: 30, loop: true, tracks, camera: { move: 'none', amount: 360, keys: [{ t: 0, pos: [-7.5, 1.4, 8.5], target: [0, 1.4, 0], fov: 40, ease: 'ease' }, { t: L, pos: [6.5, 4.2, 9], target: [0, 1.4, 0], fov: 40, ease: 'ease' }] } };
+      Object.assign(d.scene, { light: 'studio', bg: { type: 'gradient', c1: '#f4f6f9', c2: '#cfd8e3', angle: 0 }, groundColor: '#e9edf3', reflect: 1.2 });
+      d.camera = { pos: [0, 2.6, 10], target: [0, 1.4, 0], fov: 40 };
+    }
     await openDoc(d);
-    if (kind !== 'blank') { E.fit(); E.saveCamera(); resetHistory(); }
+    if (kind === 'test') { resetHistory(); if (window.TL3) { TL3.seek(0); TL3.play(); } }
+    else if (kind !== 'blank') { E.fit(); E.saveCamera(); resetHistory(); }
   }
 
   // ------------------------------------------------------------------ status bar
@@ -698,6 +725,7 @@
     ]],
     ['Help', [
       { label: 'How to use 3DCraft', run: () => help() },
+      { label: 'Load test scene', run: () => startScene('test') },
       { label: 'Keyboard shortcuts', run: () => info('Keyboard shortcuts', keysHtml) },
       { label: 'About 3DCraft', run: () => info('About 3DCraft', aboutHtml) },
     ]],
@@ -720,7 +748,7 @@
   const toggleL = document.createElement('button'); toggleL.className = 'crb-small pc-toggle'; toggleL.textContent = 'Side panel'; toggleL.onclick = () => $('app').querySelector('.work').classList.toggle('show-left');
   const toggleR = document.createElement('button'); toggleR.className = 'crb-small pc-toggle'; toggleR.textContent = 'Properties'; toggleR.onclick = () => $('app').querySelector('.work').classList.toggle('show-right');
   const st = document.createElement('style'); st.textContent = '.crb .crb-small.pc-toggle { display: none; } @media (max-width: 980px) { .crb .crb-small.pc-toggle { display: inline-flex; } }'; document.head.append(st);
-  const MI = { render: '<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M12 3v18M3 7l9 4 9-4" opacity=".5"/><circle cx="17" cy="6" r="3" class="hue"/>', gold: '<circle cx="12" cy="12" r="8" class="hue"/><path d="M8 9a5 5 0 0 1 5-2" opacity=".7"/>', layout4: '<rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8" class="hue"/>', layout1: '<rect x="3" y="4" width="18" height="16" rx="1.5"/>', move: '<path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/>', turn: '<path d="M20 12a8 8 0 1 1-3-6.3"/><path d="M20 4v5h-5" class="hue"/>', size: '<rect x="4" y="4" width="10" height="10"/><path d="M14 14l6 6M20 15v5h-5" class="hue"/>', text3d: '<path d="M5 6V4h12v2M11 4v14M8 18h6"/><path d="M17 6l2 2v12h-6l-2-2" opacity=".5"/>', trace: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6" class="hue"/>', model: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" class="hue"/>', ground: '<path d="M3 18h18"/><ellipse cx="12" cy="18" rx="6" ry="1.5" class="hue"/><rect x="9" y="8" width="6" height="8"/>', light: '<circle cx="12" cy="10" r="5"/><path d="M10 17h4M10 20h4" class="hue"/>', star: '<path d="M12 3l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.1-5.4 3.1 1.3-6L3.3 9.2l6.1-.6z"/>' };
+  const MI = { test: '<rect x="3" y="4" width="18" height="14" rx="2"/><path d="M7 14l3-4 3 3 2-2 3 3" class="hue"/><path d="M9 21h6M12 18v3"/>', render: '<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M12 3v18M3 7l9 4 9-4" opacity=".5"/><circle cx="17" cy="6" r="3" class="hue"/>', gold: '<circle cx="12" cy="12" r="8" class="hue"/><path d="M8 9a5 5 0 0 1 5-2" opacity=".7"/>', layout4: '<rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8" class="hue"/>', layout1: '<rect x="3" y="4" width="18" height="16" rx="1.5"/>', move: '<path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/>', turn: '<path d="M20 12a8 8 0 1 1-3-6.3"/><path d="M20 4v5h-5" class="hue"/>', size: '<rect x="4" y="4" width="10" height="10"/><path d="M14 14l6 6M20 15v5h-5" class="hue"/>', text3d: '<path d="M5 6V4h12v2M11 4v14M8 18h6"/><path d="M17 6l2 2v12h-6l-2-2" opacity=".5"/>', trace: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6" class="hue"/>', model: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" class="hue"/>', ground: '<path d="M3 18h18"/><ellipse cx="12" cy="18" rx="6" ry="1.5" class="hue"/><rect x="9" y="8" width="6" height="8"/>', light: '<circle cx="12" cy="10" r="5"/><path d="M10 17h4M10 20h4" class="hue"/>', star: '<path d="M12 3l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.1-5.4 3.1 1.3-6L3.3 9.2l6.1-.6z"/>' };
   const ribbon = window.CraftRibbon({
     mount: $('app'), storageKey: '3dcraft', extraEls: [toggleL, toggleR],
     tabs: [
@@ -729,7 +757,7 @@
         ['Edit', [{ col: [C('Undo', 'Undo', I.undo), C('Redo', 'Redo', I.redo), C('Delete', 'Delete', I.trash)] }, { col: [C('Copy', 'Copy', I.copy), C('Paste', 'Paste', I.paste), C('Duplicate', 'Duplicate', I.duplicate)] }]],
         ['Handles', [C('Move', 'Move', MI.move, { big: true }), C('Turn', 'Turn', MI.turn, { big: true }), C('Size', 'Size', MI.size, { big: true })]],
         ['Render', [C('Render', 'Render', MI.render, { big: true, title: 'Ray-traced picture: real reflections, soft shadows and glass' })]],
-        ['Help', [C('How to use', 'How to use 3DCraft', I.help, { big: true })]],
+        ['Help', [C('How to use', 'How to use 3DCraft', I.help, { big: true }), C('Load test scene', 'Load test scene', MI.test, { big: true, title: 'A scene for trying everything: letters spinning in and waving, glass, chrome, gold, copper, glow, plastic, matte and rubber, moves and a camera move' })]],
       ] },
       { id: 'insert', label: 'Insert', hue: '#7048e8', groups: [
         ['Shapes', [{ col: [{ row: ['box', 'roundbox', 'sphere', 'cylinder', 'cone', 'pyramid', 'prism'].map((k) => ({ label: E.SHAPES[k][0], icon: SH_ICON[k], iconOnly: true, run: () => addShape(k) })) }, { row: ['torus', 'washer', 'capsule', 'star', 'heart', 'plane'].map((k) => ({ label: E.SHAPES[k][0], icon: SH_ICON[k], iconOnly: true, run: () => addShape(k) })) }] }]],
