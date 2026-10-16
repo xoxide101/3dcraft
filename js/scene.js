@@ -870,7 +870,7 @@
   function cycleTexture(c) {
     const along = c.dir === 'left' || c.dir === 'right' || c.dir === 'sideways', key = [c.preset, c.bands, along].join('|');
     if (!cycleCache.has(key)) {
-      const [, cols, hard, shaded] = E.CYCLES[c.preset] || E.CYCLES.retro, N = 1024, cv = document.createElement('canvas'); cv.width = along ? N : 4; cv.height = along ? 4 : N;
+      const [, cols, hard, shaded] = E.CYCLES[c.preset] || E.CYCLES.retro, N = 2048, cv = document.createElement('canvas'); cv.width = along ? N : 4; cv.height = along ? 4 : N;
       const x = cv.getContext('2d'), bands = Math.max(1, c.bands || 8);
       for (let i = 0; i < N; i++) {
         const u = (i / N) * bands, k = Math.floor(u), f = u - k;
@@ -883,7 +883,8 @@
       cycleCache.set(key, cv);
     }
     const tex = new T.CanvasTexture(cycleCache.get(key)); tex.colorSpace = T.SRGBColorSpace; tex.wrapS = tex.wrapT = T.RepeatWrapping;
-    if (c.preset === 'retro') tex.magFilter = T.NearestFilter;
+    // hard-edged bars stay razor sharp up close
+    if (c.preset === 'retro' || c.preset === 'raster') { tex.magFilter = T.NearestFilter; tex.anisotropy = 8; }
     return tex;
   }
   // where the bands are at time t
@@ -909,7 +910,7 @@
     // water: little ripples (a normal map that drifts when the animation plays) and a blue tint deeper in
     if (m.waves) { mat.normalMap = waveTexture(); mat.normalScale.set(0.45, 0.45); mat.attenuationColor = new T.Color(m.color || '#3d8fd1'); mat.attenuationDistance = 2.5; mat.color.lerp(new T.Color('#ffffff'), 0.55); }
     // a screen: glossy glass, and a picture on it lights up like a real screen
-    if (m.cycle && m.cycle.preset && m.cycle.preset !== 'none' && !tex && (!m.cycle.front || !slot || slot === 'front')) {
+    if (m.cycle && m.cycle.preset && m.cycle.preset !== 'none' && !tex && (!m.cycle.front || !slot || slot === 'front') && (!m.cycle.part || slot === m.cycle.part)) {
       // the bands show at full strength (not softened by the scene's brightening), with a little of the light for shape
       const ct = cycleTexture(m.cycle); mat.map = ct; mat.color.set('#4d4d4d'); mat.emissive = new T.Color('#ffffff'); mat.emissiveMap = ct; mat.emissiveIntensity = 0.85; mat.toneMapped = false; mat.metalness = Math.min(mat.metalness, 0.3); mat.userData.cycle = { ...m.cycle };
     }

@@ -12,7 +12,7 @@
 
 1. Download this repository (green **Code** button › **Download ZIP**) or clone it.
 2. Double-click `index.html`. It opens in Chrome or Edge.
-3. Pick a starter scene (3D title, retro chrome, shapes still life, glass and gold, the **test scene** or the **bouncing ball demo**: a retro checkered ball bouncing and spinning in front of a grid) or an empty one. **Load test scene** (Home › Help) is a ready-made scene for trying everything: letters spinning in and waving, glass, chrome, gold, copper, glow, plastic, matte and rubber, a gradient on a face, ready-made moves and a camera move; it starts playing straight away.
+3. Pick a starter scene (3D title, retro chrome, shapes still life, glass and gold, the **test scene** or the **bouncing ball demo**: a retro checkered ball bouncing and spinning in front of a grid) or an empty one. **Load test scene** (Home › Help) is a ready-made scene for trying everything: letters spinning in and waving, glass, chrome, gold, copper, glow, plastic, matte and rubber, a gradient on a face, the checkered ball bouncing behind the title, a TV with colour bars scrolling down its screen, ready-made moves and a camera move; it starts playing straight away.
 4. Add things, change them, then **Render** or **Export**.
 
 Your scene autosaves in the browser; **Save** keeps a `.3dcraft.json` file (pictures and models are kept inside it).
@@ -34,7 +34,7 @@ Your scene autosaves in the browser; **Save** keeps a `.3dcraft.json` file (pict
 
 ### Materials
 
-Plastic, glossy paint, matte, gold, silver, chrome, copper, glass, glow, **water** (clear and blue with ripples that drift when the animation plays; try it on a stage for a pool) and rubber, then colour, shine, metal, glass (see-through), glow and opacity. Put a **picture, gradient, pattern or colour on every face, or only on the front, back, sides, top or bottom** (shapes and 3D text have their own faces). Gradients and the 33 patterns are the same as in the other Craft apps. **Colour cycling** makes bands of colour scroll through an object while the animation plays, like the moving colours of old computer logos: retro 8-bit bands, smooth rainbow, sunset glow (a smooth orange, pink and purple flow), shaded rainbow bars (each bar lit like a rounded chrome strip), fire, ocean, neon, gold shimmer or copper bars, with speed, number of bands and direction (up, down, up and down, left, right, side to side) (on 3D text, the front only if you like).
+Plastic, glossy paint, matte, gold, silver, chrome, copper, glass, glow, **water** (clear and blue with ripples that drift when the animation plays; try it on a stage for a pool) and rubber, then colour, shine, metal, glass (see-through), glow and opacity. Put a **picture, gradient, pattern or colour on every face, or only on the front, back, sides, top or bottom** (shapes and 3D text have their own faces). Gradients and the 33 patterns are the same as in the other Craft apps. **Colour cycling** makes bands of colour scroll through an object while the animation plays, like the moving colours of old computer logos: retro 8-bit bands, smooth rainbow, sunset glow (a smooth orange, pink and purple flow), shaded rainbow bars (each bar lit like a rounded chrome strip), fire, ocean, neon, gold shimmer or copper bars, with speed, number of bands and direction (up, down, up and down, left, right, side to side); on a monitor or TV it plays on the screen only (on 3D text, the front only if you like).
 
 ### Moving and turning
 

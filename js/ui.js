@@ -266,9 +266,10 @@
       { t: 'range', label: 'Glass (see-through)', value: Math.round((mat.glass ?? 0) * 100), min: 0, max: 100, show: (v) => v + '%', on: (v) => set({ glass: v / 100 }) },
       { t: 'range', label: 'Glow', value: Math.round((mat.glow ?? 0) * 50), min: 0, max: 100, show: (v) => v + '%', on: (v) => set({ glow: v / 50 }) },
       { t: 'range', label: 'Opacity', value: Math.round((mat.opacity ?? 1) * 100), min: 5, max: 100, show: (v) => v + '%', on: (v) => set({ opacity: v / 100 }) },
-      { t: 'select', label: 'Colour cycling (moving bands of colour; plays with the timeline)', value: (mat.cycle && mat.cycle.preset) || 'none', options: [['none', 'Off'], ...Object.entries(E.CYCLES).map(([k, [n]]) => [k, n])], on: (v) => { mat.cycle = v === 'none' ? null : { speed: 1, bands: 8, dir: 'up', front: m.kind === 'text', ...(mat.cycle || {}), preset: v }; changed(m.id); showProps(); if (v !== 'none' && window.TL3 && !TL3.playing()) TL3.play(); } },
+      { t: 'select', label: 'Colour cycling (moving bands of colour; plays with the timeline)', value: (mat.cycle && mat.cycle.preset) || 'none', options: [['none', 'Off'], ...Object.entries(E.CYCLES).map(([k, [n]]) => [k, n])], on: (v) => { mat.cycle = v === 'none' ? null : { speed: 1, dir: 'up', front: m.kind === 'text', part: E.slotsFor(m).includes('screen') ? 'screen' : null, ...(mat.cycle || {}), preset: v, bands: (E.CYCLES[v] && E.CYCLES[v][1] && E.CYCLES[v][2]) ? E.CYCLES[v][1].length : 8 }; changed(m.id); showProps(); if (v !== 'none' && window.TL3 && !TL3.playing()) TL3.play(); } },
       mat.cycle ? { t: 'row', items: [{ t: 'num', label: 'Speed (bands a second)', value: mat.cycle.speed ?? 1, step: 0.25, on: (v) => { mat.cycle.speed = v ?? 1; changed(m.id); } }, { t: 'num', label: 'Bands', value: mat.cycle.bands ?? 8, min: 1, max: 64, on: (v) => { mat.cycle.bands = Math.max(1, Math.min(64, v | 0 || 8)); changed(m.id); } }] } : null,
       mat.cycle ? { t: 'seg', label: 'They move', buttons: [['up', 'Up'], ['down', 'Down'], ['updown', 'Up and down'], ['left', 'Left'], ['right', 'Right'], ['sideways', 'Side to side']].map(([v, n]) => ({ label: n, pressed: (mat.cycle.dir || 'up') === v, on: () => { mat.cycle.dir = v; changed(m.id); showProps(); } })) } : null,
+      mat.cycle && E.slotsFor(m).includes('screen') ? { t: 'check', label: 'Only on the screen', value: mat.cycle.part === 'screen', on: (v) => { mat.cycle.part = v ? 'screen' : null; changed(m.id); } } : null,
       mat.cycle && (m.kind === 'text' || m.kind === 'trace') ? { t: 'check', label: 'Only on the front', value: !!mat.cycle.front, on: (v) => { mat.cycle.front = v; changed(m.id); } } : null,
       slots.length || m.kind === 'shape' || m.kind === 'model' ? { t: 'select', label: 'Picture or gradient on', value: face, options: [['all', 'Every face'], ...slots.map((s) => [s, s[0].toUpperCase() + s.slice(1)])], on: (v) => { materialSection.face = v; showProps(); } } : null,
       { t: 'html', mount: (el) => { el.append(paintPicker((mat.faces || {})[face] || { type: 'none' }, (f) => { mat.faces = { ...(mat.faces || {}) }; if (f.type === 'none') delete mat.faces[face]; else mat.faces[face] = f; changed(m.id); showProps(); }, { none: 'Plain', unit: 'mm', label: face === 'all' ? 'Every face' : face[0].toUpperCase() + face.slice(1), base: mat.color })); } },
@@ -614,6 +615,22 @@
   async function startScene(kind) {
     const d = E.newDoc({ name: STARTERS[kind][0] === 'Empty scene' ? 'My scene' : STARTERS[kind][0] });
     const obj = (m) => { const o = { id: E.uid(), parent: null, visible: true, locked: false, rot: [0, 0, 0], scale: [1, 1, 1], ...m }; d.objects.push(o); return o; };
+    // The retro bouncing ball: a high-resolution checkerboard (16 by 8 squares) on a smooth ball that bounces across and
+    // back (a falling curve each bounce), squashes a little as it lands, and spins on a tilted axis.
+    const bouncingBall = ({ L, R, x0, x1, z, up }) => {
+      const cv = document.createElement('canvas'); cv.width = 2048; cv.height = 1024; const cx = cv.getContext('2d');
+      for (let j = 0; j < 8; j++) for (let i = 0; i < 16; i++) { cx.fillStyle = (i + j) % 2 ? '#ffffff' : '#e8102e'; cx.fillRect(i * 128, j * 128, 128, 128); }
+      const keys = { pos: [], rot: [], scale: [] }, steps = Math.round(L * 15);
+      for (let f = 0; f <= steps; f++) {
+        const t = (f / steps) * L, u = t % 1, x = t < L / 2 ? x0 + ((x1 - x0) * t) / (L / 2) : x1 - ((x1 - x0) * (t - L / 2)) / (L / 2);
+        keys.pos.push({ t: +t.toFixed(4), v: [x, R + up * (1 - (2 * u - 1) ** 2), z], ease: 'linear' });
+      }
+      for (let b = 0; b <= L; b++) keys.scale.push({ t: Math.max(0, b - 0.08), v: [1, 1, 1], ease: 'ease' }, { t: b, v: [1.14, 0.84, 1.14], ease: 'ease' }, { t: Math.min(L, b + 0.1), v: [1, 1, 1], ease: 'ease' });
+      keys.scale = keys.scale.filter((k, i, a) => a.findIndex((q) => Math.abs(q.t - k.t) < 1e-3) === i).sort((a, b) => a.t - b.t);
+      keys.rot = [{ t: 0, v: [18, 0, 0], ease: 'linear' }, { t: L, v: [18, -180 * L, 0], ease: 'linear' }];
+      const ball = obj({ kind: 'shape', name: 'Checkered ball', shape: { type: 'sphere', r: R }, mat: { ...E.defaultMat('#ffffff', 'gloss'), faces: { all: { type: 'picture', src: cv.toDataURL('image/png'), fit: 'stretch', opacity: 1, size: 20 } } }, pos: [x0, R, z] });
+      return { ball, keys };
+    };
     const text = (t, font, mat, pos, o = {}) => obj({ kind: 'text', name: 'Text: ' + t, text: { text: t, font, bold: false, size: o.size || 1.4, depth: o.depth || 0.45, bevel: o.bevel ?? 0.04, spacing: o.spacing || 0, align: 'center', lead: 1.1 }, mat, pos });
     if (kind === 'title') { text('3D CRAFT', 'Archivo Black', E.defaultMat('#e6b422', 'gold'), [0, 0.75, 0]); d.camera = { pos: [3.5, 2.6, 7.5], target: [0, 0.8, 0], fov: 40 }; }
     if (kind === 'chrome') {
@@ -658,24 +675,16 @@
       const glow = obj({ kind: 'shape', name: 'Glow capsule', shape: { type: 'capsule', r: 0.3, h: 0.8 }, mat: E.defaultMat('#ff4fd8', 'glow'), pos: [4, 0.7, 1.4] });
       keys(glow, { color: K([[0, '#ff4fd8', 'linear'], [2, '#4dabf7', 'linear'], [4, '#51cf66', 'linear'], [6, '#ff4fd8']]) });
       obj({ kind: 'shape', name: 'Rubber mat', shape: { type: 'cylinder', r: 6, h: 0.02 }, mat: E.defaultMat('#495057', 'rubber'), pos: [0, 0.01, 0.6] });
+      { const { ball, keys: bk } = bouncingBall({ L, R: 0.9, x0: -4, x1: 4, z: -4, up: 3 }); tracks[ball.id] = { keys: bk }; }
+      // a TV at the front, low down, with shaded rainbow bars scrolling down its screen
+      const tvSize = E.shapeSize({ type: 'tv', size: 22 });
+      obj({ kind: 'shape', name: 'TV: colour bars', shape: { type: 'tv', size: 22 }, mat: { ...E.defaultMat('#9aa1ab', 'plastic'), faces: JSON.parse(JSON.stringify(E.PART_COLOURS.tv)), cycle: { preset: 'raster', speed: 2, bands: 12, dir: 'down', part: 'screen' } }, pos: [3.4, tvSize.y / 2, 4.4], rot: [0, -18, 0] });
       d.anim = { length: L, fps: 30, loop: true, tracks, camera: { move: 'none', amount: 360, keys: [{ t: 0, pos: [-7.5, 1.4, 8.5], target: [0, 1.4, 0], fov: 40, ease: 'ease' }, { t: L, pos: [6.5, 4.2, 9], target: [0, 1.4, 0], fov: 40, ease: 'ease' }] } };
       Object.assign(d.scene, { light: 'studio', bg: { type: 'gradient', c1: '#f4f6f9', c2: '#cfd8e3', angle: 0 }, groundColor: '#e9edf3', reflect: 1.2 });
       d.camera = { pos: [0, 2.6, 10], target: [0, 1.4, 0], fov: 40 };
     }
     if (kind === 'ball') {
-      // a high-resolution checkerboard (16 by 8 squares) wrapped round the ball
-      const cv = document.createElement('canvas'); cv.width = 2048; cv.height = 1024; const cx = cv.getContext('2d');
-      for (let j = 0; j < 8; j++) for (let i = 0; i < 16; i++) { cx.fillStyle = (i + j) % 2 ? '#ffffff' : '#e8102e'; cx.fillRect(i * 128, j * 128, 128, 128); }
-      const L = 4, R = 1.6, keys = { pos: [], rot: [], scale: [] };
-      // across and back while bouncing (a falling curve each bounce), squashing a little as it lands
-      for (let f = 0; f <= 60; f++) {
-        const t = (f / 60) * L, u = (t % 1) / 1, x = t < L / 2 ? -5 + (10 * t) / (L / 2) : 5 - (10 * (t - L / 2)) / (L / 2);
-        keys.pos.push({ t: +t.toFixed(4), v: [x, R + 4.2 * (1 - (2 * u - 1) ** 2), 0], ease: 'linear' });
-      }
-      for (let b = 0; b <= L; b++) { const at = b; keys.scale.push({ t: Math.max(0, at - 0.08), v: [1, 1, 1], ease: 'ease' }, { t: at, v: [1.14, 0.84, 1.14], ease: 'ease' }, { t: Math.min(L, at + 0.1), v: [1, 1, 1], ease: 'ease' }); }
-      keys.scale = keys.scale.filter((k, i, a) => a.findIndex((q) => Math.abs(q.t - k.t) < 1e-3) === i).sort((a, b) => a.t - b.t);
-      keys.rot = [{ t: 0, v: [18, 0, 0], ease: 'linear' }, { t: L, v: [18, -720, 0], ease: 'linear' }];
-      const ball = obj({ kind: 'shape', name: 'Checkered ball', shape: { type: 'sphere', r: R }, mat: { ...E.defaultMat('#ffffff', 'gloss'), faces: { all: { type: 'picture', src: cv.toDataURL('image/png'), fit: 'stretch', opacity: 1, size: 20 } } }, pos: [-5, R, 0] });
+      const L = 4, { ball, keys } = bouncingBall({ L, R: 1.6, x0: -5, x1: 5, z: 0, up: 4.2 });
       const grid = { type: 'pattern', pattern: 'grid', fg: '#3fe0b8', bg: '#244444', size: 3 };
       obj({ kind: 'shape', name: 'Grid wall', shape: { type: 'plane', w: 18, h: 10 }, mat: { ...E.defaultMat('#244444', 'matte'), faces: { all: grid } }, pos: [0, 5, -3] });
       obj({ kind: 'shape', name: 'Grid floor', shape: { type: 'plane', w: 18, h: 6 }, mat: { ...E.defaultMat('#244444', 'matte'), faces: { all: grid } }, pos: [0, 0.01, 0], rot: [-90, 0, 0] });
