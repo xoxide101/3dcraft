@@ -56,6 +56,7 @@
           <label class="check"><input type="checkbox" id="bdl-rbg" ${L.removeBg !== false ? 'checked' : ''}> Remove a plain background</label>
           <label class="check"><input type="checkbox" id="bdl-border" ${L.border !== false ? 'checked' : ''}> White cut-out border</label>
           ${range('bdl-emboss', 'Emboss', L.emboss ?? 1, 0, 2, 0.05, (v) => Math.round(v * 100) + '%')}` : ''}
+        ${L.kind === 'forest' ? `<label class="field"><span>Trees</span><select class="input" id="bdl-type">${opts(BD.FOREST_TYPES, L.type || 'oak')}</select></label>${range('bdl-density', 'How many trees', L.density ?? 1, 0.2, 3, 0.05, (v) => Math.round(v * 100) + '%')}` : ''}
         ${L.kind !== 'picture' ? range('bdl-height', 'Height', L.height ?? 1, 0.2, 3, 0.05, (v) => Math.round(v * 100) + '%') : ''}
         ${range('bdl-y', 'Raise or lower', L.y || 0, -30, 30, 0.5)}
         ${range('bdl-haze', 'Haze (distance)', L.haze ?? 1, 0, 2, 0.05, (v) => Math.round(v * 100) + '%')}
@@ -86,7 +87,8 @@
     on('bd-add', 'onchange', (e) => { const k = e.target.value; if (!k) return; const l = BD.newLayer(k); b.layers.push(l); cur = l.id; changed(); if (k === 'picture') choosePicture(l); });
     if (!L) return;
     const live = (id, key, fmt) => { on(id, 'oninput', (e) => { L[key] = +e.target.value; $(id + '-v').textContent = fmt ? fmt(+e.target.value) : e.target.value; }); on(id, 'onchange', () => changed()); };
-    live('bdl-height', 'height', (v) => Math.round(v * 100) + '%'); live('bdl-size', 'size', (v) => Math.round(v * 100) + '%'); live('bdl-emboss', 'emboss', (v) => Math.round(v * 100) + '%');
+    live('bdl-height', 'height', (v) => Math.round(v * 100) + '%');
+    live('bdl-density', 'density', (v) => Math.round(v * 100) + '%'); on('bdl-type', 'onchange', (e) => { L.type = e.target.value; changed(); }); live('bdl-size', 'size', (v) => Math.round(v * 100) + '%'); live('bdl-emboss', 'emboss', (v) => Math.round(v * 100) + '%');
     on('bdl-repeat', 'onchange', (e) => { L.repeat = Math.max(0, Math.min(12, +e.target.value | 0)); changed(); });
     on('bdl-rbg', 'onchange', (e) => { L.removeBg = e.target.checked; changed(); });
     on('bdl-border', 'onchange', (e) => { L.border = e.target.checked; changed(); }); live('bdl-y', 'y'); live('bdl-haze', 'haze', (v) => Math.round(v * 100) + '%');

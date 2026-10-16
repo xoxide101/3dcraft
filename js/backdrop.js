@@ -25,6 +25,7 @@
     balloons: ['Hot-air balloons', { speed: 0.5, bob: 0.5 }],
     rainbow: ['Rainbow', { speed: 0, bob: 0 }],
     planets: ['Planets', { speed: 0.1, bob: 0 }],
+    forest: ['Forest', { speed: 1, bob: 0, type: 'oak', density: 1 }],
     picture: ['Picture (your own)', { speed: 1, bob: 0, size: 1, repeat: 1, removeBg: true, border: true, emboss: 1 }],
   };
   // kinds that float in the sky (Cardboard holds them up on sticks)
@@ -38,6 +39,8 @@
     storm: ['Storm', { sky: ['#343b4a', '#8b95a7'], haze: '#97a1b0', sun: '#d8dee9', stars: '#e5e9f0', clouds: '#6b7280', mountains: '#4b5563', hills: '#4c6848', trees: '#2b3b2a', city: '#384150', sea: '#3c596b', windows: '#cfd6e0', lit: false, islands: '#3d5a3a', sand: '#b8b09a', playground: '#868e96', circuit: '#36404d', traces: '#a5d8ff', pixels: '#91a7ff', birds: '#1f242c', balloons: '#868e96', rainbow: '#ffffff', planets: '#ced4da' }],
   };
   BD.PALETTES.digital = ['Digital', { sky: ['#04050d', '#13284a'], haze: '#163a5c', sun: '#ff4fd8', stars: '#7fffd4', clouds: '#1b4d6b', mountains: '#123c5a', hills: '#0e4d45', trees: '#0b3b3a', city: '#0c2238', sea: '#0a3a5c', windows: '#39ff14', lit: true, islands: '#0e4d45', sand: '#1b4d6b', playground: '#22d3ee', circuit: '#0d3b4f', traces: '#39ff88', pixels: '#22d3ee', birds: '#7fffd4', balloons: '#ff4fd8', rainbow: '#ffffff', planets: '#be4bdb' }];
+  BD.PALETTES.jungle = ['Rainforest mist', { sky: ['#7fb9a6', '#e3efe0'], haze: '#c9dfcf', sun: '#fff6c8', stars: '#ffffff', clouds: '#f4f8f2', mountains: '#5d8a73', hills: '#3f8a4f', trees: '#1f6b3a', city: '#4a5d52', sea: '#2f7f7a', windows: '#3a4a40', lit: false, islands: '#2f7a3a', sand: '#d8c99a', playground: '#e03131', circuit: '#2f5b45', traces: '#c9f2d8', pixels: '#69db7c', birds: '#2b2f38', balloons: '#e8590c', rainbow: '#ffffff', planets: '#adb5bd', forest: '#1f6b3a' }];
+  BD.FOREST_TYPES = { open: 'Open woodland (big trees, lots of space)', pine: 'Pine forest (USA)', oak: 'Woodland (UK oaks)', jungle: 'Rainforest (Amazon)', ferns: 'Ferns and undergrowth' };
   BD.MOVES_IN = { none: 'Already there', fly: 'Fly in from above', rise: 'Rise up from below', slide: 'Slide in from the side' };
   BD.MOVES_OUT = { none: 'Stays', fly: 'Fly out upwards', rise: 'Sink down', slide: 'Slide out to the side' };
 
@@ -62,6 +65,10 @@
     computer: ['Computer', ['pixels', 'sun', ['circuit', { height: 1.4 }], 'circuit'], ['digital']],
     rainbow: ['Rainbow meadow', ['rainbow', 'clouds', 'hills', 'trees'], ['day']],
     balloons: ['Balloon festival', ['sun', 'clouds', 'balloons', 'hills', ['balloons', { height: 0.6 }]], ['day', 'sunset']],
+    meadow: ['Open woodland', ['sun', 'clouds', 'mountains', ['forest', { type: 'pine', height: 0.6, density: 1.4 }], ['forest', { type: 'open' }]], ['day', 'sunset']],
+    pineforest: ['Pine forest (USA)', ['sun', 'clouds', 'mountains', ['forest', { type: 'pine', height: 0.75 }], ['forest', { type: 'pine' }], ['forest', { type: 'pine', height: 1.3, density: 0.7 }]], ['day', 'sunset', 'storm']],
+    woodland: ['Woodland (UK)', ['sun', 'clouds', 'hills', ['forest', { type: 'oak', height: 0.8 }], ['forest', { type: 'oak', height: 1.2, density: 0.8 }]], ['day', 'sunset', 'storm']],
+    rainforest: ['Rainforest (Amazon)', ['sun', 'clouds', 'birds', ['forest', { type: 'jungle', height: 0.85 }], ['forest', { type: 'jungle', height: 1.2 }], ['forest', { type: 'ferns' }]], ['jungle']],
     space: ['Space', ['stars', 'planets', 'mountains', ['hills', { height: 0.6 }]], ['night', 'digital']],
   };
   const pick = (a) => a[Math.floor(Math.random() * a.length)];
@@ -155,13 +162,14 @@
   const merge = (list) => (list.length ? T.BufferGeometryUtils.mergeGeometries(list.map((g) => (g.index ? g.toNonIndexed() : g)), false) : null);
   function colourOf(l, P, d) {
     if (l.color) return new T.Color(l.color);
-    const base = new T.Color(P[l.kind] || '#888888'), f = (0.04 + 0.46 * Math.max(0, Math.min(1, (d - BD.NEAR) / (BD.FAR - BD.NEAR)))) * (l.haze ?? 1);
+    const base = new T.Color(P[l.kind === 'forest' ? 'trees' : l.kind] || '#888888'), f = (0.04 + 0.46 * Math.max(0, Math.min(1, (d - BD.NEAR) / (BD.FAR - BD.NEAR)))) * (l.haze ?? 1);
     return base.lerp(new T.Color(P.haze), l.kind === 'sun' || l.kind === 'stars' ? 0 : f);
   }
   function buildLayer(l, bd, d) {
     const g = new T.Group(), P = (BD.PALETTES[bd.palette] || BD.PALETTES.day)[1], per = periodOf(d), style = l.style || bd.style || 'classic';
     const col = colourOf(l, P, d), hex = '#' + col.getHexString(), light = '#' + col.clone().lerp(new T.Color('#ffffff'), 0.35).getHexString(), dark = '#' + col.clone().lerp(new T.Color('#000000'), 0.55).getHexString();
-    const bottom = -0.3 * d;
+    // everything stands on the ground: nothing hangs below the horizon
+    const bottom = 0;
     g.userData = { layer: l.id, period: per, dist: d };
     if (['hills', 'mountains', 'sea', 'trees', 'city'].includes(l.kind)) {
       const pts = skyline(l, per, d), sh = groundShape(pts, bottom);
@@ -169,7 +177,7 @@
       else if (style === 'modern') {
         const depth = d * 0.03, bev = Math.min(d * 0.02, 1.2);
         const geo = new T.ExtrudeGeometry(sh, { depth, bevelEnabled: true, bevelThickness: bev, bevelSize: l.kind === 'city' ? bev * 0.25 : bev, bevelSegments: l.kind === 'city' ? 2 : 5, curveSegments: 4, steps: 1 });
-        g.add(mesh(geo, new T.MeshStandardMaterial({ color: col, roughness: l.kind === 'sea' ? 0.25 : 0.9, metalness: 0 }), -depth / 2));
+        const m3 = mesh(geo, new T.MeshStandardMaterial({ color: col, roughness: l.kind === 'sea' ? 0.25 : 0.9, metalness: 0 }), -depth / 2); m3.position.y = bev; g.add(m3);
       } else {
         g.add(mesh(new T.ShapeGeometry(sh), mat(hex)));
         if (l.kind !== 'city') g.add(mesh(new T.ShapeGeometry(edgeBand(pts, d * (l.kind === 'sea' ? 0.004 : 0.008))), mat(light), 0.02));
@@ -197,7 +205,7 @@
         g.add(mesh(merge(hi), mat(light, { glow: 0.6 }), 0.02));
         const shadow = mesh(body.clone(), mat(dark, { opacity: 0.3 }), -0.15); shadow.position.set(d * 0.006, -d * 0.008, -0.15); g.add(shadow);
       }
-    } else if (['islands', 'playground', 'circuit', 'pixels', 'birds', 'balloons', 'rainbow', 'planets'].includes(l.kind)) {
+    } else if (['forest', 'islands', 'playground', 'circuit', 'pixels', 'birds', 'balloons', 'rainbow', 'planets'].includes(l.kind)) {
       buildItems(g, makeItems(l, per, d, P, col), style, d, per, col, l, bd);
     } else if (l.kind === 'picture') {
       buildPicture(g, l, d, per, style, bd);
@@ -237,8 +245,8 @@
       s.rotateY(Math.PI / 2); s.translate(x - t / 2, 0, -t / 2); stands.push(s);
     });
     if (puffs) puffs.forEach((c) => {
-      const xs = c.map((p) => p[0]), low = Math.min(...c.map((p) => p[1])), x = (Math.min(...xs) + Math.max(...xs)) / 2, stick = new T.BoxGeometry(t * 1.5, low + d * 0.3, t * 1.5);
-      stick.translate(x, (low - d * 0.3) / 2, -t * 1.5); stands.push(stick);
+      const xs = c.map((p) => p[0]), low = Math.min(...c.map((p) => p[1])), x = (Math.min(...xs) + Math.max(...xs)) / 2, stick = new T.BoxGeometry(t * 1.5, low, t * 1.5);
+      stick.translate(x, low / 2, -t * 1.5); stands.push(stick);
     });
     if (stands.length) g.add(mesh(merge(stands.map((s) => { const n = s.index ? s.toNonIndexed() : s; n.clearGroups(); return n; })), new T.MeshStandardMaterial({ color: CARD, roughness: 1 })));
   }
@@ -256,11 +264,57 @@
   function makeItems(l, P, d, Pal, col) {
     const r = rng(l.seed), H = l.height ?? 1, items = [], one = [];
     const add = (shapes, color, o = {}) => one.push({ shapes: [].concat(shapes), color: new T.Color(color), ...o });
-    if (l.kind === 'islands') {
+    if (l.kind === 'forest') {
+      const type = l.type || 'oak', dens = l.density ?? 1, trunk = '#5b3a22';
+      const hex = (c) => '#' + c.getHexString(), vary = (k) => { const c = new T.Color(col), hsl = {}; c.getHSL(hsl); return hex(c.setHSL(hsl.h + (r() - 0.5) * 0.04, hsl.s, Math.max(0.12, Math.min(0.85, hsl.l * (0.85 + 0.3 * r()) + (k || 0))))); };
+      const pine = (x, h) => { add(bar(x, 0, x, h * 0.3, h * 0.07), trunk); const tiers = []; for (let k = 0; k < 4; k++) { const y0 = h * (0.14 + 0.2 * k), hw = h * 0.27 * (1 - 0.19 * k), t = new T.Shape(); t.moveTo(x - hw, y0); t.lineTo(x + hw, y0); t.lineTo(x, y0 + h * 0.36); t.closePath(); tiers.push(t); } add(tiers, vary(), { z: 0.01 }); };
+      const oak = (x, h, big) => {
+        const tw = h * (big ? 0.09 : 0.07); add([bar(x, 0, x, h * 0.55, tw), bar(x, h * 0.4, x - h * 0.16, h * 0.62, tw * 0.5), bar(x, h * 0.45, x + h * 0.18, h * 0.66, tw * 0.5)], trunk);
+        const cy = h * 0.68, R = h * (big ? 0.36 : 0.28), c = new T.Color(vary()), blobs = [disc(x, cy, R * 0.75)], dark = [], light = [];
+        for (let k = 0; k < 7; k++) { const a = (k / 7) * Math.PI * 2 + r(); blobs.push(disc(x + Math.cos(a) * R * 0.55, cy + Math.sin(a) * R * 0.35, R * (0.5 + 0.25 * r()))); }
+        for (let k = 0; k < 3; k++) dark.push(disc(x + (r() - 0.3) * R * 0.8, cy - R * 0.35, R * 0.4));
+        for (let k = 0; k < 3; k++) light.push(disc(x + (r() - 0.7) * R * 0.6, cy + R * 0.4, R * 0.28));
+        add(blobs, hex(c), { z: 0.01 }); add(dark, hex(c.clone().multiplyScalar(0.72)), { z: 0.015 }); add(light, hex(c.clone().lerp(new T.Color('#fff7c2'), 0.25)), { z: 0.02 });
+      };
+      if (type === 'pine') { const n = Math.round((P / (d * 0.06)) * dens); for (let i = 0; i < n; i++) pine((i + r()) * (P / n) - P / 2, d * (0.11 + 0.07 * r()) * H); }
+      else if (type === 'oak') { const n = Math.round((P / (d * 0.11)) * dens); for (let i = 0; i < n; i++) oak((i + r()) * (P / n) - P / 2, d * (0.11 + 0.06 * r()) * H); }
+      else if (type === 'open') {
+        // a meadow with a few big trees standing well apart
+        add(rect(-P / 2, 0, P, d * 0.006), hex(new T.Color(col).lerp(new T.Color('#9be38a'), 0.35)));
+        const n = Math.max(2, Math.round((P / (d * 0.4)) * dens)); for (let i = 0; i < n; i++) { const x = (i + 0.2 + r() * 0.6) * (P / n) - P / 2; if (r() < 0.3) pine(x, d * 0.2 * H); else oak(x, d * (0.17 + 0.07 * r()) * H, true); }
+      } else if (type === 'jungle') {
+        // a thick canopy wall, tall trees with flat umbrella crowns above it, palms, and vines hanging down
+        const band = d * 0.11 * H, wall = [rect(-P / 2, 0, P, band * 0.7)], n = Math.round((P / (d * 0.035)) * dens);
+        for (let i = 0; i < n; i++) wall.push(disc((i + r()) * (P / n) - P / 2, band * (0.55 + 0.35 * r()), d * (0.032 + 0.025 * r()) * H));
+        add(wall, vary(-0.03));
+        const hi = []; for (let i = 0; i < n * 0.6; i++) hi.push(disc((r() - 0.5) * P, band * (0.75 + 0.3 * r()), d * (0.018 + 0.014 * r()) * H)); add(hi, vary(0.06), { z: 0.01 });
+        const m = Math.round((P / (d * 0.18)) * dens);
+        for (let i = 0; i < m; i++) {
+          const x = (i + r()) * (P / m) - P / 2, h = d * (0.2 + 0.08 * r()) * H, c = vary(0.02);
+          if (r() < 0.35) {
+            const tx = x + (r() - 0.5) * h * 0.25, ty = h * 0.85, fr = [];
+            add(bar(x, band * 0.5, tx, ty, d * 0.005), '#7a5a3a', { z: 0.02 });
+            for (let a = 0; a < 7; a++) { const ang = Math.PI * (0.02 + a * 0.16), L2 = h * 0.22; fr.push(bar(tx, ty, tx + Math.cos(ang) * L2, ty + Math.sin(ang) * L2 * 0.35 - L2 * 0.12, d * 0.008)); }
+            add(fr, c, { z: 0.03 });
+          } else {
+            add([bar(x, band * 0.4, x, h, d * 0.006), bar(x, h * 0.85, x - h * 0.12, h * 0.98, d * 0.003), bar(x, h * 0.85, x + h * 0.12, h * 0.98, d * 0.003)], '#6b4a30', { z: 0.02 });
+            const crown = []; for (let k = 0; k < 5; k++) { const sh = new T.Shape(); sh.absellipse(x + (k - 2) * h * 0.09, h + h * 0.02 * Math.sin(k), h * 0.1, h * 0.045, 0, Math.PI * 2, false, 0); crown.push(sh); }
+            add(crown, c, { z: 0.03 });
+            const vines = []; for (let k = 0; k < 3; k++) { const vx = x + (r() - 0.5) * h * 0.4; vines.push(bar(vx, h * 0.97, vx + (r() - 0.5) * h * 0.05, h * (0.45 + 0.3 * r()), d * 0.0018)); }
+            add(vines, '#2f5d32', { z: 0.035 });
+          }
+        }
+      } else if (type === 'ferns') {
+        // undergrowth along the front: fans of fronds
+        add(rect(-P / 2, 0, P, d * 0.008), vary(-0.08));
+        const n = Math.round((P / (d * 0.03)) * dens);
+        for (let i = 0; i < n; i++) { const x = (i + r()) * (P / n) - P / 2, h = d * (0.04 + 0.04 * r()) * H, fr = []; for (let a = 0; a < 9; a++) { const ang = Math.PI * (0.12 + a * 0.095), L2 = h * (0.7 + 0.3 * Math.sin((a / 8) * Math.PI)); fr.push(bar(x, 0, x + Math.cos(ang) * L2, Math.sin(ang) * L2, d * 0.005)); } add(fr, vary((r() - 0.5) * 0.1)); }
+      }
+    } else if (l.kind === 'islands') {
       const n = 2 + Math.floor(r() * 3);
       for (let i = 0; i < n; i++) {
         const cx = (i + 0.2 + r() * 0.6) * (P / n) - P / 2, w = d * (0.14 + 0.16 * r()), h = d * H * (0.035 + 0.04 * r());
-        const hump = (k) => { const sh = new T.Shape(); sh.moveTo(cx - w * k, -d * 0.05); for (let j = 0; j <= 24; j++) { const u = j / 24, x = cx - w * k + 2 * w * k * u; sh.lineTo(x, h * k * Math.sin(u * Math.PI) ** 0.7); } sh.lineTo(cx + w * k, -d * 0.05); sh.closePath(); return sh; };
+        const hump = (k) => { const sh = new T.Shape(); sh.moveTo(cx - w * k, 0); for (let j = 0; j <= 24; j++) { const u = j / 24, x = cx - w * k + 2 * w * k * u; sh.lineTo(x, h * k * Math.sin(u * Math.PI) ** 0.7); } sh.lineTo(cx + w * k, 0); sh.closePath(); return sh; };
         add(hump(1), Pal.sand || '#e9d29a'); add(hump(0.78), col, { z: 0.03 });
         // a palm or two on top
         for (let k = 0; k < 1 + Math.floor(r() * 2); k++) {
@@ -285,7 +339,7 @@
       add(fence, '#ffffff', { z: 0.08 });
     } else if (l.kind === 'circuit') {
       // a board edge with chips on it, pins down their sides, and glowing traces running up and across
-      const base = d * 0.012; add(rect(-P / 2, -d * 0.05, P, base + d * 0.05), col);
+      const base = d * 0.012; add(rect(-P / 2, 0, P, base), col);
       let x = -P / 2 + d * 0.02;
       while (x < P / 2 - d * 0.06) {
         const w = d * (0.025 + 0.05 * r()), h = d * H * (0.02 + 0.06 * r()), pins = [];
@@ -357,7 +411,7 @@
       items.forEach((it) => {
         const pts = it.shapes.flatMap((sh) => sh.getPoints(8)); if (!pts.length) return;
         const minX = Math.min(...pts.map((p) => p.x)), maxX = Math.max(...pts.map((p) => p.x)), minY = Math.min(...pts.map((p) => p.y)), maxY = Math.max(...pts.map((p) => p.y)), x = (minX + maxX) / 2;
-        if (it.sky) { if (it.z) return; const st = new T.BoxGeometry(t * 1.5, minY + d * 0.3, t * 1.5); st.translate(x, (minY - d * 0.3) / 2, -t * 1.5); stands.push(st); }
+        if (it.sky) { if (it.z) return; const st = new T.BoxGeometry(t * 1.5, minY, t * 1.5); st.translate(x, minY / 2, -t * 1.5); stands.push(st); }
         else if (!it.z && maxY - minY > d * 0.01 && maxX - minX < per * 0.5) { const h = (maxY - Math.max(0, minY)) * 0.7, tri = new T.Shape().moveTo(0, 0).lineTo(h * 0.45, 0).lineTo(0, h).closePath(), s2 = new T.ExtrudeGeometry(tri, { depth: t, bevelEnabled: false }); s2.rotateY(Math.PI / 2); s2.translate(x - t / 2, Math.max(0, minY), -t / 2); stands.push(s2); }
       });
       if (stands.length) g.add(mesh(merge(stands.map((s2) => { const n = s2.index ? s2.toNonIndexed() : s2; n.clearGroups(); return n; })), new T.MeshStandardMaterial({ color: CARD, roughness: 1 })));
@@ -426,6 +480,7 @@
     if (!force && sig === built && group) { BD.pose(E.time); return; }
     built = sig;
     if (group) { group.traverse((x) => { if (x.isMesh) { x.geometry.dispose(); [].concat(x.material).forEach((m) => m.dispose()); } }); scene.remove(group); group = null; }
+    const floor = scene.getObjectByName('floor'); if (floor) floor.scale.setScalar(bd && bd.on ? 2.2 : 1);
     if (!bd || !bd.on) { E.redraw && E.redraw(); return; }
     group = new T.Group(); group.name = 'backdrop';
     const n = bd.layers.length;
