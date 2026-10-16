@@ -144,3 +144,5 @@
 .bd-themes { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 .bd-themes .btn { font-size: 12px; min-height: 28px; }
 .bd-themes .btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.linkbtn { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
+.tabs .tab { padding-left: 6px; padding-right: 6px; }

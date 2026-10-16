@@ -54,9 +54,14 @@ Scenery in layers behind your scene, like the flats of a stage or the layers of 
 - Three styles, for the whole backdrop or one layer: **Classic** (flat cut-outs with an embossed edge and a drop shadow), **Modern** (soft rounded 3D) and **Cardboard** (cut-outs with cardboard edges, propped up by fold-out stands, clouds on sticks; the stands can be hidden).
 - **Detail level** (Simple, Normal, High, Extra), all made from the seed: finer mountain ridges, snow caps and shaded slopes, rooftops (water towers, spires, boxes) and shaded sides on the city, bushes and rocks on the hills, fuller clouds. **Planets** are textured worlds (banded gas giants, cratered rock, icy, and blue worlds with land and clouds), real spheres in Modern and Cardboard, with banded rings.
 - **Palettes:** Day, Sunset, Night, Desert, Storm, Digital and Rainforest mist, which also set the sky; farther layers come out hazier.
+- **Sun and moon** in detail (a glowing mottled sun with a corona and rays; a cratered moon with seas and a phase), and a **Sky traffic** layer: airliners with contrails, spaceships, airships and shooting stars crossing the far sky, timed to loop with the animation.
 - **Matching ground** that takes the place of the plain floor and fades into the front layer of scenery, so they meet without a line: grass, grass with flowers, forest floor, sand, a beach with reflective rippling water beyond, paving, grass with a play surface, a neon grid or rocky ground. Automatic picks it from the backdrop; the beach or play area size can be set.
 - Everything stands on the ground (nothing hangs below the horizon). All layers stand 75 to 100 units out and stay behind your scene from wherever the camera looks; raise or lower it all to meet the horizon.
 - **Movement:** scroll speed (endless loop or pass by once) with nearer layers faster for depth, bobbing, and per layer **fly in, rise up or slide in**, and out again, at chosen times.
+
+### Ground
+
+The land round your scene and out to the horizon (the **Ground** tab, separate from the Backdrop and the Scene): turn the landscape ground on or off (the backdrop stays as it is); what it is made of (automatic from the backdrop, or grass, flowers, forest floor, sand, beach and water, paving, play surface, neon grid, rock); **terrain** (flat, gentle rolling, hills or dunes, with height and how big a flat area stays round the scene); **filler** for depth: grass fuzz, flowers, rocks, pebbles and shrubs, thinning out towards the scene, with a new layout at a click or **Match the backdrop**; and **distance haze** so far things fade into the sky. Choosing a backdrop sets up land that suits it.
 
 ### Scene
 

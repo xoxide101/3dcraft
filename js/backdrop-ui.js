@@ -14,7 +14,7 @@
   const EYE_OFF = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.1 3.9M6.2 6.2C3.6 8 2 12 2 12s3.6 7 10 7a9.6 9.6 0 0 0 4.3-1"/></svg>';
 
   // a change to the backdrop: keep it (undo, autosave), rebuild it, show the panel again
-  function changed(redraw = true) { if (window.UI3) UI3.changed(); BD.sync(); if (redraw) render(); }
+  function changed(redraw = true) { if (window.UI3) UI3.changed(); BD.sync(); if (redraw) render(); if (typeof renderGround === 'function') renderGround(); }
   const bd = () => BD.get();
   const seg = (items, val, attr) => `<div class="seg" role="group">${items.map(([v, n]) => `<button class="btn" type="button" ${attr}="${v}" aria-pressed="${String(v) === String(val)}">${n}</button>`).join('')}</div>`;
   const opts = (obj, val) => Object.entries(obj).map(([v, n]) => `<option value="${v}" ${v === val ? 'selected' : ''}>${esc(Array.isArray(n) ? n[0] : n)}</option>`).join('');
@@ -40,11 +40,7 @@
       <h3>Detail</h3>${seg([[0, 'Simple'], [1, 'Normal'], [2, 'High'], [3, 'Extra']], b.detail ?? 1, 'data-detail')}
       <h3>Palette</h3>${seg(Object.entries(BD.PALETTES).map(([k, [n]]) => [k, n]), b.palette, 'data-pal')}
       ${range('bd-y', 'Raise or lower it all (to the horizon)', b.y || 0, -40, 40, 0.5)}
-      <h3>Ground</h3>
-      <label class="check"><input type="checkbox" id="bd-gon" ${b.groundOn !== false ? 'checked' : ''}> Matching ground (instead of the plain floor)</label>
-      ${b.groundOn !== false ? `<label class="field"><span>Ground</span><select class="input" id="bd-gkind">${opts(BD.GROUNDS, b.groundKind || 'auto')}</select></label>
-      <label class="check"><input type="checkbox" id="bd-blend" ${b.blend !== false ? 'checked' : ''}> Blend into the scenery</label>
-      ${range('bd-beach', 'Beach or play area size', b.beach ?? 14, 4, 50, 1)}` : ''}
+      <h3>Ground</h3><p class="hint">The ground that matches the backdrop, terrain, grass and rocks are on the <button class="linkbtn" type="button" data-bd="groundtab">Ground</button> tab.</p>
       <h3>Sky</h3><div id="bd-sky"></div>
       <h3>Movement</h3>
       ${range('bd-speed', 'Scroll speed', b.speed || 0, -20, 20, 0.5, (v) => (+v === 0 ? 'still' : (v > 0 ? 'to the left, ' : 'to the right, ') + Math.abs(v)))}
@@ -93,10 +89,6 @@
     const on = (id, ev, fn) => { const el = $(id); if (el) el[ev] = fn; };
     on('bd-on', 'onchange', (e) => { b.on = e.target.checked; changed(); });
     on('bd-stands', 'onchange', (e) => { b.stands = e.target.checked; changed(); });
-    on('bd-gon', 'onchange', (e) => { b.groundOn = e.target.checked; changed(); });
-    on('bd-gkind', 'onchange', (e) => { b.groundKind = e.target.value; changed(); });
-    on('bd-blend', 'onchange', (e) => { b.blend = e.target.checked; changed(); });
-    on('bd-beach', 'oninput', (e) => { $('bd-beach-v').textContent = e.target.value; }); on('bd-beach', 'onchange', (e) => { b.beach = +e.target.value; changed(); });
     on('bd-speed', 'oninput', (e) => { b.speed = +e.target.value; $('bd-speed-v').textContent = +e.target.value === 0 ? 'still' : (e.target.value > 0 ? 'to the left, ' : 'to the right, ') + Math.abs(e.target.value); BD.pose(E.time); });
     on('bd-speed', 'onchange', () => changed(false));
     on('bd-y', 'oninput', (e) => { b.y = +e.target.value; $('bd-y-v').textContent = e.target.value; BD.pose(E.time); }); on('bd-y', 'onchange', () => changed(false));
@@ -120,6 +112,7 @@
   }
   host && host.addEventListener('click', (e) => {
     const b = bd(), t = e.target.closest('[data-bd],[data-theme],[data-addobj],[data-detail],[data-style],[data-pal],[data-mode],[data-la]'); if (!t || !E.doc) return;
+    if (t.dataset.bd === 'groundtab') { window.UI3 && UI3.showTab('ground'); return; }
     if (t.dataset.bd === 'new') { BD.random(); cur = null; changed(); return; }
     if (t.dataset.addobj) { const k = t.dataset.addobj, m = window.UI3 && UI3.addShape(k); if (m) { const n = E.doc.objects.length; m.pos[0] = ((n % 5) - 2) * 3; m.pos[2] = 2 + Math.floor(n / 5) * 2; E.placeOne(m.id); } return; }
     if (t.dataset.theme) { BD.useTheme(t.dataset.theme); cur = null; changed(); return; }
@@ -151,6 +144,43 @@
   };
   BD.setPicture = (l, src, aspect) => { l.src = src; l.aspect = aspect; changed(); };
   E.on('built', () => { BD.sync(); render(); });
+
+  // ---------------------------------------------------------------- the Ground tab
+  const gHost = $('ground-panel');
+  function renderGround() {
+    if (!gHost) return;
+    if (!E.doc) { gHost.innerHTML = ''; return; }
+    const L = BD.land(), on = L.on;
+    let html = `<div class="pad bd">
+      <label class="check"><input type="checkbox" id="gd-on" ${on ? 'checked' : ''}> Landscape ground (instead of the plain floor)</label>
+      <p class="hint">The land round your scene and out to the horizon: what it is made of, its shape, and filler like grass and rocks for depth. It matches the backdrop if there is one.</p>`;
+    if (on) html += `
+      <h3>Ground</h3><label class="field"><span>Made of</span><select class="input" id="gd-kind">${opts(BD.GROUNDS, L.kind || 'auto')}</select></label>
+      <label class="check"><input type="checkbox" id="gd-blend" ${L.blend !== false ? 'checked' : ''}> Blend into the backdrop</label>
+      ${range('gd-beach', 'Beach or play area size', L.beach ?? 14, 4, 50, 1)}
+      <h3>Terrain</h3>${seg(Object.entries(BD.TERRAINS), L.terrain || 'flat', 'data-terrain')}
+      ${L.terrain && L.terrain !== 'flat' ? range('gd-relief', 'How high', L.relief ?? 1, 0.2, 3, 0.05, (v) => Math.round(v * 100) + '%') + range('gd-flat', 'Flat area round the scene', L.flat ?? 14, 4, 50, 1) : ''}
+      <h3>Filler (eye candy)</h3>
+      ${Object.entries(BD.FILLERS).map(([k, n]) => range('gd-' + k, n, L[k] || 0, 0, 3, 0.1, (v) => (+v === 0 ? 'none' : Math.round(v * 100) + '%'))).join('')}
+      <div class="row"><button class="btn outline" type="button" data-gd="reseed">🎲 New layout</button><button class="btn outline" type="button" data-gd="theme" ${E.doc.backdrop && E.doc.backdrop.theme ? '' : 'disabled'} title="Terrain and filler that suit the backdrop">Match the backdrop</button></div>
+      <h3>Distance haze</h3>${range('gd-haze', 'Haze', L.haze || 0, 0, 1, 0.05, (v) => (+v === 0 ? 'off' : Math.round(v * 100) + '%'))}
+      <p class="hint">Far things fade into the sky for depth (shows in the view, pictures and videos; not yet in ray-traced renders).</p>`;
+    html += '</div>';
+    gHost.innerHTML = html;
+    const on2 = (id, ev, fn) => { const el = $(id); if (el) el[ev] = fn; };
+    on2('gd-on', 'onchange', (e) => { L.on = e.target.checked; changed(false); renderGround(); });
+    on2('gd-kind', 'onchange', (e) => { L.kind = e.target.value; changed(false); });
+    on2('gd-blend', 'onchange', (e) => { L.blend = e.target.checked; changed(false); });
+    ['beach', 'relief', 'flat', 'haze', ...Object.keys(BD.FILLERS)].forEach((k) => { on2('gd-' + k, 'oninput', (e) => { const v = $('gd-' + k + '-v'); if (v) v.textContent = k === 'haze' ? (+e.target.value === 0 ? 'off' : Math.round(e.target.value * 100) + '%') : ['relief', ...Object.keys(BD.FILLERS)].includes(k) ? (+e.target.value === 0 ? 'none' : Math.round(e.target.value * 100) + '%') : e.target.value; }); on2('gd-' + k, 'onchange', (e) => { L[k] = +e.target.value; changed(false); }); });
+  }
+  gHost && gHost.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-terrain],[data-gd]'); if (!t || !E.doc) return; const L = BD.land();
+    if (t.dataset.terrain) { L.terrain = t.dataset.terrain; changed(false); renderGround(); }
+    else if (t.dataset.gd === 'reseed') { L.seed = Math.floor(Math.random() * 1e6); changed(false); }
+    else if (t.dataset.gd === 'theme') { BD.landForTheme(E.doc.backdrop.theme); changed(false); renderGround(); }
+  });
+  E.on('built', () => renderGround());
+
   window.BD3UI = {
     render,
     newBackdrop: () => { if (!E.doc) return; BD.random(); cur = null; changed(); },

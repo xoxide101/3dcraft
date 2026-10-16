@@ -202,7 +202,7 @@
   $('model-input').onchange = (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) importModel(f); };
   CraftSymbols.mount($('sym-panel'), { onPick: addSymbol });
   document.querySelectorAll('.tabs .tab').forEach((t) => { t.onclick = () => showTab(t.dataset.tab); });
-  function showTab(name) { document.querySelectorAll('.tabs .tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === name))); ['layers', 'add', 'symbols', 'backdrop'].forEach((n) => { $('tab-' + n).hidden = n !== name; }); }
+  function showTab(name) { document.querySelectorAll('.tabs .tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === name))); ['layers', 'add', 'symbols', 'backdrop', 'ground'].forEach((n) => { $('tab-' + n).hidden = n !== name; }); }
 
   // ------------------------------------------------------------------ properties (built from a short description)
   let bind = [];
