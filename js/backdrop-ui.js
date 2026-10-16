@@ -102,7 +102,7 @@
     mv('enter', 'bdl-in', 'move'); mv('enter', 'bdl-in-at', 'at'); mv('enter', 'bdl-in-dur', 'dur'); mv('exit', 'bdl-out', 'move'); mv('exit', 'bdl-out-at', 'at'); mv('exit', 'bdl-out-dur', 'dur');
   }
   host && host.addEventListener('click', (e) => {
-    const b = bd(), t = e.target.closest('[data-bd],[data-style],[data-pal],[data-mode],[data-la]'); if (!t || !E.doc) return;
+    const b = bd(), t = e.target.closest('[data-bd],[data-theme],[data-style],[data-pal],[data-mode],[data-la]'); if (!t || !E.doc) return;
     if (t.dataset.bd === 'new') { BD.random(); cur = null; changed(); return; }
     if (t.dataset.theme) { BD.useTheme(t.dataset.theme); cur = null; changed(); return; }
     if (t.dataset.bd === 'pic') { const l = b && b.layers.find((x) => x.id === cur); if (l) choosePicture(l); return; }
