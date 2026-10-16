@@ -6,6 +6,10 @@
 
 3DCraft brings back the easy 3D title and logo programs of the 1990s, rebuilt for today. Type a word and it stands up in 3D gold; drop a logo in and it is traced into colours and pulled out into a solid; pick plastic, chrome or glass; turn it all with the dial in the corner; then render a photo-real picture or save a model for a 3D printer. Everything works offline from this folder.
 
+![The bouncing ball demo: a checkered ball bouncing and spinning in front of a grid, made in 3DCraft](docs/bouncing-ball.gif)
+
+*The bouncing ball demo, made and exported as a GIF in 3DCraft: a nod to one of the first famous computer animation demos of the 1980s.*
+
 ![A shapes still life in the soft studio light](docs/still.png)
 
 ## Getting started
@@ -24,6 +28,8 @@ Your scene autosaves in the browser; **Save** keeps a `.3dcraft.json` file (pict
 - **Shapes:** box, rounded box, sphere, cylinder, cone, pyramid, prism (3 to 24 sides), doughnut, flat ring, capsule, star (any number of points), heart and flat panel, each with its own sizes.
 - **Stage** to stand things on: round, oval, square, rectangle, hexagon or octagon; width, depth and height; corners from sharp to round; a rounded rim; 1 to 6 **steps** (a podium) and how far each comes in. Give its top, sides and bottom their own colour, gradient, pattern or picture, and stretch it to distort it.
 - **Objects** (Insert › Objects, or the Add tab), each made of parts that can have their own colour, picture or pattern: **palm tree** (height, lean, leaves, coconuts); **tables** with a round, square or rectangle top on one centre leg with feet out to four sides, or on four legs; a **computer monitor** (ultra-thin, on a stand); **flat TVs** (43 and 65 inch, any size); a **CRT TV**; and an original little **test boat**. Put a picture on a monitor's or TV's **screen** and it lights up like a real screen.
+![Objects and scenery: a stage with a TV showing a picture, a palm tree, lighthouse, sailboat, cactus, mushroom, rocket, table, pine tree, traffic cone and microchip](docs/objects.png)
+
 - **Scenery objects** to go with the backdrops (Add tab › Scenery, or **Add matching objects** on the Backdrop tab): rock, asteroid, crater, rocket, flying saucer, sailboat, lighthouse, beach umbrella, microchip, capacitor, street lamp, bench, traffic cone, pine tree, tree stump, mushroom, cactus, bush and fence, each with its own parts and colours (rocks, asteroids, cacti and bushes take a shape number for a different one).
 - **3D text** in 42 fonts (bold and blocky, clean, classic, script, techno and retro), with depth, rounded edges (bevel), letter spacing (letters keep a little apart, and only touch when you turn it below zero), **height** (from short and fat to tall and thin), several lines and alignment.
 - **Picture to 3D:** drop a logo or drawing on the view (or Insert › Picture to 3D). It is traced into clean outlines in a few colours (**Best match** finds how many, or choose 2 to 16), with detail and smoothing, and the background left out; each colour is pulled out into 3D, flat or **stepped** (each colour at a different height), in the picture's own colours or a material of your choice.
@@ -64,6 +70,8 @@ Scenery in layers behind your scene, like the flats of a stage or the layers of 
 ### Ground
 
 The land round your scene and out to the horizon (the **Ground** tab, separate from the Backdrop and the Scene, with quick switches on the Backdrop ribbon tab: **Landscape ground**, **Terrain** and **Eye candy**; terrain and eye candy start off, so scenes stay light and quick to render): turn the landscape ground on or off (the backdrop stays as it is); what it is made of (automatic from the backdrop, or grass, flowers, forest floor, sand, beach and water, paving, play surface, neon grid, rock); **terrain** (flat, gentle rolling, hills or dunes, with height and how big a flat area stays round the scene); **filler** for depth: grass fuzz, flowers, rocks, pebbles and shrubs, thinning out towards the scene, with a new layout at a click or **Match the backdrop**; and **distance haze** so far things fade into the sky. Choosing a backdrop sets up land that suits it.
+
+![The Ground tab: terrain and eye candy in a pine forest](docs/ground.png)
 
 ### Scene
 
