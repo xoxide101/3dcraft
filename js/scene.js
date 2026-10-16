@@ -713,7 +713,7 @@
     void main() {
       vec4 n0 = texture2D(tN, vUv), raw = texture2D(tRaw, vUv);
       vec3 c0 = illumAt(vUv);
-      if (n0.a <= 0.0) { gl_FragColor = last > 0.5 ? vec4(raw.rgb * raw.a, raw.a) : vec4(c0, 1.0); return; }
+      if (n0.a <= 0.0) { gl_FragColor = last > 0.5 ? raw : vec4(c0, 1.0); return; }
       vec3 N0 = n0.xyz * 2.0 - 1.0, a0 = albAt(vUv); float z0 = n0.a;
       float k[5]; k[0] = 0.0625; k[1] = 0.25; k[2] = 0.375; k[3] = 0.25; k[4] = 0.0625;
       vec3 sum = vec3(0.0); float wsum = 0.0;
@@ -729,32 +729,48 @@
         sum += cq * w; wsum += w;
       }
       vec3 c = wsum > 0.0 ? sum / wsum : c0;
-      if (last > 0.5) { vec3 col = c * max(a0, vec3(0.03)); gl_FragColor = vec4(col * raw.a, raw.a); } else gl_FragColor = vec4(c, 1.0);
+      if (last > 0.5) gl_FragColor = vec4(c * max(a0, vec3(0.03)), raw.a); else gl_FragColor = vec4(c, 1.0);
     }`;
-  // the raw picture (a canvas) smoothed, drawn with the renderer at W × H and copied into a new canvas of w × h
-  function denoiseCanvas(raw, aux, W, H, w, h, samples) {
+  // Smoothing levels: how many passes, how many of the first ones look only at shapes, and how strongly brightness
+  // differences are kept (lower keeps more). Fewer and gentler passes the more samples the picture already has.
+  E.SMOOTH = { off: 'Off', light: 'Light', medium: 'Medium', strong: 'Strong' };
+  function smoothPlan(level, samples) {
+    const phi = Math.max(0.02, Math.min(0.2, 0.6 / Math.sqrt(Math.max(1, samples))));
+    if (level === 'light') return { n: 3, shapeOnly: 0, phi: phi * 0.6 };
+    if (level === 'strong') return { n: 5, shapeOnly: 2, phi: phi * 1.6 };
+    return { n: samples < 100 ? 5 : 4, shapeOnly: samples < 100 ? 1 : 0, phi };
+  }
+  // The raw picture (a canvas of any size) smoothed at the helper passes' size (dw × dh, twice the finished size where it
+  // fits, so edges come out smooth), read back and shrunk to w × h. Returns { make(level) → canvas, dispose() }.
+  function makeSmoother(raw, aux, dw, dh, w, h, samples) {
     const tex = new T.CanvasTexture(raw); tex.colorSpace = T.NoColorSpace; tex.generateMipmaps = false; tex.minFilter = tex.magFilter = T.LinearFilter;
-    const rt = [0, 1].map(() => new T.WebGLRenderTarget(W, H, { type: T.HalfFloatType, depthBuffer: false }));
-    const mat = new T.ShaderMaterial({ uniforms: { tC: { value: tex }, tN: { value: aux.nrm.texture }, tA: { value: aux.alb.texture }, tRaw: { value: tex }, texel: { value: new T.Vector2(1 / W, 1 / H) }, stepW: { value: 1 }, phiC: { value: 0.1 }, useColor: { value: 1 }, first: { value: 1 }, last: { value: 0 } },
+    const rt = [0, 1].map(() => new T.WebGLRenderTarget(dw, dh, { type: T.HalfFloatType, depthBuffer: false })), fin = new T.WebGLRenderTarget(dw, dh, { depthBuffer: false });
+    const mat = new T.ShaderMaterial({ uniforms: { tC: { value: tex }, tN: { value: aux.nrm.texture }, tA: { value: aux.alb.texture }, tRaw: { value: tex }, texel: { value: new T.Vector2(1 / dw, 1 / dh) }, stepW: { value: 1 }, phiC: { value: 0.1 }, useColor: { value: 1 }, first: { value: 1 }, last: { value: 0 } },
       vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }', fragmentShader: DENOISE_FS, depthTest: false, depthWrite: false, toneMapped: false });
     const qs = new T.Scene(), qc = new T.OrthographicCamera(-1, 1, 1, -1, 0, 1); qs.add(new T.Mesh(new T.PlaneGeometry(2, 2), mat));
-    const keepTM = renderer.toneMapping; renderer.toneMapping = T.NoToneMapping; renderer.setScissorTest(false);
-    // less smoothing the cleaner the picture already is (more samples). The first, small passes look only at the
-    // shapes (they clear single dark or bright specks); the larger ones also keep differences in brightness (shadows).
-    const phi = Math.max(0.02, Math.min(0.2, 0.6 / Math.sqrt(Math.max(1, samples)))), shapeOnly = samples < 100 ? 2 : samples < 500 ? 1 : 0;
-    let src = tex;
-    const N = 5;
-    for (let i = 0; i < N; i++) {
-      const last = i === N - 1, target = last ? null : rt[i % 2];
-      mat.uniforms.tC.value = src; mat.uniforms.stepW.value = 1 << i; mat.uniforms.phiC.value = phi; mat.uniforms.useColor.value = i < shapeOnly ? 0 : 1; mat.uniforms.first.value = i === 0 ? 1 : 0; mat.uniforms.last.value = last ? 1 : 0;
-      renderer.setRenderTarget(target); renderer.setViewport(0, 0, W, H); renderer.render(qs, qc);
-      if (!last) src = target.texture;
-    }
-    const out = document.createElement('canvas'); out.width = w; out.height = h; const ox = out.getContext('2d'); ox.imageSmoothingQuality = 'high';
-    // WebGL draws from the bottom left of its canvas
-    ox.drawImage(renderer.domElement, 0, renderer.domElement.height - H, W, H, 0, 0, w, h);
-    renderer.toneMapping = keepTM; tex.dispose(); rt.forEach((r) => r.dispose()); mat.dispose();
-    return out;
+    const cache = {};
+    return {
+      make(level) {
+        if (!level || level === 'off') return null;
+        if (cache[level]) return cache[level];
+        const plan = smoothPlan(level, samples), keepTM = renderer.toneMapping, keepRT = renderer.getRenderTarget(); renderer.toneMapping = T.NoToneMapping;
+        let src = tex;
+        for (let i = 0; i < plan.n; i++) {
+          const last = i === plan.n - 1, target = last ? fin : rt[i % 2], u = mat.uniforms;
+          u.tC.value = src; u.stepW.value = 1 << i; u.phiC.value = plan.phi; u.useColor.value = i < plan.shapeOnly ? 0 : 1; u.first.value = i === 0 ? 1 : 0; u.last.value = last ? 1 : 0;
+          renderer.setRenderTarget(target); renderer.render(qs, qc); src = target.texture;
+        }
+        const px = new Uint8Array(dw * dh * 4); renderer.readRenderTargetPixels(fin, 0, 0, dw, dh, px);
+        renderer.setRenderTarget(keepRT); renderer.toneMapping = keepTM;
+        // render targets are read from the bottom row up: turn it the right way while copying
+        const big = document.createElement('canvas'); big.width = dw; big.height = dh; const bx = big.getContext('2d'), img = bx.createImageData(dw, dh), row = dw * 4;
+        for (let y = 0; y < dh; y++) img.data.set(px.subarray((dh - 1 - y) * row, (dh - y) * row), y * row);
+        bx.putImageData(img, 0, 0);
+        const out = document.createElement('canvas'); out.width = w; out.height = h; const ox = out.getContext('2d'); ox.imageSmoothingQuality = 'high'; ox.drawImage(big, 0, 0, w, h);
+        return (cache[level] = out);
+      },
+      dispose() { tex.dispose(); rt.forEach((r) => r.dispose()); fin.dispose(); mat.dispose(); aux.dispose(); },
+    };
   }
 
   E.pathRender = function (w, h, o = {}) {
@@ -772,8 +788,8 @@
     cubeCam.update(renderer, room); scene.environment = cubeRT.texture; scene.environmentIntensity = 0.8 * ((E.doc && E.doc.scene.reflect) ?? 1);
     // Smoother edges (anti-aliasing): render 2, 3 or 4 times the size and shrink it, within the card's limit and about 16 million pixels
     const k = Math.max(0.25, Math.min(o.edges || 1, Math.min(8192, renderer.capabilities.maxTextureSize || 4096) / Math.max(w, h), Math.max(1, Math.sqrt(16.6e6 / (w * h))))), W = Math.round(w * k), H = Math.round(h * k);
-    // the grain is smoothed at the finished size
-    const dw = Math.min(w, W), dh = Math.min(h, H);
+    // the grain is smoothed at twice the finished size where it fits (so its edges are smooth too), then shrunk
+    const f = Math.max(0.5, Math.min(2, Math.sqrt(16.6e6 / (w * h)), Math.min(8192, renderer.capabilities.maxTextureSize || 4096) / Math.max(w, h))), dw = Math.round(w * f), dh = Math.round(h * f);
     renderer.setScissorTest(false); renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setViewport(0, 0, W, H);
     // The path tracer numbers materials one per object, so objects with a material per face (front, sides, top…)
     // shifted every colour after them. For the render, each of those is split into one piece per face (sharing
@@ -802,11 +818,15 @@
     const out = document.createElement('canvas'); out.width = w; out.height = h; const ox = out.getContext('2d');
     ox.imageSmoothingQuality = 'high';
     const copy = () => { ox.clearRect(0, 0, w, h); ox.drawImage(renderer.domElement, 0, 0, W, H, 0, 0, w, h); };
-    let smooth = null;
+    let smoother = null;
     let stopped = false, frame = 0;
     const finish = () => {
       pt.dispose(); cubeRT.dispose(); matte.dispose(); unsplit();
-      if (aux) { try { smooth = denoiseCanvas(out, aux, dw, dh, w, h, Math.floor(pt.samples) || 1); } catch (e) { console.warn('smoothing', e); } aux.dispose(); }
+      if (aux) {
+        // keep the picture at the size it was rendered (sharper to smooth than the shrunk one)
+        const raw = document.createElement('canvas'); raw.width = W; raw.height = H; raw.getContext('2d').drawImage(renderer.domElement, 0, 0, W, H, 0, 0, W, H);
+        try { smoother = makeSmoother(raw, aux, dw, dh, w, h, Math.floor(pt.samples) || 1); } catch (e) { console.warn('smoothing', e); aux.dispose(); }
+      }
       shadow.material = keep.shadowMat; shadow.visible = keep.shadowVis; floor.visible = keep.floor; scene.background = keep.bg; scene.environment = keep.env; scene.environmentIntensity = keep.envI;
       grid.visible = keep.grid; keep.helpers.forEach((x) => (x.visible = true));
       renderer.setPixelRatio(keep.ratio); renderer.setSize(keep.size.x, keep.size.y, false);
@@ -816,12 +836,12 @@
       if (stopped) return;
       for (let i = 0; i < tiles * tiles; i++) pt.renderSample();
       const n = Math.floor(pt.samples); frame++;
-      if (n >= samples) { copy(); stopped = true; finish(); o.onDone && o.onDone(out, n, false, smooth); return; }
+      if (n >= samples) { copy(); stopped = true; finish(); o.onDone && o.onDone(out, n, false, smoother); return; }
       if (frame % 3 === 0) { copy(); o.onProgress && o.onProgress(out, n, samples); }
       requestAnimationFrame(step);
     };
     requestAnimationFrame(step);
-    return { canvas: out, samples, stop: () => { if (stopped) return; stopped = true; copy(); const n = Math.floor(pt.samples); finish(); o.onDone && o.onDone(out, n, true, smooth); }, edges: +k.toFixed(2) };
+    return { canvas: out, samples, stop: () => { if (stopped) return; stopped = true; copy(); const n = Math.floor(pt.samples); finish(); o.onDone && o.onDone(out, n, true, smoother); }, edges: +k.toFixed(2) };
   };
   E.thumbnail = (w = 320, h = 200) => E.renderImage(w, h, {}).toDataURL('image/jpeg', 0.8);
 

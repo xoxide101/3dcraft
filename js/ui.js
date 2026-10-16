@@ -531,19 +531,22 @@
     $('rd-view').innerHTML = ''; $('rd-view').style.aspectRatio = `${w} / ${h}`; rdBusy(true); $('rd-png').disabled = $('rd-jpg').disabled = true;
     $('rd-status').textContent = 'Getting the scene ready…'; $('rd-bar').style.width = '0';
     const show = (c) => { if (!$('rd-view').contains(c)) { $('rd-view').innerHTML = ''; $('rd-view').append(c); } };
-    rdRaw = rdSmooth = null;
+    if (rdSmoother) rdSmoother.dispose(); rdRaw = rdSmoother = null;
     rdJob = E.pathRender(w, h, { quality: rdQ, transparent: $('rd-transp').checked, edges: +$('rd-aa').value || 1,
       onProgress: (c, n, of) => { show(c); $('rd-bar').style.width = Math.round((n / of) * 100) + '%'; $('rd-status').textContent = `${n} of ${of} samples · ${Math.round((performance.now() - t0) / 1000)} s`; },
-      onDone: (c, n, early, smooth) => { rdRaw = c; rdSmooth = smooth; rdOut = $('rd-dn').checked && smooth ? smooth : c; show(rdOut); rdJob = null; rdBusy(false); $('rd-png').disabled = $('rd-jpg').disabled = false; $('rd-bar').style.width = early ? $('rd-bar').style.width : '100%';
+      onDone: (c, n, early, smoother) => { rdRaw = c; rdSmoother = smoother; rdOut = rdPick(); show(rdOut); rdJob = null; rdBusy(false); $('rd-png').disabled = $('rd-jpg').disabled = false; $('rd-bar').style.width = early ? $('rd-bar').style.width : '100%';
         const aa = rdJob0 && rdJob0.edges > 1 ? `, edges ${rdJob0.edges}× smoother` : '', capped = rdJob0 && +$('rd-aa').value > Math.max(1, rdJob0.edges) ? ' (as smooth as fits at this size)' : '';
         $('rd-status').textContent = `${early ? 'Stopped at' : 'Done:'} ${n} samples, ${w} × ${h}${aa}${capped}, in ${Math.round((performance.now() - t0) / 1000)} s.`; } });
     const rdJob0 = rdJob;
   };
   $('rd-stop').onclick = () => { if (rdJob) rdJob.stop(); };
   // switch between the smoothed and the raw picture after rendering, to compare (what shows is what is saved)
-  let rdRaw = null, rdSmooth = null;
-  $('rd-dn').onchange = () => { if (rdJob || !rdRaw) return; rdOut = $('rd-dn').checked && rdSmooth ? rdSmooth : rdRaw; $('rd-view').innerHTML = ''; $('rd-view').append(rdOut); };
+  let rdRaw = null, rdSmoother = null;
+  const rdPick = () => { let c = null; try { c = rdSmoother && rdSmoother.make($('rd-dn').value); } catch (e) { console.warn(e); } return c || rdRaw; };
+  $('rd-dn').onchange = () => { if (rdJob || !rdRaw) return; rdOut = rdPick(); $('rd-view').innerHTML = ''; $('rd-view').append(rdOut); };
   $('rd-close').onclick = () => { if (!rdJob) $('renderdlg').hidden = true; };
+  // the smoothing's helper pictures stay on the graphics card until the window closes (so the level can be changed)
+  new MutationObserver(() => { if ($('renderdlg').hidden && rdSmoother) { rdSmoother.dispose(); rdSmoother = null; } }).observe($('renderdlg'), { attributes: true, attributeFilter: ['hidden'] });
   const rdSave = (fmt) => { if (!rdOut) return; let c = rdOut; if (fmt === 'jpg') { c = document.createElement('canvas'); c.width = rdOut.width; c.height = rdOut.height; const x = c.getContext('2d'); x.fillStyle = '#ffffff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(rdOut, 0, 0); } c.toBlob((b) => download(b, `${baseName()}-render.${fmt}`), fmt === 'jpg' ? 'image/jpeg' : 'image/png', 0.95); };
   $('rd-png').onclick = () => rdSave('png'); $('rd-jpg').onclick = () => rdSave('jpg');
   $('renderdlg').addEventListener('keydown', (e) => { if (e.key === 'Escape' && !rdJob) $('renderdlg').hidden = true; });
