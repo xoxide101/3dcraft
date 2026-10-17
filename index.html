@@ -131,6 +131,24 @@
 </div>
 
 <!-- Messages -->
+<div class="backdrop" id="p3dlg" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="p3-title">
+    <h2 id="p3-title">Photos to 3D</h2>
+    <div class="seg" id="p3-mode" role="group"><button class="btn" type="button" data-p3="one" aria-pressed="true">One photo (a guess)</button><button class="btn" type="button" data-p3="turn" aria-pressed="false">Turntable photos</button></div>
+    <p class="hint" id="p3-tip"></p>
+    <div class="row"><button class="btn outline" type="button" id="p3-pick">Choose photos…</button><span class="hint" id="p3-count">No photos yet.</span></div>
+    <div class="p3-thumbs" id="p3-thumbs"></div>
+    <label class="field"><span>Detail</span><select class="input" id="p3-detail"><option value="64">Low (quick)</option><option value="96" selected>Medium</option><option value="128">High</option><option value="160">Very high (slow)</option></select></label>
+    <label class="field"><span>Background tolerance: <b id="p3-tol-v">40</b></span><input type="range" id="p3-tol" min="5" max="160" step="5" value="40"></label>
+    <div id="p3-one-opts"><label class="field"><span>Puff (how round): <b id="p3-puff-v">100%</b></span><input type="range" id="p3-puff" min="10" max="250" step="5" value="100"></label>
+      <label class="field"><span>Shading as bumps: <b id="p3-shade-v">30%</b></span><input type="range" id="p3-shade" min="0" max="150" step="5" value="30"></label>
+      <label class="check"><input type="checkbox" id="p3-flat"> Flat back (to stand on a 3D printer's bed)</label></div>
+    <div id="p3-turn-opts" hidden><label class="field"><span>Smoothness: <b id="p3-smooth-v">2</b></span><input type="range" id="p3-smooth" min="0" max="5" step="1" value="2"></label>
+      <div class="seg" id="p3-dir" role="group"><button class="btn" type="button" data-dir="ccw" aria-pressed="true">Turned anticlockwise</button><button class="btn" type="button" data-dir="cw" aria-pressed="false">Turned clockwise</button></div></div>
+    <p class="hint" id="p3-status"></p>
+    <div class="dialog-actions"><button class="btn" id="p3-cancel">Close</button><button class="btn primary" id="p3-go" disabled>Make it 3D</button></div>
+  </div>
+</div>
 <div class="backdrop" id="info" hidden>
   <div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="info-title">
     <h2 id="info-title"></h2>
@@ -141,6 +159,7 @@
 <div class="toast" id="toast" hidden></div>
 <input type="file" id="open-input" accept=".json,.3dcraft,application/json" hidden>
 <input type="file" id="image-input" accept="image/*" hidden>
+<input type="file" id="photos-input" accept="image/*" multiple hidden>
 <input type="file" id="model-input" accept=".glb,.gltf,.obj,.mtl,.stl,.ply,.jpg,.jpeg,.png,.webp,.bmp" multiple hidden>
 
 <script src="lib/craft3d-libs.js"></script>
@@ -154,6 +173,7 @@
 <script src="js/ui.js"></script>
 <script src="js/timeline.js"></script>
 <script src="js/backdrop-ui.js"></script>
+<script src="js/photo3d.js"></script>
 <script src="js/animexport.js"></script>
 <script src="js/range-type.js"></script>
 </body>

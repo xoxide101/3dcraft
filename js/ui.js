@@ -198,8 +198,8 @@
   $('addgrid').innerHTML = '<h4>Shapes</h4>' + Object.entries(E.SHAPES).filter(([k]) => !E.isObjectShape(k)).map(([k, [n]]) => `<button type="button" data-add="${k}" title="Add a ${n.toLowerCase()}">${ICON(SH_ICON[k])}${n}</button>`).join('')
     + '<h4>Scenery</h4>' + E.SCENERY.map((k) => `<button type="button" data-add="${k}" title="Add a ${E.SHAPES[k][0].toLowerCase()}">${ICON(SCENERY_ICON[k])}${E.SHAPES[k][0]}</button>`).join('')
     + '<h4>Objects</h4>' + OBJECTS.map(([n, , , ic], i) => `<button type="button" data-obj="${i}" title="Add a ${n.toLowerCase()}">${ICON(OBJ_ICON[ic])}${n}</button>`).join('')
-    + `<h4>Words and pictures</h4><button type="button" data-add="text">${ICON('<path d="M5 6V4h14v2M12 4v16M9 20h6"/>')}3D text</button><button type="button" data-add="cutout">${ICON('<path d="M5 19c2-6 5-9 7-14 2 5 5 8 7 14z"/><path d="M8 19l4-6 4 6" opacity=".6"/>')}Photo cut-out</button><button type="button" data-add="trace">${ICON('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6"/><circle cx="16" cy="9" r="2"/>')}Picture to 3D</button><button type="button" data-add="model">${ICON('<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" opacity=".6"/>')}3D file…</button>`;
-  $('addgrid').onclick = (e) => { const ob = e.target.closest('[data-obj]'); if (ob) { const [n, t, patch] = OBJECTS[+ob.dataset.obj]; addShape(t, patch, n); return; } const b = e.target.closest('[data-add]'); if (!b) return; const k = b.dataset.add; if (k === 'text') addText(); else if (k === 'trace') openTrace(); else if (k === 'cutout') photoCutout(); else if (k === 'model') $('model-input').click(); else addShape(k); };
+    + `<h4>Words and pictures</h4><button type="button" data-add="text">${ICON('<path d="M5 6V4h14v2M12 4v16M9 20h6"/>')}3D text</button><button type="button" data-add="photos3d">${ICON('<rect x="3" y="6" width="12" height="10" rx="1.5"/><path d="M15 9l6-3v12l-6-3" opacity=".6"/><circle cx="9" cy="11" r="2.5"/>')}Photos to 3D</button><button type="button" data-add="cutout">${ICON('<path d="M5 19c2-6 5-9 7-14 2 5 5 8 7 14z"/><path d="M8 19l4-6 4 6" opacity=".6"/>')}Photo cut-out</button><button type="button" data-add="trace">${ICON('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6"/><circle cx="16" cy="9" r="2"/>')}Picture to 3D</button><button type="button" data-add="model">${ICON('<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" opacity=".6"/>')}3D file…</button>`;
+  $('addgrid').onclick = (e) => { const ob = e.target.closest('[data-obj]'); if (ob) { const [n, t, patch] = OBJECTS[+ob.dataset.obj]; addShape(t, patch, n); return; } const b = e.target.closest('[data-add]'); if (!b) return; const k = b.dataset.add; if (k === 'text') addText(); else if (k === 'trace') openTrace(); else if (k === 'cutout') photoCutout(); else if (k === 'photos3d') openPhotos3D(); else if (k === 'model') $('model-input').click(); else addShape(k); };
   $('model-input').onchange = (e) => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) importModel(fs); };
   CraftSymbols.mount($('sym-panel'), { onPick: addSymbol });
   document.querySelectorAll('.tabs .tab').forEach((t) => { t.onclick = () => showTab(t.dataset.tab); });
@@ -582,6 +582,47 @@
     try { return await makeCutout(src, edit ? edit.trace : {}, edit); } catch (e) { info('Photo cut-out', esc(e.message)); }
   }
 
+
+  // ------------------------------------------------------------------ photos to 3D (one photo guessed, or a turntable set)
+  let p3Mode = 'one', p3Dir = 'ccw', p3Photos = [];
+  const p3Tips = { one: 'One photo of something on a plain background. Its outline is puffed up like a balloon into a rounded 3D shape, painted with the photo: a guess, good for characters, animals, fruit and logos.',
+    turn: 'Photos of an object turned on a turntable (or a lazy Susan) in front of a plain background, the camera kept still: 12 to 36, evenly all the way round, chosen in the order taken. The shape is carved from every angle and painted with the photos. Deep hollows cannot be seen from outside.' };
+  function p3Sync() {
+    document.querySelectorAll('#p3-mode [data-p3]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.p3 === p3Mode)));
+    document.querySelectorAll('#p3-dir [data-dir]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.dir === p3Dir)));
+    $('p3-tip').textContent = p3Tips[p3Mode]; $('p3-one-opts').hidden = p3Mode !== 'one'; $('p3-turn-opts').hidden = p3Mode !== 'turn';
+    $('p3-pick').textContent = p3Mode === 'one' ? 'Choose a photo…' : 'Choose the photos…';
+    $('p3-count').textContent = p3Photos.length ? `${p3Photos.length} photo${p3Photos.length > 1 ? 's' : ''}` + (p3Mode === 'one' && p3Photos.length > 1 ? ' (the first is used)' : '') : 'No photos yet.';
+    $('p3-thumbs').innerHTML = p3Photos.slice(0, 48).map((s) => `<img alt="" src="${s}">`).join('');
+    $('p3-go').disabled = !p3Photos.length || (p3Mode === 'turn' && p3Photos.length < 4);
+    [['p3-tol', (v) => v], ['p3-puff', (v) => v + '%'], ['p3-shade', (v) => v + '%'], ['p3-smooth', (v) => v]].forEach(([id, f]) => { $(id + '-v').textContent = f($(id).value); });
+  }
+  const openPhotos3D = (mode) => { if (!E.doc) return; if (mode) p3Mode = mode; $('p3-status').textContent = ''; p3Sync(); $('p3dlg').hidden = false; };
+  $('p3-mode').onclick = (e) => { const b = e.target.closest('[data-p3]'); if (b) { p3Mode = b.dataset.p3; p3Sync(); } };
+  $('p3-dir').onclick = (e) => { const b = e.target.closest('[data-dir]'); if (b) { p3Dir = b.dataset.dir; p3Sync(); } };
+  ['p3-tol', 'p3-puff', 'p3-shade', 'p3-smooth'].forEach((id) => { $(id).oninput = p3Sync; });
+  $('p3-pick').onclick = () => { const i = $('photos-input'); i.value = ''; i.multiple = p3Mode === 'turn'; i.click(); };
+  $('photos-input').onchange = async (e) => {
+    const files = [...e.target.files].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    p3Photos = await Promise.all(files.map((f) => new Promise((r) => { const rd = new FileReader(); rd.onload = () => r(rd.result); rd.readAsDataURL(f); })));
+    p3Sync();
+  };
+  $('p3-cancel').onclick = () => { $('p3dlg').hidden = true; };
+  async function makePhotos3D(photos, mode, o) {
+    const status = (m) => { $('p3-status').textContent = m; };
+    const r = mode === 'one' ? await PHOTO3D.build1(photos[0], o, status) : await PHOTO3D.build(photos, o, status);
+    const m = { kind: 'model', name: mode === 'one' ? 'Photo in 3D' : 'Turntable scan', model: { format: 'ply', data: E.b64(r.ply), fit: 3, keepOwn: true, colours: true, points: false, from: mode } };
+    standOnGround(m, 3); m.mat = E.defaultMat('#bfc5cc', 'plastic');
+    status(`Made: ${r.triangles.toLocaleString()} triangles.`);
+    return addObject(m);
+  }
+  $('p3-go').onclick = async () => {
+    $('p3-go').disabled = true;
+    try { await makePhotos3D(p3Photos, p3Mode, { detail: +$('p3-detail').value, tolerance: +$('p3-tol').value, puff: +$('p3-puff').value / 100, shading: +$('p3-shade').value / 100, flatBack: $('p3-flat').checked, smooth: +$('p3-smooth').value, dir: p3Dir }); $('p3dlg').hidden = true; toast('Your photo is in 3D: save it as STL or OBJ from Export to print it.'); }
+    catch (err) { $('p3-status').textContent = err.message; }
+    $('p3-go').disabled = false;
+  };
+
   // Drop a picture on the view to make it 3D, or a GLB, OBJ or STL file to bring the model in
   $('desk').addEventListener('dragover', (e) => { if ([...(e.dataTransfer.items || [])].some((i) => i.kind === 'file')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
   $('desk').addEventListener('drop', (e) => {
@@ -814,6 +855,7 @@
       { label: '3D text', run: () => addText() },
       { label: 'Picture to 3D…', run: () => openTrace() },
       { label: 'Photo cut-out…', run: () => photoCutout(), disabled: () => !E.doc },
+      { label: 'Photos to 3D (one photo or a turntable set)…', run: () => openPhotos3D(), disabled: () => !E.doc },
       { label: 'Symbol or emoji in 3D…', run: () => CraftSymbols.open({ onPick: addSymbol }) },
       { label: '3D model from a file…', run: () => $('model-input').click() },
     ]],
@@ -890,7 +932,7 @@
       ] },
       { id: 'insert', label: 'Insert', hue: '#7048e8', groups: [
         ['Shapes', [{ col: [{ row: ['box', 'roundbox', 'sphere', 'cylinder', 'trafficcone', 'pyramid', 'prism'].map((k) => ({ label: E.SHAPES[k][0], icon: SH_ICON[k], iconOnly: true, run: () => addShape(k) })) }, { row: ['torus', 'washer', 'capsule', 'star', 'heart', 'plane', 'stage'].map((k) => ({ label: E.SHAPES[k][0], icon: SH_ICON[k], iconOnly: true, run: () => addShape(k) })) }] }]],
-        ['Words and pictures', [C('3D text', '3D text', MI.text3d, { big: true }), { label: 'Photo cut-out', icon: MI.trace, big: true, title: 'A photo cut out round its shape and pulled out into 3D, with the photo on it and an emboss', run: () => photoCutout() }, C('Picture to 3D', 'Picture to 3D', MI.trace, { big: true, title: 'Trace a logo or drawing into colours and pull it out into 3D' }), C('Symbol or emoji', 'Symbols & emoji', MI.star, { big: true })]],
+        ['Words and pictures', [C('3D text', '3D text', MI.text3d, { big: true }), { label: 'Photos to 3D', icon: MI.model, big: true, title: 'Make a 3D shape from one photo (a guess) or from turntable photos (carved from every angle)', run: () => openPhotos3D() }, { label: 'Photo cut-out', icon: MI.trace, big: true, title: 'A photo cut out round its shape and pulled out into 3D, with the photo on it and an emboss', run: () => photoCutout() }, C('Picture to 3D', 'Picture to 3D', MI.trace, { big: true, title: 'Trace a logo or drawing into colours and pull it out into 3D' }), C('Symbol or emoji', 'Symbols & emoji', MI.star, { big: true })]],
         ['Objects', [{ col: [{ row: OBJECTS.slice(0, 5).map(([n, t, patch, ic]) => ({ label: n, icon: OBJ_ICON[ic], iconOnly: true, run: () => addShape(t, patch, n) })) }, { row: OBJECTS.slice(5).map(([n, t, patch, ic]) => ({ label: n, icon: OBJ_ICON[ic], iconOnly: true, run: () => addShape(t, patch, n) })) }] }]],
         ['Models', [C('3D model', '3D model', MI.model, { big: true, title: 'GLB, OBJ (choose its MTL and pictures with it), STL or PLY, including scans from photogrammetry apps' })]],
       ] },
@@ -983,7 +1025,7 @@
     const sb = document.querySelector('.ctb-search');
     if (sb) { const b = document.createElement('button'); b.type = 'button'; b.className = 'ctb-q text ctb-render'; b.id = 'render-now'; b.title = 'Render now: a ray-traced picture of the scene as it is (F9 opens the Render window)'; b.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m3 16 9 5 9-5M3 12l9 5 9-5"/></svg> Render now'; b.onclick = renderNow; sb.before(b); }
   }
-  window.UI3 = { toast, photoCutout, showTab, setLetters, renderNow, openRender, addShape, addText, addSymbol, openTrace, startScene, openDoc, changed, showProps, renderLayers };
+  window.UI3 = { toast, photoCutout, openPhotos3D, makePhotos3D, showTab, setLetters, renderNow, openRender, addShape, addText, addSymbol, openTrace, startScene, openDoc, changed, showProps, renderLayers };
   (async () => {
     const last = localStorage.getItem(AUTOSAVE);
     if (last) { try { await openDoc(JSON.parse(last)); return; } catch (e) {} }
