@@ -96,7 +96,8 @@
     renderLayers();
   }
   async function importModel(file) {
-    try { const m = await E.importFile(file); standOnGround(m, 3); m.mat = E.defaultMat('#bfc5cc', 'plastic'); addObject(m); toast(`${file.name} is in the scene.`); }
+    const name = file.length != null ? [...file].map((f) => f.name).join(', ') : file.name;
+    try { const m = await E.importFile(file); standOnGround(m, 3); m.mat = E.defaultMat('#bfc5cc', 'plastic'); addObject(m); toast(`${m.name} is in the scene` + (m.model.mtl ? ` with ${Object.keys(m.model.textures || {}).length} picture(s).` : '.')); }
     catch (e) { info('Could not open that file', esc(e.message)); }
   }
 
@@ -199,7 +200,7 @@
     + '<h4>Objects</h4>' + OBJECTS.map(([n, , , ic], i) => `<button type="button" data-obj="${i}" title="Add a ${n.toLowerCase()}">${ICON(OBJ_ICON[ic])}${n}</button>`).join('')
     + `<h4>Words and pictures</h4><button type="button" data-add="text">${ICON('<path d="M5 6V4h14v2M12 4v16M9 20h6"/>')}3D text</button><button type="button" data-add="cutout">${ICON('<path d="M5 19c2-6 5-9 7-14 2 5 5 8 7 14z"/><path d="M8 19l4-6 4 6" opacity=".6"/>')}Photo cut-out</button><button type="button" data-add="trace">${ICON('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6"/><circle cx="16" cy="9" r="2"/>')}Picture to 3D</button><button type="button" data-add="model">${ICON('<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" opacity=".6"/>')}3D file…</button>`;
   $('addgrid').onclick = (e) => { const ob = e.target.closest('[data-obj]'); if (ob) { const [n, t, patch] = OBJECTS[+ob.dataset.obj]; addShape(t, patch, n); return; } const b = e.target.closest('[data-add]'); if (!b) return; const k = b.dataset.add; if (k === 'text') addText(); else if (k === 'trace') openTrace(); else if (k === 'cutout') photoCutout(); else if (k === 'model') $('model-input').click(); else addShape(k); };
-  $('model-input').onchange = (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) importModel(f); };
+  $('model-input').onchange = (e) => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) importModel(fs); };
   CraftSymbols.mount($('sym-panel'), { onPick: addSymbol });
   document.querySelectorAll('.tabs .tab').forEach((t) => { t.onclick = () => showTab(t.dataset.tab); });
   function showTab(name) { document.querySelectorAll('.tabs .tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === name))); ['layers', 'add', 'symbols', 'backdrop', 'ground'].forEach((n) => { $('tab-' + n).hidden = n !== name; }); }
@@ -387,10 +388,12 @@
       sections.push({ title: '3D model', items: [
         { t: 'note', html: `From a ${m.model.format.toUpperCase()} file, kept inside this scene.` },
         { t: 'range', label: 'Fit into', value: m.model.fit || 3, min: 0.2, max: 20, step: 0.1, on: (v) => { m.model.fit = v; changed(m.id); } },
-        m.model.format === 'glb' || m.model.format === 'gltf' ? { t: 'check', label: "Use the model's own colours", value: m.model.keepOwn !== false, on: (v) => { m.model.keepOwn = v; changed(m.id); showProps(); } } : null,
+        m.model.format === 'glb' || m.model.format === 'gltf' || m.model.mtl || (m.model.format === 'ply' && m.model.colours) ? { t: 'check', label: "Use the model's own colours" + (m.model.mtl ? ' and pictures' : ''), value: m.model.keepOwn !== false, on: (v) => { m.model.keepOwn = v; changed(m.id); showProps(); } } : null,
+        m.model.format === 'ply' && m.model.points ? { t: 'range', label: 'Point size', value: m.model.pointSize || 1, min: 0.2, max: 5, step: 0.1, on: (v) => { m.model.pointSize = v; changed(m.id); } } : null,
+        m.model.format === 'ply' && m.model.points ? { t: 'note', html: 'This scan is a cloud of points (no surface). It shows and animates, but STL/OBJ need a surface: export it from the scanning app as a mesh.' } : null,
       ] });
     } else if (m.kind === 'group') sections.push({ title: 'Group', items: [{ t: 'note', html: `${E.children(m.id).length} pieces. They move, turn and size together. Ungroup to change them one by one.` }, { t: 'btns', buttons: [{ label: 'Ungroup', on: ungroup }] }] });
-    if (m.kind !== 'group' && (m.kind !== 'model' || m.model.keepOwn === false || m.model.format !== 'glb')) sections.push(materialSection(m));
+    if (m.kind !== 'group' && (m.kind !== 'model' || m.model.keepOwn === false || !(m.model.format === 'glb' || m.model.format === 'gltf' || m.model.mtl || (m.model.format === 'ply' && m.model.colours)))) sections.push(materialSection(m));
     sections.push(transformSection(m));
     render(m.name || m.kind, sections);
   }
@@ -583,7 +586,7 @@
   $('desk').addEventListener('dragover', (e) => { if ([...(e.dataTransfer.items || [])].some((i) => i.kind === 'file')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
   $('desk').addEventListener('drop', (e) => {
     const f = e.dataTransfer.files && e.dataTransfer.files[0]; if (!f || !E.doc) return; e.preventDefault();
-    if (/\.(glb|gltf|obj|stl)$/i.test(f.name)) importModel(f);
+    if ([...e.dataTransfer.files].some((g) => /\.(glb|gltf|obj|stl|ply)$/i.test(g.name))) importModel([...e.dataTransfer.files]);
     else if (/^image\//.test(f.type)) { const r = new FileReader(); r.onload = () => openTrace(null, r.result); r.readAsDataURL(f); }
     else toast('Drop a picture (to make it 3D) or a GLB, OBJ or STL model.');
   });
@@ -794,7 +797,7 @@
       { label: 'Render now (ray-traced picture)', run: () => renderNow(), disabled: () => !E.doc },
       { label: 'Render (ray-traced)…', key: 'F9', run: () => openRender(), disabled: () => !E.doc },
       { label: 'Export picture or 3D model…', key: 'Ctrl+E', run: openExport, disabled: () => !E.doc },
-      { label: 'Bring in a 3D model (GLB, OBJ, STL)…', run: () => $('model-input').click(), disabled: () => !E.doc },
+      { label: 'Bring in a 3D model or scan (GLB, OBJ + MTL, STL, PLY)…', run: () => $('model-input').click(), disabled: () => !E.doc },
     ]],
     ['Edit', [
       { label: 'Undo', key: 'Ctrl+Z', run: undo, disabled: () => hIndex <= 0 },
@@ -889,7 +892,7 @@
         ['Shapes', [{ col: [{ row: ['box', 'roundbox', 'sphere', 'cylinder', 'trafficcone', 'pyramid', 'prism'].map((k) => ({ label: E.SHAPES[k][0], icon: SH_ICON[k], iconOnly: true, run: () => addShape(k) })) }, { row: ['torus', 'washer', 'capsule', 'star', 'heart', 'plane', 'stage'].map((k) => ({ label: E.SHAPES[k][0], icon: SH_ICON[k], iconOnly: true, run: () => addShape(k) })) }] }]],
         ['Words and pictures', [C('3D text', '3D text', MI.text3d, { big: true }), { label: 'Photo cut-out', icon: MI.trace, big: true, title: 'A photo cut out round its shape and pulled out into 3D, with the photo on it and an emboss', run: () => photoCutout() }, C('Picture to 3D', 'Picture to 3D', MI.trace, { big: true, title: 'Trace a logo or drawing into colours and pull it out into 3D' }), C('Symbol or emoji', 'Symbols & emoji', MI.star, { big: true })]],
         ['Objects', [{ col: [{ row: OBJECTS.slice(0, 5).map(([n, t, patch, ic]) => ({ label: n, icon: OBJ_ICON[ic], iconOnly: true, run: () => addShape(t, patch, n) })) }, { row: OBJECTS.slice(5).map(([n, t, patch, ic]) => ({ label: n, icon: OBJ_ICON[ic], iconOnly: true, run: () => addShape(t, patch, n) })) }] }]],
-        ['Models', [C('3D model', '3D model', MI.model, { big: true, title: 'GLB, OBJ or STL' })]],
+        ['Models', [C('3D model', '3D model', MI.model, { big: true, title: 'GLB, OBJ (choose its MTL and pictures with it), STL or PLY, including scans from photogrammetry apps' })]],
       ] },
       { id: 'material', label: 'Material', hue: '#c2255c', groups: [
         ['Material', Object.entries(E.MATERIALS).map(([k, [n, p]]) => ({ label: n, icon: MI.gold.replace('class="hue"', `fill="${p.color || '#3f7fe0'}" stroke="none"`), big: false, run: () => { const m = sel(); if (!m) return toast('Click an object first.'); Object.assign(m.mat, { preset: k, ...p }); changed(m.id); showProps(); }, pressed: () => !!sel() && sel().mat && sel().mat.preset === k })).reduce((a, x, i) => { if (i % 3 === 0) a.push({ col: [] }); a[a.length - 1].col.push(x); return a; }, [])],

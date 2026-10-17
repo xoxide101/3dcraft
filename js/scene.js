@@ -1322,20 +1322,57 @@
     const buf = unb64(m.model.data), fmt = m.model.format;
     let o;
     if (fmt === 'glb' || fmt === 'gltf') o = (await new T.GLTFLoader().parseAsync(fmt === 'gltf' ? new TextDecoder().decode(buf) : buf, '')).scene;
-    else if (fmt === 'obj') { o = new T.OBJLoader().parse(new TextDecoder().decode(buf)); o.traverse((x) => { if (x.isMesh) x.material = materialsFor(m.mat, null); }); }
+    else if (fmt === 'obj') {
+      const loader = new T.OBJLoader();
+      // an OBJ brought in with its MTL and pictures (as photogrammetry apps save them) keeps its own colours and textures
+      if (m.model.mtl && m.model.keepOwn !== false) {
+        const files = m.model.textures || {}, mgr = new T.LoadingManager();
+        mgr.setURLModifier((url) => { const name = decodeURIComponent(url.split(/[\\/]/).pop()); return files[name] || files[Object.keys(files).find((k) => k.toLowerCase() === name.toLowerCase())] || url; });
+        const mtl = new T.MTLLoader(mgr).parse(m.model.mtl, ''); mtl.preload();
+        Object.values(mtl.materials).forEach((mt) => { if (mt.map) mt.map.colorSpace = T.SRGBColorSpace; mt.side = T.DoubleSide; });
+        loader.setMaterials(mtl);
+        await new Promise((r) => { mgr.onLoad = r; setTimeout(r, 1500); });
+      }
+      o = loader.parse(new TextDecoder().decode(buf));
+      if (!(m.model.mtl && m.model.keepOwn !== false)) o.traverse((x) => { if (x.isMesh) x.material = materialsFor(m.mat, null); });
+      else o.traverse((x) => { if (x.isMesh) { [].concat(x.material).forEach((mt) => { mt.needsUpdate = true; }); needs = true; } });
+    }
+    else if (fmt === 'ply') {
+      // PLY from a scan: a mesh (with faces) or a cloud of points, often with a colour on every point
+      const head = new TextDecoder().decode(buf.slice(0, Math.min(buf.byteLength, 4096))), faces = /element face\s+([1-9]\d*)/.test(head);
+      const g = new T.PLYLoader().parse(buf), own = !!g.attributes.color && m.model.keepOwn !== false;
+      if (faces) {
+        if (!g.attributes.normal) g.computeVertexNormals();
+        o = new T.Mesh(g, own ? new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, side: T.DoubleSide }) : materialsFor(m.mat, null));
+      } else {
+        g.computeBoundingBox(); const sz = g.boundingBox.getSize(new T.Vector3()), big = Math.max(sz.x, sz.y, sz.z, 1e-6), k0 = (m.model.fit || 3) / big;
+        o = new T.Points(g, new T.PointsMaterial({ size: (m.model.pointSize || 1) * 0.012 * (m.model.fit || 3) / k0, vertexColors: own, color: own ? 0xffffff : new T.Color(m.mat.color || '#bfc5cc'), sizeAttenuation: true }));
+      }
+    }
     else if (fmt === 'stl') { const g = new T.STLLoader().parse(buf); g.computeVertexNormals(); o = new T.Mesh(g, materialsFor(m.mat, null)); }
-    if (m.model.keepOwn === false && fmt !== 'stl' && fmt !== 'obj') o.traverse((x) => { if (x.isMesh) x.material = materialsFor(m.mat, null); });
+    if (m.model.keepOwn === false && (fmt === 'glb' || fmt === 'gltf')) o.traverse((x) => { if (x.isMesh) x.material = materialsFor(m.mat, null); });
     // make it a sensible size, standing on the ground, centred
     const inner = new T.Group(); inner.add(o);
     const b = new T.Box3().setFromObject(o), size = b.getSize(new T.Vector3()), k = m.model.fit ? m.model.fit / Math.max(size.x, size.y, size.z, 1e-6) : 1;
     o.scale.multiplyScalar(k); const c = b.getCenter(new T.Vector3()).multiplyScalar(k); o.position.sub(c);
     const g = new T.Group(); g.add(inner); return g;
   }
-  E.importFile = async function (file) {
-    const ext = (file.name.split('.').pop() || '').toLowerCase();
-    if (!['glb', 'gltf', 'obj', 'stl'].includes(ext)) throw new Error('3DCraft opens GLB, GLTF, OBJ and STL files.');
-    const buf = await file.arrayBuffer();
-    return { kind: 'model', name: file.name.replace(/\.[^.]+$/, ''), model: { format: ext, data: b64(buf), fit: 3, keepOwn: ext === 'glb' || ext === 'gltf' } };
+  // One model file, or an OBJ chosen together with its MTL and pictures (they are all kept inside the scene)
+  E.importFile = async function (fileOrList) {
+    const files = [...(fileOrList.length != null ? fileOrList : [fileOrList])], ext = (f) => (f.name.split('.').pop() || '').toLowerCase();
+    const file = files.find((f) => ['glb', 'gltf', 'obj', 'stl', 'ply'].includes(ext(f)));
+    if (!file) throw new Error('3DCraft opens GLB, GLTF, OBJ (with its MTL and pictures), STL and PLY files.');
+    const fmt = ext(file), buf = await file.arrayBuffer();
+    const model = { format: fmt, data: b64(buf), fit: 3, keepOwn: fmt !== 'stl' && fmt !== 'obj' };
+    if (fmt === 'obj') {
+      const mtlFile = files.find((f) => ext(f) === 'mtl');
+      if (mtlFile) {
+        model.mtl = await mtlFile.text(); model.keepOwn = true; model.textures = {};
+        for (const f of files.filter((f) => /^image\//.test(f.type) || /\.(jpe?g|png|webp|bmp)$/i.test(f.name))) model.textures[f.name] = await new Promise((r) => { const rd = new FileReader(); rd.onload = () => r(rd.result); rd.readAsDataURL(f); });
+      }
+    }
+    if (fmt === 'ply') { const head = new TextDecoder().decode(buf.slice(0, Math.min(buf.byteLength, 4096))); model.points = !/element face\s+[1-9]/.test(head); model.colours = /property\s+\w+\s+(red|r)\b/.test(head); }
+    return { kind: 'model', name: file.name.replace(/\.[^.]+$/, ''), model };
   };
   // Export the objects (not the ground or helpers) as GLB, OBJ or STL
   E.exportModel = async function (fmt, onlySelected) {

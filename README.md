@@ -35,7 +35,7 @@ Your scene autosaves in the browser; **Save** keeps a `.3dcraft.json` file (pict
 - **Picture to 3D:** drop a logo or drawing on the view (or Insert › Picture to 3D). It is traced into clean outlines in a few colours (**Best match** finds how many, or choose 2 to 16), with detail and smoothing, and the background left out; each colour is pulled out into 3D, flat or **stepped** (each colour at a different height), in the picture's own colours or a material of your choice.
 - **Photo cut-out:** any picture or photo cut out round its shape (by its see-through parts, or a plain background removed with a tolerance) and made into a solid with the photo on the front and back, a thickness, rounded edges and an emboss (Relief). Animate it, render it, or save it as GLB, OBJ or STL.
 - **3D symbols and emoji:** the Symbols tab puts dingbats (Noto Sans Symbols 2) and emoji (Noto Emoji) into the scene as solid 3D shapes.
-- **3D models in:** GLB, GLTF, OBJ and STL, kept inside the scene file.
+- **3D models and scans in:** GLB, GLTF, OBJ, STL and **PLY**, kept inside the scene file. Scans from photogrammetry apps come in with their colours: a PLY mesh or point cloud with a colour on every point, or an OBJ chosen (or dropped) together with its **MTL and texture pictures**. Then size, light, animate and render them, or save them again as STL or OBJ for printing.
 
 ![Picture to 3D: a logo traced into colours](docs/picture-to-3d.png)
 
@@ -139,7 +139,7 @@ Open-source libraries it uses are listed with their licences in Credits.
 
 ## Credits
 
-- [three.js](https://threejs.org) 0.186 (MIT) for 3D, with its add-ons for controls, loaders and exporters.
+- [three.js](https://threejs.org) 0.186 (MIT) for 3D, with its add-ons for controls, loaders (GLTF, OBJ, MTL, STL, PLY) and exporters.
 - [three-gpu-pathtracer](https://github.com/gkjohnson/three-gpu-pathtracer) and [three-mesh-bvh](https://github.com/gkjohnson/three-mesh-bvh) (MIT) for ray-traced renders.
 - [opentype.js](https://opentype.js.org) (MIT) for 3D text from fonts.
 - [gifenc](https://github.com/mattdesl/gifenc), [webm-muxer](https://github.com/Vanilagy/webm-muxer) and [mp4-muxer](https://github.com/Vanilagy/mp4-muxer) (MIT) for animated GIF, WebM and MP4.
