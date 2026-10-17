@@ -6,6 +6,7 @@
      cutout(src)             → { W, H, a: Uint8Array 0–255 (255 = keep) }      U²-Net (Apache-2.0; U²-Netp without a graphics card),
                                                                                 or BEN2 (MIT) for the best quality (slower)
      pick(src, pts)          → { W, H, a }  pts = [[u, v, 1 keep | 0 not]]     SlimSAM (Apache-2.0)
+     recognise(src, labels)  → [{ label, score }] best first                   CLIP ViT-B/32 (MIT), on the processor
    The models come from huggingface.co; the library (Transformers.js, Apache-2.0) is lib/craft-ai-libs.js. */
 (function () {
   'use strict';
@@ -14,9 +15,10 @@
     depth: { id: 'onnx-community/depth-anything-v2-small', name: 'Depth from one photo', what: 'Works out how near each part of a photo is, for Photos to 3D and relief.', mb: { gpu: 50, cpu: 27 }, licence: 'Apache-2.0' },
     pick: { id: 'Xenova/slimsam-77-uniform', name: 'Pick an object', what: 'Click an object in a picture and it is outlined for you, to keep or take out.', mb: { gpu: 21, cpu: 14 }, licence: 'Apache-2.0' },
     cutout: { id: 'BritishWerewolf/U-2-Net', cpuId: 'BritishWerewolf/U-2-Netp', file: 'onnx/model.onnx', name: 'Background cut-out', what: 'Finds the main subject of a photo and takes the background away, even on busy backgrounds. (About 4 seconds a picture; on a basic computer a small, quicker version is used.)', mb: { gpu: 176, cpu: 176 }, licence: 'Apache-2.0' },
+    recog: { id: 'Xenova/clip-vit-base-patch32', name: 'Recognise objects', what: 'Says what a picture shows (a cup, a toy brick, a figure, a logo…), so the right kind of 3D shape is suggested before any work starts.', mb: { gpu: 154, cpu: 154 }, licence: 'MIT' },
     best: { id: 'onnx-community/BEN2-ONNX', name: 'Best-quality cut-out', what: 'Finer edges (hair, fur) for the background cut-out, but slow: about 20 seconds a picture, and only with a graphics card.', mb: { gpu: 219, cpu: 219 }, licence: 'MIT', gpuOnly: true },
   };
-  const DEFAULTS = { on: true, gpu: null, use: { depth: true, pick: true, cutout: true, best: false } };
+  const DEFAULTS = { on: true, gpu: null, use: { depth: true, pick: true, cutout: true, recog: true, best: false } };
   let settings = DEFAULTS;
   try { settings = { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; settings.use = { ...DEFAULTS.use, ...(settings.use || {}) }; } catch (e) { /* ignore */ }
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch (e) { /* ignore */ } };
@@ -101,7 +103,7 @@
   function ready(k) {
     if (!settings.on) return Promise.reject(new Error('AI helpers are switched off (AI helpers… to switch them on).'));
     if (!settings.use[k] && k !== 'best') return Promise.reject(new Error(`“${MODELS[k].name}” is switched off in AI helpers.`));
-    const key = k + ':' + (k === 'cutout' ? cutoutId() : deviceFor(k));
+    const key = k + ':' + (k === 'cutout' ? cutoutId() : k === 'recog' ? 'wasm' : deviceFor(k));
     if (!loaded[key]) loaded[key] = (async () => {
       await probed; const T = await lib(), m = MODELS[k], files = {};
       const dv = deviceFor(k), opts = { device: dv, dtype: dv === 'webgpu' ? (found.f16 || k === 'cutout' ? 'fp16' : 'fp32') : 'q8', progress_callback: (e) => {
@@ -111,6 +113,7 @@
       try {
         let r;
         if (k === 'depth') r = await T.pipeline('depth-estimation', m.id, opts);
+        else if (k === 'recog') r = await T.pipeline('zero-shot-image-classification', m.id, { ...opts, device: 'wasm', dtype: 'q8' });
         else if (k === 'best') r = await T.pipeline('background-removal', m.id, { ...opts, dtype: 'fp16' });
         else if (k === 'cutout') {
           // U²-Net runs on the processor (the graphics-card runtime cannot run one of its steps yet): the full model on a
@@ -178,6 +181,13 @@
       const ch = im.channels || 4, a = new Uint8Array(im.width * im.height); for (let i = 0; i < a.length; i++) a[i] = im.data[i * ch + ch - 1];
       if (im.width === c.width && im.height === c.height) return { W: c.width, H: c.height, a };
       const f = resample(Float32Array.from(a), im.width, im.height, c.width, c.height); return { W: c.width, H: c.height, a: Uint8Array.from(f) };
+    })());
+  }
+  function recognise(src, labels) {
+    return remember('recog:' + keyOf(src) + labels.join('|'), (async () => {
+      const T = await lib(), c = await canvasOf(src, 448), raw0 = await rawOf(T, c);
+      const out = await run('recog', (pipe) => pipe(raw0, labels, { hypothesis_template: 'a picture of {}' }));
+      return out.map((x) => ({ label: x.label, score: x.score }));
     })());
   }
   // the picture's embedding is worked out once; each set of clicks then only runs the small decoder
@@ -255,5 +265,5 @@
     };
   }
 
-  window.CRAFTAI = { sizeOf, probe: () => probed, found: () => found, settings: () => settings, enabled, ready, depth, cutout, pick, onProgress, downloaded, forget, openSettings, MODELS };
+  window.CRAFTAI = { sizeOf, recognise, probe: () => probed, found: () => found, settings: () => settings, enabled, ready, depth, cutout, pick, onProgress, downloaded, forget, openSettings, MODELS };
 })();

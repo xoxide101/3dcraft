@@ -740,6 +740,38 @@
     $('p3-hollow-f').hidden = !aiOn('depth');
     [['p3-tol', (v) => v], ['p3-puff', (v) => v + '%'], ['p3-shade', (v) => v + '%'], ['p3-smooth', (v) => v], ['p3-hollow', (v) => (+v ? v + '%' : 'off')]].forEach(([id, f]) => { $(id + '-v').textContent = f($(id).value); });
   }
+  // What is it? Before any work, the picture is recognised (CLIP, in the browser) and the kind of shape that suits it is
+  // suggested, with what to expect from it
+  const KINDS = [['coffee cup', 'round'], ['mug', 'round'], ['vase', 'round'], ['bottle', 'round'], ['drinking glass', 'round'], ['bowl', 'round'], ['jar', 'round'], ['tin can', 'round'], ['candle', 'round'], ['trophy', 'round'], ['chess piece', 'round'], ['teapot', 'round'], ['flower pot', 'round'], ['lamp', 'round'], ['ball', 'round'],
+    ['toy brick', 'box'], ['box', 'box'], ['book', 'box'], ['phone', 'box'], ['house', 'box'], ['building', 'box'], ['chest', 'box'],
+    ['person', 'figure'], ['cartoon character', 'figure'], ['animal', 'figure'], ['toy figure', 'figure'], ['statue', 'figure'], ['sculpture', 'figure'], ['hands', 'figure'], ['plant', 'figure'], ['car', 'figure'], ['food', 'figure'],
+    ['logo', 'flat'], ['sign', 'flat'], ['emoji', 'flat'], ['icon', 'flat'], ['writing', 'flat'], ['symbol', 'flat'], ['badge', 'flat'], ['coin', 'flat']];
+  const EXPECT = {
+    round: ['Round (spun, like a cup)', 'It is spun into a real round shape: solid or hollow, with the picture wrapped round the front. Best from the side, roughly level; a handle or spout is kept as a rounded piece.'],
+    box: ['AI depth', 'Boxy things get their own type later; for now AI depth shapes the front from the picture, and the back is a mirror of it. Corners will be softer than the real thing.'],
+    figure: ['AI depth', 'Figures, animals and sculptures become a rounded relief from AI depth, with the back a mirror of the front: good for display and printing, but not a full sculpture. Turntable photos (all the way round) give the most real shape.'],
+    flat: ['Picture to 3D', 'Flat things are best traced into clean outlines and colours and given a thickness (Picture to 3D): signs, logos, badges, keyrings, cookie cutters.'],
+  };
+  async function p3Suggest(run) {
+    const el = $('p3-suggest'), src = p3Photos[0];
+    el.hidden = !(src && p3Mode === 'one' && aiOn('recog')); if (el.hidden) return;
+    const have = await CRAFTAI.downloaded();
+    if (!run && !have.recog) { el.innerHTML = `<div class="row"><b>What is it?</b><span class="hint">AI can recognise the picture and suggest the best kind of shape.</span><button class="btn sm" type="button" data-sg="go">Recognise it (about ${CRAFTAI.sizeOf('recog')} MB, once)</button></div>`; return; }
+    el.innerHTML = '<span class="hint">Recognising the picture…</span>';
+    try {
+      const res = await CRAFTAI.recognise(src, KINDS.map((k) => k[0])); if (src !== p3Photos[0]) return;
+      const best = res[0], kind = KINDS.find((k) => k[0] === best.label)[1], [use, what] = EXPECT[kind];
+      const others = res.slice(1, 3).map((x) => `${x.label} ${Math.round(x.score * 100)}%`).join(', ');
+      el.innerHTML = `<div><b>${best.score < 0.3 ? 'It might be' : 'It looks like'} ${/^[aeiou]/.test(best.label) ? 'an' : 'a'} ${esc(best.label)}</b> <span class="hint">(${Math.round(best.score * 100)}% sure; also ${esc(others)})</span></div><div>${what}</div><div class="row"><button class="btn sm primary" type="button" data-sg="${kind}">Use ${use}</button><button class="btn sm" type="button" data-sg="no">No thanks</button></div>`;
+    } catch (e) { el.innerHTML = `<span class="hint">${esc(e.message)}</span>`; }
+  }
+  $('p3-suggest').onclick = (e) => {
+    const b = e.target.closest('[data-sg]'); if (!b) return; const k = b.dataset.sg;
+    if (k === 'go') return p3Suggest(true);
+    if (k === 'no') { $('p3-suggest').hidden = true; return; }
+    if (k === 'flat') { $('p3dlg').hidden = true; openTrace(null, p3Photos[0]); return; }
+    p3Shape = k === 'round' ? 'round' : aiOn('depth') ? 'depth' : 'puff'; $('p3-suggest').hidden = true; p3Sync();
+  };
   const openPhotos3D = (mode) => { if (!E.doc) return; if (mode) p3Mode = mode; $('p3-status').textContent = ''; p3Sync(); p3Preview(); bgChoices('p3', p3Photos[0]); $('p3dlg').hidden = false; };
   $('p3-mode').onclick = (e) => { const b = e.target.closest('[data-p3]'); if (b) { p3Mode = b.dataset.p3; p3Sync(); } };
   $('p3-dir').onclick = (e) => { const b = e.target.closest('[data-dir]'); if (b) { p3Dir = b.dataset.dir; p3Sync(); } };
@@ -761,7 +793,7 @@
     const files = [...e.target.files].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
     bgState.p3.actions = [];
     p3Photos = await Promise.all(files.map((f) => new Promise((r) => { const rd = new FileReader(); rd.onload = () => r(rd.result); rd.readAsDataURL(f); })));
-    p3Sync(); p3Preview(); bgChoices('p3', p3Photos[0]);
+    p3Sync(); p3Preview(); bgChoices('p3', p3Photos[0]); p3Suggest();
   };
   $('p3-cancel').onclick = () => { $('p3dlg').hidden = true; };
   // an AI model being fetched or started: shown where the work was asked for
