@@ -29,10 +29,10 @@
   }
 
   // Carve: views[i] seen from angle a_i round the up axis. Orthographic: image x is the sideways position, image y is height.
-  function carve(views, res, dir) {
+  function carve(views, res, dir, axisAt) {
     const N = views.length, step = (Math.PI * 2) / N * (dir === 'cw' ? -1 : 1);
     // a common axis (the turntable's middle) and scale: all photos come from the same still camera
-    const axis = views.reduce((s, v) => s + (v.x0 + v.x1) / 2, 0) / N, top = Math.min(...views.map((v) => v.y0)), bot = Math.max(...views.map((v) => v.y1));
+    const axis = axisAt ?? views.reduce((s, v) => s + (v.x0 + v.x1) / 2, 0) / N, top = Math.min(...views.map((v) => v.y0)), bot = Math.max(...views.map((v) => v.y1));
     const half = Math.max(...views.map((v) => Math.max(axis - v.x0, v.x1 - axis))) + 2, height = bot - top + 4;
     const big = Math.max(half * 2, height), cell = big / res, nx = Math.ceil((half * 2) / cell) + 2, ny = Math.ceil(height / cell) + 2, nz = nx;
     const grid = new Uint8Array(nx * ny * nz).fill(1), id = (i, j, k) => (k * ny + j) * nx + i;
@@ -95,6 +95,29 @@
     return removed;
   }
 
+  // Checking the result against what was expected: how well the carved shape seen from each photo's side covers that
+  // photo's outline (1 = exactly), and how round it is across (each row's filled cells against the ellipse round them;
+  // 1 = round, about 0.64 for a diamond, 1.27 for a square)
+  function check(c, views) {
+    const { grid, nx, ny, nz, cell, axis, bot, cos, sin } = c, id = (i, j, k) => (k * ny + j) * nx + i, r = Math.max(1, Math.ceil(cell / 2));
+    const match = views.map((v, q) => {
+      const seen = new Uint8Array(v.W * v.H);
+      for (let k = 1; k < nz - 1; k++) for (let j = 1; j < ny - 1; j++) for (let i = 1; i < nx - 1; i++) {
+        if (!grid[id(i, j, k)]) continue; const X = (i - nx / 2 + 0.5) * cell, Z = (k - nz / 2 + 0.5) * cell, px = Math.round(axis + X * cos[q] + Z * sin[q]), py = Math.round(bot + 2 - (j + 0.5) * cell);
+        for (let dy = -r; dy < r; dy++) for (let dx = -r; dx < r; dx++) { const x = px + dx, y = py + dy; if (x >= 0 && y >= 0 && x < v.W && y < v.H) seen[y * v.W + x] = 1; }
+      }
+      let both = 0, either = 0; for (let i = 0; i < seen.length; i++) { if (seen[i] && v.mask[i]) both++; if (seen[i] || v.mask[i]) either++; }
+      return either ? both / either : 0;
+    });
+    let sum = 0, n = 0;
+    for (let j = 1; j < ny - 1; j++) {
+      let cnt = 0, i0 = nx, i1 = -1, k0 = nz, k1 = -1;
+      for (let k = 1; k < nz - 1; k++) for (let i = 1; i < nx - 1; i++) if (grid[id(i, j, k)]) { cnt++; if (i < i0) i0 = i; if (i > i1) i1 = i; if (k < k0) k0 = k; if (k > k1) k1 = k; }
+      if (cnt < 12) continue; const ell = Math.PI * ((i1 - i0 + 1) / 2) * ((k1 - k0 + 1) / 2); sum += cnt / ell; n++;
+    }
+    return { match, roundness: n ? sum / n : 1 };
+  }
+
   // Surface nets: a point inside each cell where the inside and outside meet, joined into four-sided faces; a light
   // smoothing of the field first rounds off the blocky voxel steps
   function mesh(c, smooth) {
@@ -126,14 +149,14 @@
   }
 
   // colours: each point takes its colour from the photo that faces it most squarely
-  function colour(c, views, pos, tri) {
+  function colour(c, views, pos, tri, only) {
     const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setIndex(tri); g.computeVertexNormals();
     const nrm = g.attributes.normal, N = views.length, cols = new Uint8Array(pos.length);
     for (let p = 0; p < pos.length / 3; p++) {
       const X = (pos[p * 3] - c.nx / 2) * c.cell, Y = pos[p * 3 + 1], Z = (pos[p * 3 + 2] - c.nz / 2) * c.cell, nX = nrm.getX(p), nZ = nrm.getZ(p);
       // view q's sideways axis is (cos, 0, sin), so its camera sits towards (-sin, 0, cos): pick the view facing the point most
       let best = 0, bestDot = -2;
-      for (let q = 0; q < N; q++) { const d = nZ * c.cos[q] - nX * c.sin[q]; if (d > bestDot) { bestDot = d; best = q; } }
+      for (let q = 0; q < N; q++) { if (only && !only.includes(q)) continue; const d = nZ * c.cos[q] - nX * c.sin[q]; if (d > bestDot) { bestDot = d; best = q; } }
       const v = views[best], px = Math.round(c.axis + X * c.cos[best] + Z * c.sin[best]), py = Math.round(c.bot + 2 - Y * c.cell);
       const o = (Math.max(0, Math.min(v.H - 1, py)) * v.W + Math.max(0, Math.min(v.W - 1, px))) * 4;
       cols[p * 3] = v.rgb[o]; cols[p * 3 + 1] = v.rgb[o + 1]; cols[p * 3 + 2] = v.rgb[o + 2];
@@ -160,7 +183,7 @@
     const views = []; for (const ph of photos) views.push(await silhouetteOf(ph, 480, o));
     if (views.some((v) => v.n < 50)) throw new Error('In some photos nothing stood out from the background: use a plain background, or change the tolerance.');
     onStep('Carving the shape from every angle…'); await new Promise((r) => setTimeout(r, 20));
-    const c = carve(views, o.detail || 96, o.dir);
+    const c = carve(views, o.detail || 96, o.dir, o.axis);
     if (o.depthHollows && window.CRAFTAI && CRAFTAI.enabled('depth')) {
       const depths = [];
       for (let q = 0; q < photos.length; q++) { onStep(`Working out the depth in each photo (AI): ${q + 1} of ${photos.length}…`); depths.push(await CRAFTAI.depth(photos[q])); }
@@ -171,8 +194,8 @@
     const { pos, tri } = mesh(c, o.smooth ?? 2);
     if (!tri.length) throw new Error('Nothing was left after carving: are the photos in order, all the way round, with the camera kept still?');
     onStep('Painting it with the photos…'); await new Promise((r) => setTimeout(r, 20));
-    const cols = colour(c, views, pos, tri);
-    return { ply: toPLY(pos, cols, tri, c), triangles: tri.length / 3 };
+    const cols = colour(c, views, pos, tri, o.paintFrom);
+    return { ply: toPLY(pos, cols, tri, c), triangles: tri.length / 3, check: check(c, views) };
   }
   // One photo: a guess at the shape by puffing the silhouette up like a balloon (thick in the middle, round to thin edges,
   // from each point's distance to the edge), plus some of the photo's light and dark as bumps if asked. The back is the
@@ -313,5 +336,109 @@
     onStep('Painting it…'); await new Promise((r) => setTimeout(r, 20));
     return { ply: toPLY(pos, cols, tri, { nx: 0, nz: 0, cell: 1 }), triangles: tri.length / 3 };
   }
-  window.PHOTO3D = { build, build1, buildRound };
+  // Four views from one picture: the picture is the front; the back, left and right are worked out from it (filled in),
+  // then all four are carved like turntable photos taken a quarter turn apart. Any view can be replaced by a real one:
+  // the more you give it, the closer the result.
+  //  - thickness at each point: AI depth when it is on (near parts thicker), eased to nothing at the outline, up to
+  //    `thick` × the width; the back reaches 85 % as far as the front
+  //  - back: the front mirrored, the same picture on both sides (o.back 'same'), or softened (blurred, o.back 'soft') so
+  //    a face or details on the front are not repeated
+  //  - sides: for each row, the nearest part of the object to that side, in its own colours
+  // All views share one size and one centre line (axis), so they line up when carved.
+  const rowColours = (D, W, H, inside) => {
+    const out = [];
+    for (let y = 0; y < H; y++) {
+      const bins = new Map(); let best = null;
+      for (let x = 0; x < W; x++) { const i = (y * W + x) * 4; if (!inside(x, y)) continue; const dark = 0.299 * D[i] + 0.587 * D[i + 1] + 0.114 * D[i + 2] < 55, k = (dark ? 1 << 15 : 0) | (D[i] >> 5) << 6 | (D[i + 1] >> 5) << 3 | (D[i + 2] >> 5); const b = bins.get(k) || [0, 0, 0, 0, dark]; b[0] += D[i]; b[1] += D[i + 1]; b[2] += D[i + 2]; b[3]++; bins.set(k, b); }
+      bins.forEach((b) => { if (!best || (best[4] && !b[4]) || (b[4] === best[4] && b[3] > best[3])) best = b; });
+      out.push(best ? [best[0] / best[3], best[1] / best[3], best[2] / best[3]] : null);
+    }
+    // rows with nothing take the nearest row's colour
+    for (let y = 0; y < H; y++) if (!out[y]) { for (let d = 1; d < H; d++) { const c = out[y - d] || out[y + d]; if (c) { out[y] = c; break; } } if (!out[y]) out[y] = [180, 180, 180]; }
+    return out;
+  };
+  // o.kind: what the object is expected to be ('round' | 'figure' | 'box' | …, from What is it?); round things get
+  // sides with the same outline as the front, and are carved from 16 angles so they come out round
+  async function views4(photo, o = {}, onStep = () => {}) {
+    onStep('Cutting out the picture…'); await new Promise((r) => setTimeout(r, 20));
+    const cut = await BGREMOVE.remove(photo, { ...(o.bg || { mode: 'auto', tolerance: o.tolerance ?? 40 }), max: 1200 });
+    const src = cut.canvas, sd = src.getContext('2d').getImageData(0, 0, src.width, src.height).data;
+    let x0 = src.width, x1 = -1, y0 = src.height, y1 = -1;
+    for (let y = 0; y < src.height; y++) for (let x = 0; x < src.width; x++) if (sd[(y * src.width + x) * 4 + 3] > 128) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    if (x1 < 0) throw new Error('Nothing stood out from the background: use a picture on a plain background, or change the tolerance.');
+    const k = Math.min(380 / (y1 - y0 + 1), 300 / (x1 - x0 + 1)), fw = Math.max(4, Math.round((x1 - x0 + 1) * k)), fh = Math.max(4, Math.round((y1 - y0 + 1) * k));
+    const F = document.createElement('canvas'); F.width = fw; F.height = fh; F.getContext('2d').drawImage(src, x0, y0, x1 - x0 + 1, y1 - y0 + 1, 0, 0, fw, fh);
+    const D = F.getContext('2d').getImageData(0, 0, fw, fh).data, inside = (x, y) => D[(y * fw + x) * 4 + 3] > 128;
+    // distance to the outline (city-block, two passes), for easing the thickness off at the edge
+    const dist = new Float32Array(fw * fh);
+    for (let i = 0; i < fw * fh; i++) dist[i] = D[i * 4 + 3] > 128 ? 1e9 : 0;
+    for (let y = 0; y < fh; y++) for (let x = 0; x < fw; x++) { const q = y * fw + x; if (!dist[q]) continue; let m = dist[q]; if (x > 0) m = Math.min(m, dist[q - 1] + 1); if (y > 0) m = Math.min(m, dist[q - fw] + 1); if (x === 0 || y === 0) m = 1; dist[q] = m; }
+    for (let y = fh - 1; y >= 0; y--) for (let x = fw - 1; x >= 0; x--) { const q = y * fw + x; if (!dist[q]) continue; let m = dist[q]; if (x < fw - 1) m = Math.min(m, dist[q + 1] + 1); if (y < fh - 1) m = Math.min(m, dist[q + fw] + 1); if (x === fw - 1 || y === fh - 1) m = 1; dist[q] = m; }
+    let maxD = 1; for (let i = 0; i < dist.length; i++) if (dist[i] > maxD) maxD = dist[i];
+    let near = null;
+    if (o.kind !== 'round' && o.depth !== false && window.CRAFTAI && CRAFTAI.enabled('depth')) {
+      onStep('Working out the depth (AI)…');
+      const dm = await CRAFTAI.depth(F.toDataURL('image/png')); near = new Float32Array(fw * fh); let lo = Infinity, hi = -Infinity;
+      for (let y = 0; y < fh; y++) for (let x = 0; x < fw; x++) { if (!inside(x, y)) continue; const z = dm.d[Math.min(dm.H - 1, Math.floor(((y + 0.5) * dm.H) / fh)) * dm.W + Math.min(dm.W - 1, Math.floor(((x + 0.5) * dm.W) / fw))]; near[y * fw + x] = z; if (z < lo) lo = z; if (z > hi) hi = z; }
+      const kk = 1 / Math.max(1e-6, hi - lo); for (let i = 0; i < near.length; i++) near[i] = (near[i] - lo) * kk;
+    }
+    onStep('Filling in the other sides…'); await new Promise((r) => setTimeout(r, 20));
+    const T = fw * (o.thick ?? 0.3), t = new Float32Array(fw * fh); let Z = o.kind === 'round' ? fw / 2 : 1;
+    for (let q = 0; q < fw * fh; q++) { if (D[q * 4 + 3] <= 128) continue; t[q] = T * (near ? 0.3 + 0.7 * near[q] : 1) * Math.sqrt(Math.min(1, dist[q] / Math.max(2, maxD * 0.3))); Z = Math.max(Z, t[q]); }
+    const Wc = Math.max(fw, Math.ceil(Z * 2)) + 10, Hc = fh + 10, A = Wc / 2, ox = Math.round(A - fw / 2), oy = 5;
+    const back = rowColours(D, fw, fh, inside);
+    // the softened picture: colours and texture without the details
+    const Bc = document.createElement('canvas'); Bc.width = fw; Bc.height = fh; const bx0 = Bc.getContext('2d'); bx0.filter = `blur(${Math.max(3, Math.round(fw * 0.04))}px)`; bx0.drawImage(F, 0, 0);
+    const BD = o.back === 'soft' ? bx0.getImageData(0, 0, fw, fh).data : D, soft = (x, y) => { const i = (y * fw + x) * 4; return BD[i + 3] > 20 ? [BD[i], BD[i + 1], BD[i + 2]] : back[y]; };
+    const sheet = () => { const c = document.createElement('canvas'); c.width = Wc; c.height = Hc; const x = c.getContext('2d'); return [c, x, x.createImageData(Wc, Hc)]; };
+    const put = (img, px, py, col) => { if (px < 0 || px >= Wc) return; const i = ((py + oy) * Wc + px) * 4; img.data[i] = col[0]; img.data[i + 1] = col[1]; img.data[i + 2] = col[2]; img.data[i + 3] = 255; };
+    // front: the picture itself
+    const [fc, fx] = sheet(); fx.drawImage(F, ox, oy);
+    // back: mirrored outline in each row's main colour, a little darker
+    const [bc, bx, bi] = sheet();
+    for (let y = 0; y < fh; y++) for (let x = 0; x < fw; x++) if (inside(x, y)) { const c = soft(x, y), dim = o.back === 'soft' ? 0.92 : 1; put(bi, Math.round(2 * A - (ox + x) - 1), y, [c[0] * dim, c[1] * dim, c[2] * dim]); }
+    bx.putImageData(bi, 0, 0);
+    // sides: for each row, the part of the object nearest that side wins each spot
+    const side = (fromLeft) => {
+      const [c, x, img] = sheet(), done = new Uint8Array(Wc * Hc);
+      for (let y = 0; y < fh; y++) for (let s = 0; s < fw; s++) {
+        const xx = fromLeft ? s : fw - 1 - s, q = y * fw + xx; if (!t[q]) continue;
+        const inw = Math.max(2, Math.round(fw * 0.03)), xi = Math.max(0, Math.min(fw - 1, xx + (fromLeft ? inw : -inw))), qi = inside(xi, y) ? y * fw + xi : q;
+        const zf = Math.round(t[q]), zb = Math.round(t[q] * 0.85), i = qi * 4;
+        for (let z = -zb; z <= zf; z++) {
+          const px = Math.round(fromLeft ? A + z : A - z), o2 = (y + oy) * Wc + px; if (px < 0 || px >= Wc || done[o2]) continue; done[o2] = 1;
+          const shade = 0.8 + 0.2 * (1 - Math.abs(z) / Math.max(1, t[q])), sc = soft(xi, y), col = z >= 0 ? [D[i] * shade, D[i + 1] * shade, D[i + 2] * shade] : [sc[0] * 0.88, sc[1] * 0.88, sc[2] * 0.88];
+          put(img, px, y, col);
+        }
+      }
+      x.putImageData(img, 0, 0); return c;
+    };
+    // a round thing looks the same from every side: its sides are the front's outline in each band's own colour (so a
+    // face on the front is not repeated all the way round)
+    const turn = () => { const [c, x, img] = sheet(); for (let y = 0; y < fh; y++) for (let xx = 0; xx < fw; xx++) if (inside(xx, y)) put(img, ox + xx, y, back[y]); x.putImageData(img, 0, 0); return c; };
+    if (o.kind === 'round') return { front: fc, left: turn(), back: bc, right: turn(), axis: A, width: Wc, height: Hc, frontW: fw, frontH: fh, kind: 'round' };
+    return { front: fc, left: side(true), back: bc, right: side(false), axis: A, width: Wc, height: Hc, frontW: fw, frontH: fh, kind: o.kind || '' };
+  }
+  // A view of your own (a photo or drawing of that side): cut out, then scaled to the front's height and centred on the
+  // same line, so it lines up with the others
+  async function fitView(src, info, o = {}) {
+    const cut = await BGREMOVE.remove(src, { ...(o.bg || { mode: 'auto', tolerance: o.tolerance ?? 40 }), max: 1200 });
+    const c0 = cut.canvas, d = c0.getContext('2d').getImageData(0, 0, c0.width, c0.height).data;
+    let x0 = c0.width, x1 = -1, y0 = c0.height, y1 = -1;
+    for (let y = 0; y < c0.height; y++) for (let x = 0; x < c0.width; x++) if (d[(y * c0.width + x) * 4 + 3] > 128) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    if (x1 < 0) throw new Error('Nothing stood out from the background in that picture.');
+    const k = info.frontH / (y1 - y0 + 1), w = Math.min(info.width - 2, Math.round((x1 - x0 + 1) * k));
+    const c = document.createElement('canvas'); c.width = info.width; c.height = info.height;
+    c.getContext('2d').drawImage(c0, x0, y0, x1 - x0 + 1, y1 - y0 + 1, Math.round(info.axis - w / 2), 5, w, info.frontH);
+    return c;
+  }
+  // build from the four views (front, left, back, right), a quarter turn apart
+  function buildViews(v, o = {}, onStep = () => {}) {
+    let photos = [v.front, v.left, v.back, v.right].map((c) => c.toDataURL('image/png'));
+    // round: 16 views, the in-between ones the side outline, so the shape comes out round instead of square across
+    const round = v.kind === 'round';
+    if (round) photos = Array.from({ length: 16 }, (_, q) => (q % 4 === 0 ? photos[q / 4] : photos[1]));
+    return build(photos, { ...o, paintFrom: round ? [0, 4, 8, 12] : null, bg: { mode: 'off', actions: [] }, dir: 'ccw', axis: v.axis, detail: o.detail || 128, smooth: o.smooth ?? 2 }, onStep);
+  }
+  window.PHOTO3D = { build, build1, buildRound, views4, fitView, buildViews };
 })();

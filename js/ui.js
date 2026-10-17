@@ -714,7 +714,8 @@
 
   // ------------------------------------------------------------------ photos to 3D (one photo guessed, or a turntable set)
   let p3Mode = 'one', p3Dir = 'ccw', p3Edge = 'round', p3Shape = 'puff', p3Photos = [];
-  const p3Tips = { one: 'One photo of something on a plain background. Its outline is puffed up like a balloon into a rounded 3D shape, painted with the photo: a guess, good for characters, animals, fruit and logos.',
+  const p3Tips = { views: 'One picture is the front; the back, left and right are filled in from it (AI depth for how thick each part is), shown below so you can see what will be built. Give your own pictures of any side for a closer result: the more you give, the closer it gets. What is it? sets what to expect (a cup comes out round).',
+    one: 'One photo of something on a plain background. Its outline is puffed up like a balloon into a rounded 3D shape, painted with the photo: a guess, good for characters, animals, fruit and logos.',
     turn: 'Photos of an object turned on a turntable (or a lazy Susan) in front of a plain background, the camera kept still: 12 to 36, evenly all the way round, chosen in the order taken. The shape is carved from every angle and painted with the photos. Deep hollows cannot be seen from outside.' };
   async function p3Preview() {
     const el = $('p3-prev'); el.hidden = !p3Photos.length; if (!p3Photos.length) return;
@@ -732,8 +733,9 @@
     ['p3-edge', 'p3-reach', 'p3-puff', 'p3-shade', 'p3-flat'].forEach((id) => { const f = $(id).closest('.field') || $(id).closest('label'); if (f) f.hidden = round; });
     document.querySelectorAll('#p3-shape [data-shape]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.shape === p3Shape)));
     $('p3-reach-v').textContent = +$('p3-reach').value >= 100 ? 'whole shape' : $('p3-reach').value + '% (from the outside)';
-    $('p3-tip').textContent = p3Tips[p3Mode]; $('p3-one-opts').hidden = p3Mode !== 'one'; $('p3-turn-opts').hidden = p3Mode !== 'turn';
-    $('p3-pick').textContent = p3Mode === 'one' ? 'Choose a photo…' : 'Choose the photos…';
+    $('p3-tip').textContent = p3Tips[p3Mode]; $('p3-one-opts').hidden = p3Mode !== 'one'; $('p3-turn-opts').hidden = p3Mode !== 'turn'; $('p3-views-opts').hidden = p3Mode !== 'views';
+    document.querySelectorAll('#p3-backstyle [data-back]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.back === p3Back))); $('p3-thick-v').textContent = $('p3-thick').value + '%';
+    $('p3-pick').textContent = p3Mode !== 'turn' ? (p3Mode === 'views' ? 'Choose the front picture…' : 'Choose a photo…') : 'Choose the photos…';
     $('p3-count').textContent = p3Photos.length ? `${p3Photos.length} photo${p3Photos.length > 1 ? 's' : ''}` + (p3Mode === 'one' && p3Photos.length > 1 ? ' (the first is used)' : '') : 'No photos yet.';
     $('p3-thumbs').innerHTML = p3Photos.slice(0, 48).map((s) => `<img alt="" src="${s}">`).join('');
     $('p3-go').disabled = !p3Photos.length || (p3Mode === 'turn' && p3Photos.length < 4);
@@ -754,13 +756,13 @@
   };
   async function p3Suggest(run) {
     const el = $('p3-suggest'), src = p3Photos[0];
-    el.hidden = !(src && p3Mode === 'one' && aiOn('recog')); if (el.hidden) return;
+    el.hidden = !(src && (p3Mode === 'one' || p3Mode === 'views') && aiOn('recog')); if (el.hidden) return;
     const have = await CRAFTAI.downloaded();
     if (!run && !have.recog) { el.innerHTML = `<div class="row"><b>What is it?</b><span class="hint">AI can recognise the picture and suggest the best kind of shape.</span><button class="btn sm" type="button" data-sg="go">Recognise it (about ${CRAFTAI.sizeOf('recog')} MB, once)</button></div>`; return; }
     el.innerHTML = '<span class="hint">Recognising the picture…</span>';
     try {
       const res = await CRAFTAI.recognise(src, KINDS.map((k) => k[0])); if (src !== p3Photos[0]) return;
-      const best = res[0], kind = KINDS.find((k) => k[0] === best.label)[1], [use, what] = EXPECT[kind];
+      const best = res[0], kind = KINDS.find((k) => k[0] === best.label)[1], [use, what] = EXPECT[kind]; if (p3Kind !== kind) { p3Kind = kind; if (p3Mode === 'views') p3Sheet(); }
       const others = res.slice(1, 3).map((x) => `${x.label} ${Math.round(x.score * 100)}%`).join(', ');
       el.innerHTML = `<div><b>${best.score < 0.3 ? 'It might be' : 'It looks like'} ${/^[aeiou]/.test(best.label) ? 'an' : 'a'} ${esc(best.label)}</b> <span class="hint">(${Math.round(best.score * 100)}% sure; also ${esc(others)})</span></div><div>${what}</div><div class="row"><button class="btn sm primary" type="button" data-sg="${kind}">Use ${use}</button><button class="btn sm" type="button" data-sg="no">No thanks</button></div>`;
     } catch (e) { el.innerHTML = `<span class="hint">${esc(e.message)}</span>`; }
@@ -770,10 +772,11 @@
     if (k === 'go') return p3Suggest(true);
     if (k === 'no') { $('p3-suggest').hidden = true; return; }
     if (k === 'flat') { $('p3dlg').hidden = true; openTrace(null, p3Photos[0]); return; }
+    p3Kind = k; if (p3Mode === 'views') { $('p3-suggest').hidden = true; p3Sheet(); return; }
     p3Shape = k === 'round' ? 'round' : aiOn('depth') ? 'depth' : 'puff'; $('p3-suggest').hidden = true; p3Sync();
   };
   const openPhotos3D = (mode) => { if (!E.doc) return; if (mode) p3Mode = mode; $('p3-status').textContent = ''; p3Sync(); p3Preview(); bgChoices('p3', p3Photos[0]); $('p3dlg').hidden = false; };
-  $('p3-mode').onclick = (e) => { const b = e.target.closest('[data-p3]'); if (b) { p3Mode = b.dataset.p3; p3Sync(); } };
+  $('p3-mode').onclick = (e) => { const b = e.target.closest('[data-p3]'); if (b) { p3Mode = b.dataset.p3; p3Sync(); p3Sheet(); p3Suggest(); } };
   $('p3-dir').onclick = (e) => { const b = e.target.closest('[data-dir]'); if (b) { p3Dir = b.dataset.dir; p3Sync(); } };
   $('p3-shape').onclick = (e) => { const b = e.target.closest('[data-shape]'); if (b) { p3Shape = b.dataset.shape; p3Sync(); } };
   $('p3-edge').onclick = (e) => { const b = e.target.closest('[data-edge]'); if (b) { p3Edge = b.dataset.edge; p3Sync(); } };
@@ -793,7 +796,7 @@
     const files = [...e.target.files].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
     bgState.p3.actions = [];
     p3Photos = await Promise.all(files.map((f) => new Promise((r) => { const rd = new FileReader(); rd.onload = () => r(rd.result); rd.readAsDataURL(f); })));
-    p3Sync(); p3Preview(); bgChoices('p3', p3Photos[0]); p3Suggest();
+    p3Sync(); p3Preview(); bgChoices('p3', p3Photos[0]); p3Suggest(); p3Own = {}; p3Sheet();
   };
   $('p3-cancel').onclick = () => { $('p3dlg').hidden = true; };
   // an AI model being fetched or started: shown where the work was asked for
@@ -803,12 +806,51 @@
     if (!$('p3dlg').hidden) $('p3-status').textContent = msg; else if (!$('tracedlg').hidden && msg) $('trace-info').textContent = msg;
     if (p.status === 'ready' && k === 'cutout') ['tr', 'p3'].forEach((pre) => { const src = pre === 'tr' ? traceSrc : p3Photos[0]; if (src && !$(pre === 'tr' ? 'tracedlg' : 'p3dlg').hidden) bgChoices(pre, src); });
   });
+  // Four views: the sheet of front, left, back and right; own pictures replace filled-in ones
+  let p3Back = 'same', p3Kind = '', p3Own = {}, p3Views = null, sheetT = null;
+  const SIDES = [['front', 'Front'], ['left', 'Left'], ['back', 'Back'], ['right', 'Right']];
+  function p3Sheet() {
+    clearTimeout(sheetT); if (p3Mode !== 'views' || !p3Photos.length) { $('p3-sheet').innerHTML = ''; return; }
+    sheetT = setTimeout(async () => {
+      $('p3-sheet').innerHTML = '<span class="hint">Filling in the other sides…</span>';
+      try { p3Views = await viewsNow(); drawSheet(); } catch (e) { $('p3-sheet').innerHTML = `<span class="hint">${esc(e.message)}</span>`; }
+    }, 250);
+  }
+  async function viewsNow() {
+    const v = await PHOTO3D.views4(p3Photos[0], { tolerance: +$('p3-tol').value, bg: bgOpts('p3'), kind: p3Kind, back: p3Back, thick: +$('p3-thick').value / 100 });
+    for (const k of ['left', 'back', 'right']) if (p3Own[k]) v[k] = await PHOTO3D.fitView(p3Own[k], v, { tolerance: +$('p3-tol').value });
+    return v;
+  }
+  function drawSheet() {
+    const v = p3Views; if (!v) return;
+    $('p3-sheet').innerHTML = SIDES.map(([k, n]) => `<figure class="${k === 'front' || p3Own[k] ? 'own' : ''}"><img alt="${n}" src="${v[k].toDataURL()}"><figcaption>${n}${k === 'front' ? ' (your picture)' : p3Own[k] ? ' (yours)' : ' (filled in)'}</figcaption>${k === 'front' ? '' : `<button class="btn sm" type="button" data-view="${k}">${p3Own[k] ? 'Change…' : 'Use my picture…'}</button>${p3Own[k] ? `<button class="btn sm ghost" type="button" data-fill="${k}">Fill in again</button>` : ''}`}</figure>`).join('');
+  }
+  $('p3-sheet').onclick = (e) => {
+    const b = e.target.closest('[data-view], [data-fill]'); if (!b) return;
+    if (b.dataset.fill) { delete p3Own[b.dataset.fill]; p3Sheet(); return; }
+    const k = b.dataset.view, i = $('view-input'); i.value = '';
+    i.onchange = () => { const f = i.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => { p3Own[k] = r.result; p3Sheet(); }; r.readAsDataURL(f); };
+    i.click();
+  };
+  $('p3-backstyle').onclick = (e) => { const b = e.target.closest('[data-back]'); if (b) { p3Back = b.dataset.back; p3Sync(); p3Sheet(); } };
+  $('p3-thick').onchange = () => p3Sheet();
+  // what the check found, in words: a warning when the result does not match the pictures or what was expected
+  function verdict(r) {
+    if (!r.check) return '';
+    const bad = [], m = r.check.match;
+    SIDES.forEach(([k, n], q) => { if (m[q] != null && m[q] < 0.8) bad.push(`${n.toLowerCase()} ${Math.round(m[q] * 100)}%`); });
+    const say = [];
+    if (bad.length) say.push(`The sides do not agree with each other (match: ${bad.join(', ')}). Check that your pictures show the same object, the same way up, from straight on.`);
+    if (p3Kind === 'round' && r.check.roundness > 1.12) say.push('It was expected to be round, but came out square across: use Round (spun, like a cup), or let What is it? set it.');
+    if (p3Kind && p3Kind !== 'round' && r.check.roundness < 0.75) say.push('It came out thin and pointed across: try more thickness.');
+    return say.length ? '⚠ ' + say.join(' ') : `Checked: it matches all four sides (${m.slice(0, 4).map((x) => Math.round(x * 100) + '%').join(', ')})${p3Kind === 'round' ? ' and is round' : ''}.`;
+  }
   async function makePhotos3D(photos, mode, o) {
     const status = (m) => { $('p3-status').textContent = m; };
-    const r = mode === 'one' ? await (o.shape === 'round' ? PHOTO3D.buildRound : PHOTO3D.build1)(photos[0], o, status) : await PHOTO3D.build(photos, o, status);
-    const m = { kind: 'model', name: mode === 'one' ? 'Photo in 3D' : 'Turntable scan', model: { format: 'ply', data: E.b64(r.ply), fit: 3, keepOwn: true, colours: true, points: false, from: mode } };
+    const r = mode === 'views' ? await PHOTO3D.buildViews(await viewsNow(), o, status) : mode === 'one' ? await (o.shape === 'round' ? PHOTO3D.buildRound : PHOTO3D.build1)(photos[0], o, status) : await PHOTO3D.build(photos, o, status);
+    const m = { kind: 'model', name: mode === 'one' ? 'Photo in 3D' : mode === 'views' ? 'Model from four views' : 'Turntable scan', model: { format: 'ply', data: E.b64(r.ply), fit: 3, keepOwn: true, colours: true, points: false, from: mode } };
     standOnGround(m, 3); m.mat = E.defaultMat('#bfc5cc', 'plastic');
-    status(`Made: ${r.triangles.toLocaleString()} triangles.`);
+    const said = verdict(r); status(`Made: ${r.triangles.toLocaleString()} triangles.` + (said ? ' ' + said : '')); if (said.startsWith('⚠')) toast(said);
     return addObject(m);
   }
   $('p3-go').onclick = async () => {

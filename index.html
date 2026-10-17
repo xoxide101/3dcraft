@@ -144,7 +144,7 @@
 <div class="backdrop" id="p3dlg" hidden>
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="p3-title">
     <h2 id="p3-title">Photos to 3D</h2>
-    <div class="seg" id="p3-mode" role="group"><button class="btn" type="button" data-p3="one" aria-pressed="true">One photo (a guess)</button><button class="btn" type="button" data-p3="turn" aria-pressed="false">Turntable photos</button></div>
+    <div class="seg" id="p3-mode" role="group"><button class="btn" type="button" data-p3="one" aria-pressed="true">One photo (a guess)</button><button class="btn" type="button" data-p3="views" aria-pressed="false">Four views (fills in the rest)</button><button class="btn" type="button" data-p3="turn" aria-pressed="false">Turntable photos</button></div>
     <p class="hint" id="p3-tip"></p>
     <div class="row"><button class="btn outline" type="button" id="p3-pick">Choose photos…</button><span class="hint" id="p3-count">No photos yet.</span></div>
     <div class="p3-thumbs" id="p3-thumbs"></div>
@@ -164,6 +164,11 @@
       <label class="field"><span>Thickness: <b id="p3-puff-v">100%</b></span><input type="range" id="p3-puff" min="10" max="250" step="5" value="100"></label>
       <label class="field"><span>Shading as bumps: <b id="p3-shade-v">30%</b></span><input type="range" id="p3-shade" min="0" max="150" step="5" value="30"></label>
       <label class="check"><input type="checkbox" id="p3-flat"> Flat back (to stand on a 3D printer's bed)</label></div>
+    <div id="p3-views-opts" hidden>
+      <div class="field"><span>The four sides (the ones you have not given are filled in; give more for a closer result)</span><div class="p3-sheet" id="p3-sheet"></div></div>
+      <div class="row"><div class="seg" id="p3-backstyle" role="group"><button class="btn" type="button" data-back="same" aria-pressed="true" title="The back is the front mirrored">Back: same picture</button><button class="btn" type="button" data-back="soft" aria-pressed="false" title="The back is the front mirrored and softened, so a face or details are not repeated">Back: softened</button></div></div>
+      <label class="field"><span>Thickness (front to back): <b id="p3-thick-v">30%</b> of the width</span><input type="range" id="p3-thick" min="5" max="80" step="1" value="30"></label>
+    </div>
     <div id="p3-turn-opts" hidden><label class="field"><span>Smoothness: <b id="p3-smooth-v">2</b></span><input type="range" id="p3-smooth" min="0" max="5" step="1" value="2"></label>
       <label class="field" id="p3-hollow-f" title="AI works out the depth in every photo, so dents, gaps and holes that outlines alone cannot show are carved out too"><span>Hollows from AI depth (experimental): <b id="p3-hollow-v">off</b></span><input type="range" id="p3-hollow" min="0" max="100" step="5" value="0"></label>
       <div class="seg" id="p3-dir" role="group"><button class="btn" type="button" data-dir="ccw" aria-pressed="true">Turned anticlockwise</button><button class="btn" type="button" data-dir="cw" aria-pressed="false">Turned clockwise</button></div></div>
@@ -182,6 +187,7 @@
 <input type="file" id="open-input" accept=".json,.3dcraft,application/json" hidden>
 <input type="file" id="image-input" accept="image/*" hidden>
 <input type="file" id="photos-input" accept="image/*" multiple hidden>
+<input type="file" id="view-input" accept="image/*" hidden>
 <input type="file" id="model-input" accept=".glb,.gltf,.obj,.mtl,.stl,.ply,.jpg,.jpeg,.png,.webp,.bmp" multiple hidden>
 
 <script src="lib/craft3d-libs.js"></script>
