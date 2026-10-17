@@ -735,7 +735,8 @@
     $('p3-count').textContent = p3Photos.length ? `${p3Photos.length} photo${p3Photos.length > 1 ? 's' : ''}` + (p3Mode === 'one' && p3Photos.length > 1 ? ' (the first is used)' : '') : 'No photos yet.';
     $('p3-thumbs').innerHTML = p3Photos.slice(0, 48).map((s) => `<img alt="" src="${s}">`).join('');
     $('p3-go').disabled = !p3Photos.length || (p3Mode === 'turn' && p3Photos.length < 4);
-    [['p3-tol', (v) => v], ['p3-puff', (v) => v + '%'], ['p3-shade', (v) => v + '%'], ['p3-smooth', (v) => v]].forEach(([id, f]) => { $(id + '-v').textContent = f($(id).value); });
+    $('p3-hollow-f').hidden = !aiOn('depth');
+    [['p3-tol', (v) => v], ['p3-puff', (v) => v + '%'], ['p3-shade', (v) => v + '%'], ['p3-smooth', (v) => v], ['p3-hollow', (v) => (+v ? v + '%' : 'off')]].forEach(([id, f]) => { $(id + '-v').textContent = f($(id).value); });
   }
   const openPhotos3D = (mode) => { if (!E.doc) return; if (mode) p3Mode = mode; $('p3-status').textContent = ''; p3Sync(); p3Preview(); bgChoices('p3', p3Photos[0]); $('p3dlg').hidden = false; };
   $('p3-mode').onclick = (e) => { const b = e.target.closest('[data-p3]'); if (b) { p3Mode = b.dataset.p3; p3Sync(); } };
@@ -743,7 +744,7 @@
   $('p3-shape').onclick = (e) => { const b = e.target.closest('[data-shape]'); if (b) { p3Shape = b.dataset.shape; p3Sync(); } };
   $('p3-edge').onclick = (e) => { const b = e.target.closest('[data-edge]'); if (b) { p3Edge = b.dataset.edge; p3Sync(); } };
   $('p3-reach').oninput = p3Sync;
-  ['p3-tol', 'p3-puff', 'p3-shade', 'p3-smooth'].forEach((id) => { $(id).oninput = p3Sync; });
+  ['p3-tol', 'p3-puff', 'p3-shade', 'p3-smooth', 'p3-hollow'].forEach((id) => { $(id).oninput = p3Sync; });
   $('p3-tol').onchange = p3Preview;
   $('p3-bgmode').onclick = (e) => { const b = e.target.closest('[data-start]'); if (!b) return; const [k, , tol] = BG_STARTS.find((x) => x[0] === b.dataset.start); bgState.p3.mode = modeOf(k); bgState.p3.start = k; if (tol) $('p3-tol').value = tol; p3Sync(); p3Preview(); };
   $('p3-tools').onclick = (e) => { const b = e.target.closest('[data-tool]'); if (!b) return; $('p3-prev').lassoCancel && $('p3-prev').lassoCancel(); bgState.p3.tool = b.dataset.tool; bgState.p3.pickOpen = false; p3Sync(); };
@@ -777,7 +778,7 @@
   }
   $('p3-go').onclick = async () => {
     $('p3-go').disabled = true;
-    try { await makePhotos3D(p3Photos, p3Mode, { detail: +$('p3-detail').value, tolerance: +$('p3-tol').value, bg: bgOpts('p3'), puff: +$('p3-puff').value / 100, edge: p3Edge, shape: p3Shape, reach: +$('p3-reach').value / 100, shading: +$('p3-shade').value / 100, flatBack: $('p3-flat').checked, smooth: +$('p3-smooth').value, dir: p3Dir }); $('p3dlg').hidden = true; toast('Your photo is in 3D: save it as STL or OBJ from Export to print it.'); }
+    try { await makePhotos3D(p3Photos, p3Mode, { detail: +$('p3-detail').value, tolerance: +$('p3-tol').value, bg: bgOpts('p3'), puff: +$('p3-puff').value / 100, edge: p3Edge, shape: p3Shape, reach: +$('p3-reach').value / 100, shading: +$('p3-shade').value / 100, flatBack: $('p3-flat').checked, smooth: +$('p3-smooth').value, dir: p3Dir, depthHollows: aiOn('depth') ? +$('p3-hollow').value / 100 : 0 }); $('p3dlg').hidden = true; toast('Your photo is in 3D: save it as STL or OBJ from Export to print it.'); }
     catch (err) { $('p3-status').textContent = err.message; }
     $('p3-go').disabled = false;
   };

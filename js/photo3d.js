@@ -51,6 +51,50 @@
     return { grid, nx, ny, nz, cell, axis, bot, cos, sin };
   }
 
+  // Hollows from AI depth: carving only sees outlines, so a dent, the gap under an arm or the hole of a ring lying flat
+  // stays filled. Each photo's depth map (CRAFTAI.depth, 0 far – 1 near, no real scale) is lined up with the carved
+  // shape's own front surface as seen from that photo (a straight-line fit, done twice, the worst-fitting fifth left out
+  // the second time); where the depth says the surface is clearly further back than the carving, the cells in front
+  // of it get a vote; a cell goes only when enough photos agree (one photo's depth can be wrong, several rarely are).
+  // strength 0–1: how far the depth is trusted.
+  function hollows(c, views, depths, strength) {
+    const { grid, nx, ny, nz, cell, axis, bot, cos, sin } = c, id = (i, j, k) => (k * ny + j) * nx + i;
+    let removed = 0; const votes = new Uint8Array(grid.length);
+    views.forEach((v, q) => {
+      const dm = depths[q]; if (!dm) return;
+      const front = new Float32Array(v.W * v.H).fill(-Infinity), at = (px, py) => py * v.W + px;
+      const proj = (i, j, k) => { const X = (i - nx / 2 + 0.5) * cell, Z = (k - nz / 2 + 0.5) * cell; return [Math.round(axis + X * cos[q] + Z * sin[q]), Math.round(bot + 2 - (j + 0.5) * cell), Z * cos[q] - X * sin[q]]; };
+      for (let k = 1; k < nz - 1; k++) for (let j = 1; j < ny - 1; j++) for (let i = 1; i < nx - 1; i++) {
+        if (!grid[id(i, j, k)]) continue; const [px, py, n] = proj(i, j, k);
+        if (px >= 0 && py >= 0 && px < v.W && py < v.H && n > front[at(px, py)]) front[at(px, py)] = n;
+      }
+      // the depth model's answer at each photo pixel, against the carving's front there
+      const xs = [], ys = [], ps = [];
+      for (let py = 0; py < v.H; py++) for (let px = 0; px < v.W; px++) {
+        const f = front[at(px, py)]; if (f === -Infinity || !v.mask[at(px, py)]) continue;
+        const d = dm.d[Math.min(dm.H - 1, Math.floor(((py + 0.5) * dm.H) / v.H)) * dm.W + Math.min(dm.W - 1, Math.floor(((px + 0.5) * dm.W) / v.W))];
+        xs.push(d); ys.push(f); ps.push(at(px, py));
+      }
+      if (xs.length < 50) return;
+      const fit = (use) => { let n = 0, sx = 0, sy = 0, sxx = 0, sxy = 0; for (let t = 0; t < xs.length; t++) { if (use && !use[t]) continue; n++; sx += xs[t]; sy += ys[t]; sxx += xs[t] * xs[t]; sxy += xs[t] * ys[t]; } const a = (n * sxy - sx * sy) / Math.max(1e-9, n * sxx - sx * sx); return [a, (sy - a * sx) / n]; };
+      let [a, b] = fit(null);
+      const res = xs.map((x, t) => Math.abs(a * x + b - ys[t])), cut = [...res].sort((p, r) => p - r)[Math.floor(res.length * 0.8)];
+      [a, b] = fit(res.map((r) => r <= cut));
+      if (!(a > 0)) return; // the depth does not agree with the shape at all: leave this view out
+      // the surface the depth points to; cells clearly in front of it (and behind the carving's front) go
+      const surf = new Float32Array(v.W * v.H).fill(Infinity), margin = cell * 1.5;
+      ps.forEach((p, t) => { const want = a * xs[t] + b, f = ys[t]; if (f - want > margin * 1.3) surf[p] = f - (f - want) * strength; });
+      for (let k = 1; k < nz - 1; k++) for (let j = 1; j < ny - 1; j++) for (let i = 1; i < nx - 1; i++) {
+        const o = id(i, j, k); if (!grid[o]) continue; const [px, py, n] = proj(i, j, k);
+        if (px < 0 || py < 0 || px >= v.W || py >= v.H) continue;
+        const s = surf[at(px, py)]; if (s !== Infinity && n > s + margin && votes[o] < 255) votes[o]++;
+      }
+    });
+    const need = Math.max(2, Math.round(views.length / 10));
+    for (let o = 0; o < grid.length; o++) if (grid[o] && votes[o] >= need) { grid[o] = 0; removed++; }
+    return removed;
+  }
+
   // Surface nets: a point inside each cell where the inside and outside meet, joined into four-sided faces; a light
   // smoothing of the field first rounds off the blocky voxel steps
   function mesh(c, smooth) {
@@ -117,6 +161,12 @@
     if (views.some((v) => v.n < 50)) throw new Error('In some photos nothing stood out from the background: use a plain background, or change the tolerance.');
     onStep('Carving the shape from every angle…'); await new Promise((r) => setTimeout(r, 20));
     const c = carve(views, o.detail || 96, o.dir);
+    if (o.depthHollows && window.CRAFTAI && CRAFTAI.enabled('depth')) {
+      const depths = [];
+      for (let q = 0; q < photos.length; q++) { onStep(`Working out the depth in each photo (AI): ${q + 1} of ${photos.length}…`); depths.push(await CRAFTAI.depth(photos[q])); }
+      onStep('Finding the hollows…'); await new Promise((r) => setTimeout(r, 20));
+      hollows(c, views, depths, o.depthHollows);
+    }
     onStep('Smoothing it into a surface…'); await new Promise((r) => setTimeout(r, 20));
     const { pos, tri } = mesh(c, o.smooth ?? 2);
     if (!tri.length) throw new Error('Nothing was left after carving: are the photos in order, all the way round, with the camera kept still?');

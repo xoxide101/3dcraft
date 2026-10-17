@@ -163,6 +163,7 @@
       <label class="field"><span>Shading as bumps: <b id="p3-shade-v">30%</b></span><input type="range" id="p3-shade" min="0" max="150" step="5" value="30"></label>
       <label class="check"><input type="checkbox" id="p3-flat"> Flat back (to stand on a 3D printer's bed)</label></div>
     <div id="p3-turn-opts" hidden><label class="field"><span>Smoothness: <b id="p3-smooth-v">2</b></span><input type="range" id="p3-smooth" min="0" max="5" step="1" value="2"></label>
+      <label class="field" id="p3-hollow-f" title="AI works out the depth in every photo, so dents, gaps and holes that outlines alone cannot show are carved out too"><span>Hollows from AI depth (experimental): <b id="p3-hollow-v">off</b></span><input type="range" id="p3-hollow" min="0" max="100" step="5" value="0"></label>
       <div class="seg" id="p3-dir" role="group"><button class="btn" type="button" data-dir="ccw" aria-pressed="true">Turned anticlockwise</button><button class="btn" type="button" data-dir="cw" aria-pressed="false">Turned clockwise</button></div></div>
     <p class="hint" id="p3-status"></p>
     <div class="dialog-actions"><button class="btn" id="p3-cancel">Close</button><button class="btn primary" id="p3-go" disabled>Make it 3D</button></div>
