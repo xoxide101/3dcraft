@@ -13,11 +13,16 @@
   };
   $('an-fmt').innerHTML = Object.entries(FORMATS).map(([k, [n]]) => `<option value="${k}">${n}</option>`).join('');
   $('an-size').innerHTML = SIZES.map(([w, h, n], i) => `<option value="${i}" ${i === 1 ? 'selected' : ''}>${n}</option>`).join('');
-  const sync = () => { const f = $('an-fmt').value; $('an-tip').textContent = FORMATS[f][1]; $('an-transp-f').hidden = !(f === 'png' || f === 'gif'); const a = E.anim(); if (a) $('an-info').textContent = `${a.length} s at ${a.fps} frames a second = ${Math.round(a.length * a.fps)} frames.`; };
+  const sync = () => { const f = $('an-fmt').value; $('an-look').onchange = sync; $('an-tip').textContent = FORMATS[f][1]; $('an-transp-f').hidden = !(f === 'png' || f === 'gif'); const a = E.anim(); if (a) $('an-info').textContent = `${a.length} s at ${a.fps} frames a second = ${Math.round(a.length * a.fps)} frames.`; };
   $('an-fmt').onchange = sync;
+  // Ray-traced frames: each frame put in place, path-traced at the chosen quality and smoothed, then added like any frame
+  let rtJob = null;
+  const rtFrame = (w, h, quality, transparent) => new Promise((res) => {
+    rtJob = E.pathRender(w, h, { quality, transparent, edges: 1, onDone: (c, n, early, sm) => { let out = c; try { const m = sm && sm.make('medium'); if (m) out = m; } catch (e) {} if (sm) sm.dispose(); rtJob = null; res(out); } });
+  });
   let cancel = false, busy = false;
   window.ANIM3 = { open: () => { if (!E.doc) return; sync(); $('an-status').textContent = ''; $('an-bar').style.width = '0'; $('animdlg').hidden = false; } };
-  $('an-close').onclick = () => { if (busy) cancel = true; else $('animdlg').hidden = true; };
+  $('an-close').onclick = () => { if (busy) { cancel = true; if (rtJob) rtJob.stop(); } else $('animdlg').hidden = true; };
   const download = (blob, name) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 8000); };
   const baseName = () => (E.doc.name || 'animation').replace(/[^\w -]+/g, '').trim() || 'animation';
   const blobOf = (c, type, q) => new Promise((r) => c.toBlob(r, type, q));
@@ -80,7 +85,7 @@
   $('an-go').onclick = async () => {
     if (busy || !E.doc) return;
     const a = E.anim(), fmt = $('an-fmt').value, [w, h] = SIZES[+$('an-size').value], fps = a.fps, n = Math.max(1, Math.round(a.length * fps));
-    const transparent = $('an-transp').checked && (fmt === 'png' || fmt === 'gif');
+    const transparent = $('an-transp').checked && (fmt === 'png' || fmt === 'gif'), look = $('an-look').value, rt = look !== 'quick';
     busy = true; cancel = false; $('an-go').disabled = true; $('an-close').textContent = 'Cancel';
     const t0 = performance.now(), status = (m) => { $('an-status').textContent = m; };
     let sess = null, vid = null;
@@ -88,20 +93,22 @@
     try {
       if (fmt === 'mp4' || fmt === 'webm') vid = await videoEncoder(fmt, w, h, fps);
       const gif = fmt === 'gif' ? Gifenc.GIFEncoder() : null, jpgs = [], pngs = [];
-      sess = E.beginFrames(w, h, { transparent });
+      if (!rt) sess = E.beginFrames(w, h, { transparent });
+      else status('Getting the ray tracer ready: the first frame takes longest (up to half a minute), the rest are quicker…');
+      let tFirst = 0;
       for (let i = 0; i < n; i++) {
         if (cancel) throw new Error('cancelled');
-        const c = sess.frame(i / fps);
+        let c; if (rt) { await new Promise((r) => setTimeout(r, 30)); E.evalAt(i / fps, true); c = await rtFrame(w, h, look, transparent); if (cancel) throw new Error('cancelled'); if (i === 0) tFirst = performance.now(); } else c = sess.frame(i / fps);
         wx.clearRect(0, 0, w, h); if (fmt === 'avi' || fmt === 'mp4' || fmt === 'webm' || (fmt === 'gif' && !transparent)) { wx.fillStyle = '#ffffff'; wx.fillRect(0, 0, w, h); } wx.drawImage(c, 0, 0, w, h);
         if (gif) { const d = wx.getImageData(0, 0, w, h).data, pal = Gifenc.quantize(d, 256, transparent ? { format: 'rgba4444', oneBitAlpha: true } : {}), idx = Gifenc.applyPalette(d, pal, transparent ? 'rgba4444' : 'rgb565'); gif.writeFrame(idx, w, h, { palette: pal, delay: Math.round(1000 / fps), transparent, repeat: a.loop === false ? -1 : 0 }); }
         else if (fmt === 'avi') jpgs.push(await bytesOf(await blobOf(work, 'image/jpeg', 0.9)));
         else if (fmt === 'png') pngs.push({ name: `${baseName()}-${String(i + 1).padStart(4, '0')}.png`, bytes: await bytesOf(await blobOf(work, 'image/png')) });
         else await vid.add(work, i);
         $('an-bar').style.width = Math.round(((i + 1) / n) * 100) + '%';
-        status(`Frame ${i + 1} of ${n} · ${Math.round((performance.now() - t0) / 1000)} s`);
+        { const el = (performance.now() - t0) / 1000, per = rt && i > 0 ? (performance.now() - tFirst) / 1000 / i : 0, left = Math.round(per * (n - i - 1)); status(`Frame ${i + 1} of ${n} · ${Math.round(el)} s` + (rt && i > 0 && i < n - 1 ? ` · about ${left >= 120 ? Math.round(left / 60) + ' min' : left + ' s'} to go` : '')); }
         if (i % 2 === 1) await new Promise((r) => setTimeout(r, 0));
       }
-      sess.end(); sess = null;
+      if (sess) { sess.end(); sess = null; }
       status('Putting the file together…');
       let blob;
       if (gif) { gif.finish(); blob = new Blob([gif.bytes()], { type: 'image/gif' }); }

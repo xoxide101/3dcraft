@@ -58,6 +58,7 @@ Headless Chrome over the DevTools protocol, opening `index.html` from the folder
 - The camera move rotates the saved camera around its target; `E3.camAngle` is taken back off when the camera is saved, so orbiting during a turntable does not drift.
 - **Letter by letter:** `tracks[id].letters = { style, mode: in | out | both, start, leave, each, gap, order, amount, speed }` (styles in `E3.LETTER_STYLES`, each marked `in` or `loop`). A text with a letter animation is built as a group of one mesh per letter (`letterGroup`: `font.getPaths`, each letter's geometry centred on itself and placed back at its spot; cap picture coordinates use the whole word's outline box so pictures still run across the word). `evalAt` calls `poseLetters`, which works out each letter's offset, turn, size and opacity from its rank in the chosen order. Turning letters on or off rebuilds the object.
 - **Camera keys:** `anim.camera.keys = [{ t, pos, target, fov, ease }]` (with the turntable or swing still added on top). `E3.camAt(t)` moves the target in a line and the camera round it in spherical coordinates. `evalAt(t, moveCamera)` only puts the keyed camera in place when the time changed or `moveCamera` is set (seeking, export frames), so looking around while editing is not undone by every change. `E3.setCamKey(t)` keeps the current view.
+- **Ray-traced animation** (`animexport.js`, Look): each frame `E3.evalAt(t, true)` then `E3.pathRender` at the chosen quality, smoothed (medium) and added like any frame; the first frame includes compiling the path tracer (much the longest), so the estimate uses the frames after it.
 - Export: `E3.beginFrames(w, h)` sizes the renderer once; `frame(t)` evaluates and renders one frame; `end()` puts everything back.
 
 ## Backdrop
@@ -79,7 +80,6 @@ Headless Chrome over the DevTools protocol, opening `index.html` from the folder
 ## Planned
 
 - Talk first: Lighting (and shadow depth, strength and direction), maybe its own tab like the Backdrop and Ground.
-- Ray-traced animation (every frame path-traced, smoothed, saved as video).
 - Animation and video playing on monitor and TV screens.
 - An original 3D stress-test model shared with the other Craft apps.
 - Custom backdrops further (layer mapping, pictures traced into Modern 3D cut-outs): talk first.
