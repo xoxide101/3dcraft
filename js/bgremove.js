@@ -2,7 +2,7 @@
    The background is flooded in from the picture's edges (or from a point you click), so only background that touches
    the outside goes: white eyes inside a white-background drawing stay. It follows small colour steps, so shadows,
    gradients and darker corners on a photo's backdrop go too, while the object's edge (a bigger step) stops it.
-   remove(src, { mode: 'auto' | 'off', actions: [{ t: 'wand', u, v } | { t: 'erase' | 'keep', r (0–1 of the width), pts: [[u, v], …] }], tolerance: 5–160, max })
+   remove(src, { mode: 'auto' | 'off', actions: [{ t: 'wand', u, v } | { t: 'erase' | 'keep', r (0–1 of the width), pts: [[u, v], …] } | { t: 'lasso', keep: true (trim to inside) | false (cut inside out), pts }], tolerance: 5–160, max })
    Touch-ups, in order: magic wand clicks (remove the connected area of a similar colour), eraser and restore strokes.
    Magic wand: each click removes the area connected to it whose colour is close to the colour clicked.
    → Promise<{ url (PNG with the background see-through), canvas, colour, removed (0–1) }> */
@@ -55,13 +55,17 @@
       const n = seen[p - 1] + seen[p + 1] + seen[p - W] + seen[p + W]; if (n) D[p * 4 + 3] = Math.min(D[p * 4 + 3], 255 - n * 45);
     }
     // eraser and restore strokes, painted in order over the result
-    const strokes = actions.filter((a) => a.t === 'erase' || a.t === 'keep');
+    const strokes = actions.filter((a) => a.t === 'erase' || a.t === 'keep' || a.t === 'lasso');
     if (strokes.length) {
       const sc = document.createElement('canvas'); sc.width = W; sc.height = H; const sx2 = sc.getContext('2d', { willReadFrequently: true });
       strokes.forEach((a) => {
         sx2.clearRect(0, 0, W, H); sx2.strokeStyle = sx2.fillStyle = '#fff'; sx2.lineWidth = Math.max(1, a.r * W * 2); sx2.lineCap = sx2.lineJoin = 'round';
-        sx2.beginPath(); a.pts.forEach(([u, v], i) => (i ? sx2.lineTo(u * W, v * H) : sx2.moveTo(u * W, v * H))); if (a.pts.length === 1) { sx2.arc(a.pts[0][0] * W, a.pts[0][1] * H, a.r * W, 0, Math.PI * 2); sx2.fill(); } else sx2.stroke();
+        sx2.beginPath(); a.pts.forEach(([u, v], i) => (i ? sx2.lineTo(u * W, v * H) : sx2.moveTo(u * W, v * H)));
+        if (a.t === 'lasso') { sx2.closePath(); sx2.fill(); }
+        else if (a.pts.length === 1) { sx2.arc(a.pts[0][0] * W, a.pts[0][1] * H, a.r * W, 0, Math.PI * 2); sx2.fill(); } else sx2.stroke();
         const m = sx2.getImageData(0, 0, W, H).data;
+        // the lasso: trim keeps only the inside (everything outside goes); cut takes the inside out
+        if (a.t === 'lasso') { for (let p = 0; p < W * H; p++) { const inside = m[p * 4 + 3] / 255; D[p * 4 + 3] = Math.round(D[p * 4 + 3] * (a.keep ? inside : 1 - inside)); } return; }
         for (let p = 0; p < W * H; p++) { const k2 = m[p * 4 + 3] / 255; if (!k2) continue; D[p * 4 + 3] = a.t === 'erase' ? Math.round(D[p * 4 + 3] * (1 - k2)) : Math.round(D[p * 4 + 3] + (orig[p * 4 + 3] - D[p * 4 + 3]) * k2); }
       });
     }

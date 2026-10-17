@@ -162,3 +162,4 @@
 .bg-choices button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
 .bg-choices img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; border-radius: 5px; background: repeating-conic-gradient(#d0d4da 0 25%, #fff 0 50%) 0 0 / 10px 10px; }
 #trace-out svg, #trace-src img { width: 100%; height: 100%; object-fit: contain; display: block; }
+#tr-tools, #p3-tools { flex-wrap: wrap; }

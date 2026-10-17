@@ -502,7 +502,7 @@
   // the background choice (shared look in Picture to 3D and Photos to 3D): off, automatic, or a colour picked by clicking
   const bgState = { tr: { mode: 'auto', tool: 'wand', actions: [] }, p3: { mode: 'auto', tool: 'wand', actions: [] } };
   const BG_HINTS = { off: 'The whole picture is used.', auto: 'The colour round the edges is taken out where it touches the outside.', };
-  const TOOL_HINTS = { wand: 'Magic wand: click any area on the preview to take it out (it spreads to the connected area of a similar colour; Tolerance sets how far).', erase: 'Eraser: paint on the preview to take away anything you do not want.', keep: 'Restore: paint on the preview to bring back anything that was taken out.' };
+  const TOOL_HINTS = { wand: 'Magic wand: click any area on the preview to take it out (it spreads to the connected area of a similar colour; Tolerance sets how far).', erase: 'Eraser: paint on the preview to take away anything you do not want.', keep: 'Restore: paint on the preview to bring back anything that was taken out.', trim: 'Trim: click points round what you want to keep, then click the first point (or double-click) to close it: everything outside goes. Esc cancels.', cut: 'Lasso cut: click points round something to take out, then click the first point (or double-click) to close it. Esc cancels.' };
   // the starting points to choose from: the whole picture, and the automatic removal at three strengths
   const BG_STARTS = [['off', 'Whole picture', 0], ['gentle', 'Gentle', 22], ['normal', 'Normal', 40], ['strong', 'Strong', 75]];
   const startOf = (pre) => (bgState[pre].mode === 'off' ? 'off' : (bgState[pre].start || 'normal'));
@@ -517,7 +517,7 @@
     document.querySelectorAll(`#${pre}-tools [data-tool]`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tool === st.tool)));
     $(`${pre}-bghint`).textContent = BG_HINTS[st.mode] + ' ' + TOOL_HINTS[st.tool] + (st.actions.length ? ` (${st.actions.length} touch-up${st.actions.length > 1 ? 's' : ''})` : '');
     $(`${pre}-wandbtns`).querySelectorAll('button').forEach((b) => { b.disabled = !st.actions.length; });
-    $(`${pre}-size-f`).hidden = st.tool === 'wand'; $(`${pre}-size-v`).textContent = $(`${pre}-size`).value + '%';
+    $(`${pre}-size-f`).hidden = !['erase', 'keep'].includes(st.tool); $(`${pre}-size-v`).textContent = $(`${pre}-size`).value + '%';
     $(`${pre}-tol-v`).textContent = $(`${pre}-tol`).value;
   }
   const bgOpts = (pre) => ({ mode: bgState[pre].mode, actions: JSON.parse(JSON.stringify(bgState[pre].actions)), tolerance: +$(`${pre}-tol`).value });
@@ -530,6 +530,7 @@
       const im = box.querySelector('img'); if (!im || e.button !== 0) return; const st = bgState[pre], [u, v] = pos(e, im); if (u < 0 || v < 0 || u > 1 || v > 1) return;
       e.preventDefault();
       if (st.tool === 'wand') { st.actions.push({ t: 'wand', u, v }); syncBg(pre); onChange(); return; }
+      if (st.tool === 'trim' || st.tool === 'cut') { lassoPoint(im, u, v, e.detail >= 2); return; }
       stroke = { t: st.tool, r: +$(`${pre}-size`).value / 200, pts: [[u, v]] };
       const r = im.getBoundingClientRect(), br = box.getBoundingClientRect();
       layer = document.createElement('canvas'); layer.width = r.width; layer.height = r.height; layer.style.cssText = `position:absolute;left:${r.left - br.left}px;top:${r.top - br.top}px;width:${r.width}px;height:${r.height}px;pointer-events:none`; box.style.position = 'relative'; box.append(layer);
@@ -540,6 +541,27 @@
     box.addEventListener('pointermove', (e) => { if (!stroke) return; const im = box.querySelector('img'), [u, v] = pos(e, im); stroke.pts.push([u, v]); const lx = layer.getContext('2d'); lx.lineTo(u * layer.width, v * layer.height); lx.stroke(); });
     const end = () => { if (!stroke) return; bgState[pre].actions.push(stroke); stroke = null; syncBg(pre); onChange(); setTimeout(() => { if (layer) { layer.remove(); layer = null; } }, 400); };
     box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
+    // the lasso: points clicked one by one, shown as a dotted shape; closed by clicking near the first point or a double-click
+    let lasso = null, llayer = null;
+    const drawLasso = (im) => {
+      const r = im.getBoundingClientRect(), br = box.getBoundingClientRect();
+      if (!llayer) { llayer = document.createElement('canvas'); llayer.style.pointerEvents = 'none'; llayer.style.position = 'absolute'; box.style.position = 'relative'; box.append(llayer); }
+      Object.assign(llayer.style, { left: r.left - br.left + 'px', top: r.top - br.top + 'px', width: r.width + 'px', height: r.height + 'px' }); llayer.width = r.width; llayer.height = r.height;
+      const lx = llayer.getContext('2d'), keep = bgState[pre].tool === 'trim'; lx.clearRect(0, 0, r.width, r.height);
+      lx.fillStyle = keep ? 'rgba(47,158,68,0.18)' : 'rgba(224,49,49,0.18)'; lx.strokeStyle = keep ? '#2f9e44' : '#e03131'; lx.lineWidth = 2; lx.setLineDash([6, 4]);
+      lx.beginPath(); lasso.forEach(([u, v], i) => (i ? lx.lineTo(u * r.width, v * r.height) : lx.moveTo(u * r.width, v * r.height))); if (lasso.length > 2) lx.fill(); lx.stroke(); lx.setLineDash([]);
+      lasso.forEach(([u, v], i) => { lx.fillStyle = i ? '#fff' : lx.strokeStyle; lx.beginPath(); lx.arc(u * r.width, v * r.height, i ? 3.5 : 5, 0, Math.PI * 2); lx.fill(); lx.stroke(); });
+    };
+    const lassoDone = (commit) => { if (commit && lasso && lasso.length > 2) { bgState[pre].actions.push({ t: 'lasso', keep: bgState[pre].tool === 'trim', pts: lasso }); syncBg(pre); onChange(); } lasso = null; if (llayer) { llayer.remove(); llayer = null; } };
+    function lassoPoint(im, u, v, dbl) {
+      if (!lasso) lasso = [];
+      const r = im.getBoundingClientRect(), first = lasso[0], near = first && Math.hypot((u - first[0]) * r.width, (v - first[1]) * r.height) < 9;
+      if ((near || dbl) && lasso.length > 2) return lassoDone(true);
+      lasso.push([u, v]); drawLasso(im);
+    }
+    document.addEventListener('keydown', (e) => { if (!lasso) return; if (e.key === 'Escape') { e.stopPropagation(); lassoDone(false); } else if (e.key === 'Enter') lassoDone(true); }, true);
+    box.addEventListener('dblclick', () => { if (lasso && lasso.length > 2) lassoDone(true); });
+    box.lassoCancel = () => lassoDone(false);
   }
   let traceShown = null;
   function syncTraceUi() {
@@ -567,7 +589,7 @@
   }
   document.querySelectorAll('#tr-mode [data-m]').forEach((b) => { b.onclick = () => { traceMode = b.dataset.m; syncTraceUi(); runTrace(); }; });
   $('tr-bgmode').onclick = (e) => { const b = e.target.closest('[data-start]'); if (!b) return; const [k, , tol] = BG_STARTS.find((x) => x[0] === b.dataset.start); bgState.tr.mode = k === 'off' ? 'off' : 'auto'; bgState.tr.start = k; if (tol) $('tr-tol').value = tol; syncTraceUi(); runTrace(); };
-  $('tr-tools').onclick = (e) => { const b = e.target.closest('[data-tool]'); if (!b) return; bgState.tr.tool = b.dataset.tool; syncTraceUi(); };
+  $('tr-tools').onclick = (e) => { const b = e.target.closest('[data-tool]'); if (!b) return; $('trace-src').lassoCancel && $('trace-src').lassoCancel(); bgState.tr.tool = b.dataset.tool; syncTraceUi(); };
   $('tr-size').oninput = () => syncBg('tr');
   $('tr-wandbtns').onclick = (e) => { const b = e.target.closest('[data-wand]'); if (!b) return; if (b.dataset.wand === 'undo') bgState.tr.actions.pop(); else bgState.tr.actions = []; syncTraceUi(); runTrace(); };
   touchUp('tr', $('trace-src'), () => runTrace());
@@ -663,7 +685,7 @@
   ['p3-tol', 'p3-puff', 'p3-shade', 'p3-smooth'].forEach((id) => { $(id).oninput = p3Sync; });
   $('p3-tol').onchange = p3Preview;
   $('p3-bgmode').onclick = (e) => { const b = e.target.closest('[data-start]'); if (!b) return; const [k, , tol] = BG_STARTS.find((x) => x[0] === b.dataset.start); bgState.p3.mode = k === 'off' ? 'off' : 'auto'; bgState.p3.start = k; if (tol) $('p3-tol').value = tol; p3Sync(); p3Preview(); };
-  $('p3-tools').onclick = (e) => { const b = e.target.closest('[data-tool]'); if (!b) return; bgState.p3.tool = b.dataset.tool; p3Sync(); };
+  $('p3-tools').onclick = (e) => { const b = e.target.closest('[data-tool]'); if (!b) return; $('p3-prev').lassoCancel && $('p3-prev').lassoCancel(); bgState.p3.tool = b.dataset.tool; p3Sync(); };
   $('p3-size').oninput = () => syncBg('p3');
   $('p3-wandbtns').onclick = (e) => { const b = e.target.closest('[data-wand]'); if (!b) return; if (b.dataset.wand === 'undo') bgState.p3.actions.pop(); else bgState.p3.actions = []; p3Sync(); p3Preview(); };
   touchUp('p3', $('p3-prev'), () => p3Preview());
