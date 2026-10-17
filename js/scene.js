@@ -29,6 +29,12 @@
     copper: ['Copper', { color: '#c8703f', metal: 1, rough: 0.28, coat: 0, glass: 0, glow: 0 }],
     glass: ['Glass', { color: '#ffffff', metal: 0, rough: 0.03, coat: 0, glass: 1, glow: 0 }],
     glow: ['Glow', { metal: 0, rough: 0.6, coat: 0, glass: 0, glow: 1.6 }],
+    // fabrics: sheen (the soft glow cloth gets at a slant), how soft it is, and a weave pressed into the surface
+    cotton: ['Cotton', { color: '#e9e4da', metal: 0, rough: 0.9, coat: 0, glass: 0, glow: 0, spec: 0.3, sheen: 0.6, sheenSoft: 0.6, weave: 'plain', weaveSize: 40 }],
+    denim: ['Denim', { color: '#3b5b8c', metal: 0, rough: 0.85, coat: 0, glass: 0, glow: 0, spec: 0.3, sheen: 0.5, sheenSoft: 0.5, weave: 'twill', weaveSize: 34 }],
+    velvet: ['Velvet', { color: '#7b1e3c', metal: 0, rough: 0.8, coat: 0, glass: 0, glow: 0, spec: 0.15, sheen: 1, sheenSoft: 0.3, weave: 'none', weaveSize: 40 }],
+    silk: ['Silk', { color: '#d9b26b', metal: 0.05, rough: 0.35, coat: 0, glass: 0, glow: 0, spec: 0.8, sheen: 0.8, sheenSoft: 0.2, weave: 'satin', weaveSize: 60 }],
+    felt: ['Felt', { color: '#4f8a5b', metal: 0, rough: 1, coat: 0, glass: 0, glow: 0, spec: 0.15, sheen: 0.7, sheenSoft: 0.9, weave: 'knit', weaveSize: 24 }],
     water: ['Water', { color: '#3d8fd1', metal: 0, rough: 0.03, coat: 0, glass: 0.92, glow: 0, spec: 1, ior: 1.33, waves: 1 }],
     rubber: ['Rubber', { metal: 0, rough: 0.6, coat: 0, glass: 0, glow: 0, spec: 0.25, sheen: 1 }],
   };
@@ -837,6 +843,35 @@
     if (f.type === 'pattern' || f.fit === 'tile') { tex.wrapS = tex.wrapT = T.RepeatWrapping; }
     texCache.set(key, tex); return tex;
   }
+  // A weave as a tiling normal map: threads going over and under (plain), in diagonals (twill), as rows of little V loops
+  // (knit) or long smooth floats (satin). size = threads across a face.
+  const weaveCache = new Map();
+  function weaveTexture(kind, size) {
+    const key = kind; let base = weaveCache.get(key);
+    if (!base) {
+      const N = 128, T8 = 8, cell = N / T8, h = new Float32Array(N * N);
+      for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+        const i = Math.floor(x / cell), j = Math.floor(y / cell), fx = (x % cell) / cell, fy = (y % cell) / cell; let v = 0;
+        if (kind === 'plain' || kind === 'twill' || kind === 'satin') {
+          const over = kind === 'plain' ? (i + j) % 2 === 0 : kind === 'twill' ? ((i + j) % 4) < 2 : ((i * 3 + j) % 5) !== 0;
+          // the thread on top bulges across its cell; the one underneath dips at the ends
+          v = over ? Math.sin(fy * Math.PI) * (0.6 + 0.4 * Math.sin(fx * Math.PI)) : Math.sin(fx * Math.PI) * (0.6 + 0.4 * Math.sin(fy * Math.PI));
+          if (kind === 'satin') v = 0.5 + 0.5 * Math.sin(fy * Math.PI) - (over ? 0 : 0.3 * Math.sin(fx * Math.PI));
+        } else if (kind === 'knit') {
+          // V-shaped stitches: two leaning loops in each cell
+          const lx = fx < 0.5 ? fx * 2 : (1 - fx) * 2, d = Math.abs(fy - (1 - lx) * 0.6 - 0.2);
+          v = Math.max(0, 1 - d * 4) * Math.sin(fx * Math.PI * 2 + Math.PI / 2) ** 2 + 0.3 * Math.sin(fy * Math.PI);
+        }
+        h[y * N + x] = v;
+      }
+      const c = document.createElement('canvas'); c.width = c.height = N; const x2 = c.getContext('2d'), img = x2.createImageData(N, N);
+      const at = (x, y) => h[((y + N) % N) * N + ((x + N) % N)];
+      for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const dx = (at(x + 1, y) - at(x - 1, y)) * 2.5, dy = (at(x, y + 1) - at(x, y - 1)) * 2.5, l = Math.hypot(dx, dy, 1), o = (y * N + x) * 4; img.data[o] = (-dx / l * 0.5 + 0.5) * 255; img.data[o + 1] = (dy / l * 0.5 + 0.5) * 255; img.data[o + 2] = (1 / l * 0.5 + 0.5) * 255; img.data[o + 3] = 255; }
+      x2.putImageData(img, 0, 0); base = c; weaveCache.set(key, c);
+    }
+    const t = new T.CanvasTexture(base); t.colorSpace = T.NoColorSpace; t.wrapS = t.wrapT = T.RepeatWrapping; t.anisotropy = 8; t.repeat.set(size / 8, size / 8);
+    return t;
+  }
   // Relief (emboss) for any picture, pattern or gradient: a normal map made from the picture's brightness (lighter is
   // higher), so the surface catches the light like embossed card or carved stone. One per texture, made again when the
   // picture loads; the strength and which way (raise light or dark) are set per material with normalScale.
@@ -927,7 +962,7 @@
       color: new T.Color(m.color || '#cccccc'), metalness: m.metal ?? 0, roughness: m.rough ?? 0.4, clearcoat: m.coat || 0, clearcoatRoughness: 0.1,
       transmission: glass, thickness: glass ? 1 : 0, ior: m.ior ?? 1.5, transparent: (m.opacity ?? 1) < 1, opacity: m.opacity ?? 1,
       emissive: m.glow ? new T.Color(m.color || '#ffffff') : new T.Color(0), emissiveIntensity: m.glow || 0,
-      specularIntensity: m.spec ?? 1, sheen: m.sheen || 0, sheenRoughness: 0.45, sheenColor: new T.Color(0.35, 0.35, 0.35),
+      specularIntensity: m.spec ?? 1, sheen: m.sheen || 0, sheenRoughness: m.sheenSoft ?? 0.45, sheenColor: m.weave || m.sheenSoft != null ? new T.Color(m.color || '#cccccc').lerp(new T.Color('#ffffff'), 0.55) : new T.Color(0.35, 0.35, 0.35),
     });
     // metals live on reflections; paint and plastic only need a little
     mat.envMap = envTex; mat.userData.reflect = (m.metal ?? 0) > 0.5 ? 1.5 : 0.6; mat.envMapIntensity = mat.userData.reflect * (E.doc ? E.doc.scene.reflect ?? 1 : 1);
@@ -935,6 +970,8 @@
     const tex = faceTexture(face, slot);
     if (tex) { mat.map = tex; mat.color.set('#ffffff'); if (m.glow) mat.emissiveMap = tex, mat.emissive.set('#ffffff'); }
     // relief: the picture's light parts raised (or its dark parts, turned round)
+    // fabric weave: a tiny repeating pattern of threads pressed into the surface (Relief on a picture takes its place)
+    if (m.weave && m.weave !== 'none' && !m.waves && !(tex && (m.relief || 0) > 0)) { mat.normalMap = weaveTexture(m.weave, m.weaveSize || 40); mat.normalScale.set(0.9, 0.9); }
     if (tex && (m.relief || 0) > 0 && !m.waves) { mat.normalMap = reliefTexture(tex); const k = m.relief * (m.reliefDark ? -1 : 1); mat.normalScale.set(k, k); }
     // water: little ripples (a normal map that drifts when the animation plays) and a blue tint deeper in
     if (m.waves) { mat.normalMap = waveTexture(); mat.normalScale.set(0.45, 0.45); mat.attenuationColor = new T.Color(m.color || '#3d8fd1'); mat.attenuationDistance = 2.5; mat.color.lerp(new T.Color('#ffffff'), 0.55); }
