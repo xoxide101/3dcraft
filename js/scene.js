@@ -832,10 +832,37 @@
     // the stand-in is the size of the finished picture: a picture loads a moment later, and the card keeps a texture's first size
     const blank = document.createElement('canvas'); blank.width = blank.height = 1024;
     const tex = new T.CanvasTexture(blank); tex.colorSpace = T.SRGBColorSpace; tex.anisotropy = 8;
-    const draw = (img) => { tex.image = window.paintCanvas ? window.paintCanvas(1024, 1024, f, img, 1024 / 40) : document.createElement('canvas'); tex.needsUpdate = true; needs = true; };
+    const draw = (img) => { tex.image = window.paintCanvas ? window.paintCanvas(1024, 1024, f, img, 1024 / 40) : document.createElement('canvas'); tex.needsUpdate = true; needs = true; if (tex.userData.relief) drawRelief(tex); };
     if (f.type === 'picture' && f.src) { const i = new Image(); i.onload = () => draw(i); i.src = f.src; } else draw(null);
     if (f.type === 'pattern' || f.fit === 'tile') { tex.wrapS = tex.wrapT = T.RepeatWrapping; }
     texCache.set(key, tex); return tex;
+  }
+  // Relief (emboss) for any picture, pattern or gradient: a normal map made from the picture's brightness (lighter is
+  // higher), so the surface catches the light like embossed card or carved stone. One per texture, made again when the
+  // picture loads; the strength and which way (raise light or dark) are set per material with normalScale.
+  function drawRelief(tex) {
+    const src = tex.image; if (!src || !src.width) return;
+    const N = 1024, c = tex.userData.relief.image.width ? tex.userData.relief.image : document.createElement('canvas'); c.width = c.height = N;
+    const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(src, 0, 0, N, N);
+    const d = x.getImageData(0, 0, N, N), D = d.data, h = new Float32Array(N * N);
+    for (let i = 0; i < N * N; i++) h[i] = (0.299 * D[i * 4] + 0.587 * D[i * 4 + 1] + 0.114 * D[i * 4 + 2]) / 255;
+    // soften a little so edges get a rounded bevel rather than a one-pixel line
+    const b = new Float32Array(N * N), at = (u, v) => h[((v + N) % N) * N + ((u + N) % N)];
+    for (let v = 0; v < N; v++) for (let u = 0; u < N; u++) { let s = 0; for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) s += at(u + i, v + j); b[v * N + u] = s / 9; }
+    const bt = (u, v) => b[((v + N) % N) * N + ((u + N) % N)];
+    for (let v = 0; v < N; v++) for (let u = 0; u < N; u++) {
+      const dx = (bt(u + 1, v) - bt(u - 1, v)) * 14, dy = (bt(u, v + 1) - bt(u, v - 1)) * 14, l = Math.hypot(dx, dy, 1), o = (v * N + u) * 4;
+      D[o] = (-dx / l * 0.5 + 0.5) * 255; D[o + 1] = (dy / l * 0.5 + 0.5) * 255; D[o + 2] = (1 / l * 0.5 + 0.5) * 255; D[o + 3] = 255;
+    }
+    x.putImageData(d, 0, 0);
+    tex.userData.relief.image = c; tex.userData.relief.needsUpdate = true; needs = true;
+  }
+  function reliefTexture(tex) {
+    if (!tex.userData.relief) {
+      const r = new T.CanvasTexture(document.createElement('canvas')); r.colorSpace = T.NoColorSpace; r.wrapS = tex.wrapS; r.wrapT = tex.wrapT; r.anisotropy = 8;
+      tex.userData.relief = r; drawRelief(tex);
+    }
+    return tex.userData.relief;
   }
   // Ripples for water: a tiling normal map made from a few crossing waves
   let waveTex = null;
@@ -907,6 +934,8 @@
     if (face && face.type === 'solid') mat.color.set(face.color || m.color);
     const tex = faceTexture(face, slot);
     if (tex) { mat.map = tex; mat.color.set('#ffffff'); if (m.glow) mat.emissiveMap = tex, mat.emissive.set('#ffffff'); }
+    // relief: the picture's light parts raised (or its dark parts, turned round)
+    if (tex && (m.relief || 0) > 0 && !m.waves) { mat.normalMap = reliefTexture(tex); const k = m.relief * (m.reliefDark ? -1 : 1); mat.normalScale.set(k, k); }
     // water: little ripples (a normal map that drifts when the animation plays) and a blue tint deeper in
     if (m.waves) { mat.normalMap = waveTexture(); mat.normalScale.set(0.45, 0.45); mat.attenuationColor = new T.Color(m.color || '#3d8fd1'); mat.attenuationDistance = 2.5; mat.color.lerp(new T.Color('#ffffff'), 0.55); }
     // a screen: glossy glass, and a picture on it lights up like a real screen

@@ -272,6 +272,8 @@
       mat.cycle && E.slotsFor(m).includes('screen') ? { t: 'check', label: 'Only on the screen', value: mat.cycle.part === 'screen', on: (v) => { mat.cycle.part = v ? 'screen' : null; changed(m.id); } } : null,
       mat.cycle && (m.kind === 'text' || m.kind === 'trace') ? { t: 'check', label: 'Only on the front', value: !!mat.cycle.front, on: (v) => { mat.cycle.front = v; changed(m.id); } } : null,
       slots.length || m.kind === 'shape' || m.kind === 'model' ? { t: 'select', label: 'Picture or gradient on', value: face, options: [['all', 'Every face'], ...slots.map((s) => [s, s[0].toUpperCase() + s.slice(1)])], on: (v) => { materialSection.face = v; showProps(); } } : null,
+      { t: 'range', label: 'Relief (emboss) on pictures, patterns and gradients', value: Math.round((mat.relief || 0) * 100), min: 0, max: 300, step: 5, show: (v) => (v ? v + '%' : 'flat'), on: (v) => set({ relief: v / 100 }) },
+      (mat.relief || 0) > 0 ? { t: 'check', label: 'Raise the dark parts (instead of the light ones)', value: !!mat.reliefDark, on: (v) => set({ reliefDark: v }) } : null,
       { t: 'html', mount: (el) => { el.append(paintPicker((mat.faces || {})[face] || { type: 'none' }, (f) => { mat.faces = { ...(mat.faces || {}) }; if (f.type === 'none') delete mat.faces[face]; else mat.faces[face] = f; changed(m.id); showProps(); }, { none: 'Plain', unit: 'mm', label: face === 'all' ? 'Every face' : face[0].toUpperCase() + face.slice(1), base: mat.color })); } },
     ] };
   }
