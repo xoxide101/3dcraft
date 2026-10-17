@@ -78,6 +78,7 @@
     mushroom: ['Mushroom', { size: 1 }, [['size', 'Size', 0.2, 5, 0.05]]],
     cactus: ['Cactus', { size: 1, seed: 5 }, [['size', 'Size', 0.2, 5, 0.05], ['seed', 'Shape (try another number)', 1, 999, 1]]],
     bush: ['Bush', { size: 1, seed: 11 }, [['size', 'Size', 0.2, 5, 0.05], ['seed', 'Shape (try another number)', 1, 999, 1]]],
+    flag: ['Flag', { w: 3, h: 2, pole: 4.5, wind: 1, speed: 1 }, [['w', 'Cloth width', 0.5, 10, 0.1], ['h', 'Cloth height', 0.3, 8, 0.1], ['pole', 'Pole height', 1, 15, 0.1], ['wind', 'Wind strength', 0, 3, 0.05], ['speed', 'Wind speed', 0.1, 3, 0.05]]],
     fence: ['Fence', { size: 1, posts: 5 }, [['size', 'Size', 0.2, 5, 0.05], ['posts', 'Posts', 2, 20, 1]]],
   });
   // the parts' own colours to start with (the object's Colour is used for any part without one)
@@ -106,6 +107,7 @@
     cactus: { cactus: { type: 'solid', color: '#3f8a4a' }, flower: { type: 'solid', color: '#f783ac' } },
     bush: { leaves: { type: 'solid', color: '#3f8a4a' } },
     fence: { wood: { type: 'solid', color: '#c99a6b' } },
+    flag: { pole: { type: 'solid', color: '#adb5bd' }, cloth: { type: 'solid', color: '#e03131' } },
     boat: { hull: { type: 'solid', color: '#1971c2' }, cabin: { type: 'solid', color: '#f8f9fa' }, windows: { type: 'solid', color: '#1b2430' }, chimney: { type: 'solid', color: '#e03131' } },
   };
   E.isObjectShape = (type) => !!(E.SHAPES[type] && E.SHAPES[type][2]);
@@ -484,6 +486,49 @@
     const chimney = [put(new T.CylinderGeometry(0.09 * k, 0.11 * k, 0.5 * k, 20), -0.55 * k, hullH + 0.85 * k, 0, 0, 0, 0.15)];
     return partsGeo([['hull', [hull]], ['cabin', cabin], ['windows', windows], ['chimney', chimney]]);
   }
+  // ------------------------------------------------------------------ fur and hair, and cloth in the wind
+  // Fur: thin see-through shells stacked outward from the surface, each speckled with the tips of the hairs that reach
+  // that far (shorter hairs stop sooner), from a darker root to a lighter tip, drooping a little with gravity.
+  let furTex = null;
+  function furTexture() {
+    if (furTex) return furTex;
+    const N = 256, c = document.createElement('canvas'); c.width = c.height = N; const x = c.getContext('2d'), img = x.createImageData(N, N);
+    for (let i = 0; i < N * N; i++) { const r = rnd2(i, 3), o = i * 4; img.data[o] = img.data[o + 1] = img.data[o + 2] = 255; img.data[o + 3] = r < 0.55 ? Math.round(80 + 175 * rnd2(i, 7)) : 0; }
+    x.putImageData(img, 0, 0);
+    furTex = new T.CanvasTexture(c); furTex.colorSpace = T.NoColorSpace; furTex.wrapS = furTex.wrapT = T.RepeatWrapping; furTex.magFilter = T.NearestFilter; furTex.minFilter = T.NearestFilter;
+    return furTex;
+  }
+  function addFur(o, m) {
+    const len = Math.max(0.01, m.fur), N = Math.round(10 + Math.min(14, len * 30)), dens = m.furDensity || 12, droop = m.furDroop ?? 0.3;
+    const root = new T.Color(m.color || '#8a6a4a').multiplyScalar(0.6), tip = new T.Color(m.furTip || m.color || '#c9a77a');
+    const meshes = []; o.traverse((x) => { if (x.isMesh && !x.userData.fur) meshes.push(x); });
+    meshes.forEach((mesh) => {
+      const g0 = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry, pos = g0.attributes.position, nor = g0.attributes.normal, uv = g0.attributes.uv; if (!nor) return;
+      for (let k = 1; k <= N; k++) {
+        const f = k / N, g = new T.BufferGeometry(), P = new Float32Array(pos.count * 3);
+        for (let i = 0; i < pos.count; i++) { P[i * 3] = pos.getX(i) + nor.getX(i) * len * f; P[i * 3 + 1] = pos.getY(i) + nor.getY(i) * len * f - droop * len * f * f; P[i * 3 + 2] = pos.getZ(i) + nor.getZ(i) * len * f; }
+        g.setAttribute('position', new T.BufferAttribute(P, 3)); g.setAttribute('normal', nor); if (uv) g.setAttribute('uv', uv);
+        const t = furTexture().clone(); t.needsUpdate = true; t.repeat.set(dens, dens);
+        const mat = new T.MeshStandardMaterial({ color: root.clone().lerp(tip, f), alphaMap: t, alphaTest: 0.3 + f * 0.65, transparent: false, roughness: 0.9, side: T.DoubleSide });
+        const shell = new T.Mesh(g, mat); shell.userData.fur = true; shell.castShadow = false; shell.receiveShadow = true; mesh.add(shell);
+      }
+    });
+  }
+  // Cloth in the wind (the Flag object): the cloth part ripples and flaps, more towards its free end, with the time
+  function windCloth(tt) {
+    root.traverse((x) => {
+      const w = x.userData && x.userData.cloth; if (!w) return;
+      const pos = x.geometry.attributes.position, O = w.orig, amp = 0.18 * (w.wind ?? 1), sp = w.speed ?? 1;
+      for (let i = w.start; i < w.start + w.count; i++) {
+        const X = O[i * 3], Y = O[i * 3 + 1], u = Math.max(0, (X - w.x0) / w.len), t = tt * sp * 2.2;
+        const z = amp * u * w.len * (Math.sin(X * 2.4 - t * 3.1) * 0.6 + Math.sin(X * 4.1 + Y * 1.7 - t * 4.3) * 0.3 + Math.sin(Y * 3.3 - t * 2.2) * 0.12);
+        pos.setXYZ(i, X - Math.abs(z) * 0.15 * u, Y - u * u * 0.05 * w.len * (1.2 - (w.wind ?? 1) * 0.6), O[i * 3 + 2] + z);
+      }
+      pos.needsUpdate = true; x.geometry.computeVertexNormals();
+    });
+  }
+  E.windCloth = windCloth;
+
   // ------------------------------------------------------------------ scenery objects
   // a lumpy rock: a round shape pushed in and out by a few waves (the same point always moves the same way, so the
   // faces stay joined); faceted like a real stone
@@ -600,6 +645,13 @@
         return partsGeo([['cactus', body], ['flower', flower]]);
       }
       case 'bush': { const list = []; for (let i = 0; i < 7; i++) { const a = rnd2(seed, i) * Math.PI * 2, d = 0.5 * k * rnd2(seed, i + 9); list.push(put(lumpy((0.5 + 0.35 * rnd2(seed, i + 20)) * k, seed + i, 2, 0.15), Math.cos(a) * d, (0.45 + 0.35 * rnd2(seed, i + 30)) * k, Math.sin(a) * d)); } return partsGeo([['leaves', list]]); }
+      case 'flag': {
+        const W = p.w || 3, Hh = p.h || 2, P2 = Math.max(Hh + 0.2, p.pole || 4.5);
+        const pole = [put(new T.CylinderGeometry(0.05, 0.06, P2, 16), 0, P2 / 2, 0), put(new T.SphereGeometry(0.1, 16, 10), 0, P2 + 0.05, 0)];
+        const cloth = new T.PlaneGeometry(W, Hh, Math.max(12, Math.round(W * 14)), Math.max(8, Math.round(Hh * 10))); cloth.translate(W / 2 + 0.06, P2 - Hh / 2 - 0.1, 0);
+        // partsGeo centres the whole thing; keep the pole at the left by building, then shifting back after
+        const r = partsGeo([['pole', pole], ['cloth', [cloth]]]); return r;
+      }
       case 'fence': {
         const n = Math.max(2, p.posts | 0 || 5), gap = 1 * k, W = (n - 1) * gap, wood = [];
         for (let i = 0; i < n; i++) { const x = -W / 2 + i * gap; wood.push(put(new T.BoxGeometry(0.12 * k, 1.1 * k, 0.12 * k), x, 0.55 * k, 0)); const tip = new T.ConeGeometry(0.09 * k, 0.15 * k, 4); tip.rotateY(Math.PI / 4); wood.push(put(tip, x, 1.17 * k, 0)); }
@@ -609,7 +661,7 @@
     }
     return null;
   }
-  E.SCENERY = ['rock', 'asteroid', 'crater', 'rocket', 'ufo', 'sailboat', 'lighthouse', 'umbrella', 'chip', 'capacitor', 'streetlamp', 'bench', 'trafficcone', 'pine3d', 'stump', 'mushroom', 'cactus', 'bush', 'fence'];
+  E.SCENERY = ['rock', 'asteroid', 'crater', 'rocket', 'ufo', 'sailboat', 'lighthouse', 'umbrella', 'chip', 'capacitor', 'streetlamp', 'bench', 'trafficcone', 'pine3d', 'stump', 'mushroom', 'cactus', 'bush', 'fence', 'flag'];
 
   E.shapeSize = (s) => { const [g] = shapeGeo(s); g.computeBoundingBox(); const v = g.boundingBox.getSize(new T.Vector3()); g.dispose(); return v; };
 
@@ -633,7 +685,7 @@
       case 'tv': { const W = (p.size || 43) * 0.117; return flatScreenGeo(W, W * 9 / 16, 0.16, 0.04, 0.25, 'tv'); }
       case 'crt': return crtGeo(p);
       case 'boat': return boatGeo(p);
-      case 'rock': case 'asteroid': case 'crater': case 'rocket': case 'ufo': case 'sailboat': case 'lighthouse': case 'umbrella': case 'chip': case 'capacitor': case 'streetlamp': case 'bench': case 'trafficcone': case 'pine3d': case 'stump': case 'mushroom': case 'cactus': case 'bush': case 'fence': return sceneryGeo(p);
+      case 'rock': case 'asteroid': case 'crater': case 'rocket': case 'ufo': case 'sailboat': case 'lighthouse': case 'umbrella': case 'chip': case 'capacitor': case 'streetlamp': case 'bench': case 'trafficcone': case 'pine3d': case 'stump': case 'mushroom': case 'cactus': case 'bush': case 'fence': case 'flag': return sceneryGeo(p);
       case 'washer': { const sh = new T.Shape().absarc(0, 0, p.r, 0, Math.PI * 2, false); sh.holes.push(new T.Path().absarc(0, 0, Math.min(p.hole, p.r - 0.05), 0, Math.PI * 2, true)); return [extrudeShapes([sh], p.d, 0, 64), SLOTS.extrude]; }
       case 'star': { const sh = new T.Shape(), n = Math.max(3, p.points | 0); for (let i = 0; i < n * 2; i++) { const a = (i * Math.PI) / n + Math.PI / 2, r = i % 2 ? p.r * p.inner : p.r; i ? sh.lineTo(Math.cos(a) * r, Math.sin(a) * r) : sh.moveTo(Math.cos(a) * r, Math.sin(a) * r); } return [extrudeShapes([sh], p.d, p.d * 0.1), SLOTS.extrude]; }
       case 'heart': { const k = p.r / 1.2, sh = new T.Shape(); sh.moveTo(0, -1.1 * k); sh.bezierCurveTo(-0.3 * k, -0.75 * k, -1.2 * k, -0.25 * k, -1.2 * k, 0.35 * k); sh.bezierCurveTo(-1.2 * k, 0.95 * k, -0.45 * k, 1.15 * k, 0, 0.6 * k); sh.bezierCurveTo(0.45 * k, 1.15 * k, 1.2 * k, 0.95 * k, 1.2 * k, 0.35 * k); sh.bezierCurveTo(1.2 * k, -0.25 * k, 0.3 * k, -0.75 * k, 0, -1.1 * k); return [extrudeShapes([sh], p.d, p.d * 0.1, 24), SLOTS.extrude]; }
@@ -980,7 +1032,7 @@
       // the bands show at full strength (not softened by the scene's brightening), with a little of the light for shape
       const ct = cycleTexture(m.cycle); mat.map = ct; mat.color.set('#4d4d4d'); mat.emissive = new T.Color('#ffffff'); mat.emissiveMap = ct; mat.emissiveIntensity = 0.85; mat.toneMapped = false; mat.metalness = Math.min(mat.metalness, 0.3); mat.userData.cycle = { ...m.cycle };
     }
-    if (slot === 'sails' || slot === 'canopy' || slot === 'stripes') mat.side = T.DoubleSide;
+    if (slot === 'sails' || slot === 'canopy' || slot === 'stripes' || slot === 'cloth') mat.side = T.DoubleSide;
     if (slot === 'lamp' || slot === 'lantern' || slot === 'lights') { mat.emissive.copy(mat.color); mat.emissiveIntensity = 1.2; }
     if (slot === 'screen') { mat.roughness = 0.12; mat.metalness = 0; mat.clearcoat = 1; mat.transmission = 0; if (tex) { mat.emissiveMap = tex; mat.emissive.set('#ffffff'); mat.emissiveIntensity = 0.8; } }
     return mat;
@@ -1043,6 +1095,9 @@
     else if (m.kind === 'model') o = await loadModel(m);
     else o = new T.Group();
     o.traverse((x) => { if (x.isMesh) { x.castShadow = true; x.receiveShadow = true; } });
+    // a flag's cloth: remember where its points start, so the wind can move them
+    if (m.kind === 'shape' && m.shape.type === 'flag') o.traverse((x) => { if (!x.isMesh || !x.geometry.groups[1]) return; const gr = x.geometry.groups[1], pos = x.geometry.attributes.position; let x0 = Infinity, x1 = -Infinity; for (let i = gr.start; i < gr.start + gr.count; i++) { x0 = Math.min(x0, pos.getX(i)); x1 = Math.max(x1, pos.getX(i)); } x.userData.cloth = { start: gr.start, count: gr.count, orig: Float32Array.from(pos.array), x0, len: Math.max(0.1, x1 - x0), wind: m.shape.wind ?? 1, speed: m.shape.speed ?? 1 }; });
+    if (m.mat && (m.mat.fur || 0) > 0) addFur(o, m.mat);
     Object.assign(o.userData, { id: m.id, kind: m.kind }); o.uid = m.id; o.name = m.name || m.kind;
     place(o, m);
     return o;
@@ -1415,6 +1470,8 @@
   E.exportModel = async function (fmt, onlySelected) {
     const src = onlySelected && selected ? selected : root;
     const tmp = src.clone(true); tmp.updateMatrixWorld(true);
+    // fur shells are a look, not a shape: leave them out of 3D files
+    const furs = []; tmp.traverse((x) => { if (x.userData && x.userData.fur) furs.push(x); }); furs.forEach((x) => x.removeFromParent());
     if (fmt === 'glb') { const r = await new T.GLTFExporter().parseAsync(tmp, { binary: true }); return new Blob([r], { type: 'model/gltf-binary' }); }
     if (fmt === 'obj') return new Blob([new T.OBJExporter().parse(tmp)], { type: 'text/plain' });
     if (fmt === 'stl') return new Blob([new T.STLExporter().parse(tmp, { binary: true })], { type: 'model/stl' });
@@ -1491,7 +1548,7 @@
     E.time = Math.max(0, Math.min(a.length, t));
     const tt = E.time;
     if (waveTex) { waveTex.offset.set(tt * 0.035, tt * 0.022); }
-    poseCycles(tt);
+    poseCycles(tt); windCloth(tt);
     E.doc.objects.forEach((m) => {
       const o = built.get(m.id); if (!o) return;
       const tr = a.tracks[m.id];

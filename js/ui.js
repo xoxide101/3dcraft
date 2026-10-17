@@ -193,7 +193,7 @@
   // ready-made objects: [label, shape type, settings]
   const OBJECTS = [['Palm tree', 'palm', {}, 'palm'], ['Round table', 'table', { top: 'round', base: 'pedestal' }, 'table'], ['Square table', 'table', { top: 'square', base: 'legs' }, 'table4'], ['Long table', 'table', { top: 'rect', base: 'legs', w: 6, d: 3 }, 'table4'],
     ['Computer monitor', 'monitor', {}, 'monitor'], ['TV (43 inch)', 'tv', { size: 43 }, 'tv'], ['TV (65 inch)', 'tv', { size: 65 }, 'tv'], ['CRT TV', 'crt', {}, 'crt'], ['Test boat', 'boat', {}, 'boat']];
-  const SCENERY_ICON = {"rock": "<path d=\"M4 17l3-7 5-3 6 3 2 7z\"/><path d=\"M7 10l4 3 7-3\" opacity=\".5\"/>", "asteroid": "<path d=\"M5 9l5-4 7 2 3 6-4 6-7 0-4-4z\"/><circle cx=\"11\" cy=\"11\" r=\"1.6\"/><circle cx=\"15\" cy=\"15\" r=\"1\"/>", "crater": "<ellipse cx=\"12\" cy=\"15\" rx=\"9\" ry=\"3.5\"/><ellipse cx=\"12\" cy=\"15\" rx=\"5\" ry=\"1.8\" class=\"hue\"/>", "rocket": "<path d=\"M12 2c3 3 4 7 3 12h-6C8 9 9 5 12 2z\"/><path d=\"M9 14l-3 4h4M15 14l3 4h-4\"/><circle cx=\"12\" cy=\"9\" r=\"1.5\" class=\"hue\"/>", "ufo": "<ellipse cx=\"12\" cy=\"13\" rx=\"10\" ry=\"3\"/><path d=\"M8 12a4 4 0 0 1 8 0\"/><path d=\"M7 18l-1 2M17 18l1 2\" class=\"hue\"/>", "sailboat": "<path d=\"M4 17h16l-3 3H7z\"/><path d=\"M12 3v14M12 4l-6 11h6M13 6l5 9h-5\" class=\"hue\"/>", "lighthouse": "<path d=\"M9 21l1.5-14h3L15 21z\"/><path d=\"M9.5 15h5M10 11h4\"/><rect x=\"10\" y=\"4\" width=\"4\" height=\"3\" class=\"hue\"/>", "umbrella": "<path d=\"M3 11a9 7 0 0 1 18 0z\"/><path d=\"M12 11v10\"/><path d=\"M8 11l4-7 4 7\" class=\"hue\"/>", "chip": "<rect x=\"6\" y=\"6\" width=\"12\" height=\"12\" rx=\"1\"/><path d=\"M9 3v3M12 3v3M15 3v3M9 18v3M12 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3\"/>", "capacitor": "<rect x=\"8\" y=\"3\" width=\"8\" height=\"13\" rx=\"2\"/><path d=\"M10 16v5M14 16v5\"/><path d=\"M14 4v11\" class=\"hue\"/>", "streetlamp": "<path d=\"M8 21V4h8\"/><path d=\"M14 4l3 3h-6z\" class=\"hue\"/><path d=\"M6 21h4\"/>", "bench": "<path d=\"M3 13h18M3 9h18M5 13v6M19 13v6M5 9V7M19 9V7\"/>", "trafficcone": "<path d=\"M9 4h6l4 15H5z\"/><path d=\"M7.5 10h9M6.5 14h11\" class=\"hue\"/><path d=\"M3 19h18\"/>", "pine3d": "<path d=\"M12 2l5 7h-3l4 6H6l4-6H7z\"/><path d=\"M12 15v6\"/>", "stump": "<ellipse cx=\"12\" cy=\"8\" rx=\"6\" ry=\"2.5\"/><path d=\"M6 8v8c0 1.5 3 2.5 6 2.5s6-1 6-2.5V8\"/><ellipse cx=\"12\" cy=\"8\" rx=\"3\" ry=\"1.2\" class=\"hue\"/>", "mushroom": "<path d=\"M3 12a9 7 0 0 1 18 0z\" class=\"hue\"/><path d=\"M10 12v7h4v-7\"/>", "cactus": "<path d=\"M10 21V5a2 2 0 0 1 4 0v16\"/><path d=\"M10 13H7V9M14 11h3V7\"/>", "bush": "<path d=\"M5 17a4 4 0 0 1 1-7 5 5 0 0 1 9-2 4 4 0 0 1 4 6 3 3 0 0 1-1 3z\"/>", "fence": "<path d=\"M5 20V6l1.5-2L8 6v14M11 20V6l1.5-2L14 6v14M17 20V6l1.5-2L20 6v14M3 10h19M3 15h19\"/>"};
+  const SCENERY_ICON = {"rock": "<path d=\"M4 17l3-7 5-3 6 3 2 7z\"/><path d=\"M7 10l4 3 7-3\" opacity=\".5\"/>", "asteroid": "<path d=\"M5 9l5-4 7 2 3 6-4 6-7 0-4-4z\"/><circle cx=\"11\" cy=\"11\" r=\"1.6\"/><circle cx=\"15\" cy=\"15\" r=\"1\"/>", "crater": "<ellipse cx=\"12\" cy=\"15\" rx=\"9\" ry=\"3.5\"/><ellipse cx=\"12\" cy=\"15\" rx=\"5\" ry=\"1.8\" class=\"hue\"/>", "rocket": "<path d=\"M12 2c3 3 4 7 3 12h-6C8 9 9 5 12 2z\"/><path d=\"M9 14l-3 4h4M15 14l3 4h-4\"/><circle cx=\"12\" cy=\"9\" r=\"1.5\" class=\"hue\"/>", "ufo": "<ellipse cx=\"12\" cy=\"13\" rx=\"10\" ry=\"3\"/><path d=\"M8 12a4 4 0 0 1 8 0\"/><path d=\"M7 18l-1 2M17 18l1 2\" class=\"hue\"/>", "sailboat": "<path d=\"M4 17h16l-3 3H7z\"/><path d=\"M12 3v14M12 4l-6 11h6M13 6l5 9h-5\" class=\"hue\"/>", "lighthouse": "<path d=\"M9 21l1.5-14h3L15 21z\"/><path d=\"M9.5 15h5M10 11h4\"/><rect x=\"10\" y=\"4\" width=\"4\" height=\"3\" class=\"hue\"/>", "umbrella": "<path d=\"M3 11a9 7 0 0 1 18 0z\"/><path d=\"M12 11v10\"/><path d=\"M8 11l4-7 4 7\" class=\"hue\"/>", "chip": "<rect x=\"6\" y=\"6\" width=\"12\" height=\"12\" rx=\"1\"/><path d=\"M9 3v3M12 3v3M15 3v3M9 18v3M12 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3\"/>", "capacitor": "<rect x=\"8\" y=\"3\" width=\"8\" height=\"13\" rx=\"2\"/><path d=\"M10 16v5M14 16v5\"/><path d=\"M14 4v11\" class=\"hue\"/>", "streetlamp": "<path d=\"M8 21V4h8\"/><path d=\"M14 4l3 3h-6z\" class=\"hue\"/><path d=\"M6 21h4\"/>", "bench": "<path d=\"M3 13h18M3 9h18M5 13v6M19 13v6M5 9V7M19 9V7\"/>", "trafficcone": "<path d=\"M9 4h6l4 15H5z\"/><path d=\"M7.5 10h9M6.5 14h11\" class=\"hue\"/><path d=\"M3 19h18\"/>", "pine3d": "<path d=\"M12 2l5 7h-3l4 6H6l4-6H7z\"/><path d=\"M12 15v6\"/>", "stump": "<ellipse cx=\"12\" cy=\"8\" rx=\"6\" ry=\"2.5\"/><path d=\"M6 8v8c0 1.5 3 2.5 6 2.5s6-1 6-2.5V8\"/><ellipse cx=\"12\" cy=\"8\" rx=\"3\" ry=\"1.2\" class=\"hue\"/>", "mushroom": "<path d=\"M3 12a9 7 0 0 1 18 0z\" class=\"hue\"/><path d=\"M10 12v7h4v-7\"/>", "cactus": "<path d=\"M10 21V5a2 2 0 0 1 4 0v16\"/><path d=\"M10 13H7V9M14 11h3V7\"/>", "bush": "<path d=\"M5 17a4 4 0 0 1 1-7 5 5 0 0 1 9-2 4 4 0 0 1 4 6 3 3 0 0 1-1 3z\"/>", "flag": "<path d=\"M5 21V3\"/><path d=\"M5 4c4-2 6 2 10 0s4 0 4 0v8s-2-1-4 0-6-2-10 0\" class=\"hue\"/>", "fence": "<path d=\"M5 20V6l1.5-2L8 6v14M11 20V6l1.5-2L14 6v14M17 20V6l1.5-2L20 6v14M3 10h19M3 15h19\"/>"};
   const OBJ_ICON = {"palm": "<path d=\"M12 21c0-5 1-9 2-12\"/><path d=\"M14 9c-3-3-7-3-9-1M14 9c3-3 7-2 8 0M14 9c-1-3-4-5-6-5M14 9c1-3 4-4 6-3\" class=\"hue\"/>", "table": "<ellipse cx=\"12\" cy=\"8\" rx=\"9\" ry=\"2.5\"/><path d=\"M12 10.5V19M7 20l5-1.5 5 1.5\"/>", "table4": "<rect x=\"3\" y=\"6\" width=\"18\" height=\"3\" rx=\"1\"/><path d=\"M5 9v11M19 9v11M8 9v8M16 9v8\" opacity=\".8\"/>", "monitor": "<rect x=\"3\" y=\"4\" width=\"18\" height=\"12\" rx=\"1.5\"/><path d=\"M12 16v3M8 20h8\"/>", "tv": "<rect x=\"2\" y=\"5\" width=\"20\" height=\"12\" rx=\"1\"/><path d=\"M6 17l-1 3M18 17l1 3\"/>", "crt": "<rect x=\"3\" y=\"5\" width=\"16\" height=\"13\" rx=\"2\"/><rect x=\"5\" y=\"7\" width=\"10\" height=\"8\" rx=\"2\"/><path d=\"M17 9v1M17 12v1\"/><path d=\"M19 8l2 2v6l-2 1\" opacity=\".6\"/>", "boat": "<path d=\"M3 15h18l-3 4H6z\"/><rect x=\"8\" y=\"10\" width=\"7\" height=\"5\"/><path d=\"M9 10V7h4v3M15 7v3\" opacity=\".7\"/>"};
   $('addgrid').innerHTML = '<h4>Shapes</h4>' + Object.entries(E.SHAPES).filter(([k]) => !E.isObjectShape(k)).map(([k, [n]]) => `<button type="button" data-add="${k}" title="Add a ${n.toLowerCase()}">${ICON(SH_ICON[k])}${n}</button>`).join('')
     + '<h4>Scenery</h4>' + E.SCENERY.map((k) => `<button type="button" data-add="${k}" title="Add a ${E.SHAPES[k][0].toLowerCase()}">${ICON(SCENERY_ICON[k])}${E.SHAPES[k][0]}</button>`).join('')
@@ -278,6 +278,9 @@
       mat.weave != null && mat.weave !== 'none' ? { t: 'range', label: 'Weave size (threads across a face)', value: mat.weaveSize || 40, min: 4, max: 200, step: 2, on: (v) => set({ weaveSize: v }) } : null,
       mat.weave != null || (mat.sheen || 0) > 0 ? { t: 'range', label: 'Sheen (the soft glow of cloth)', value: Math.round((mat.sheen || 0) * 100), min: 0, max: 100, show: (v) => v + '%', on: (v) => set({ sheen: v / 100 }) } : null,
       mat.weave != null ? { t: 'range', label: 'Softness', value: Math.round((mat.sheenSoft ?? 0.5) * 100), min: 0, max: 100, show: (v) => v + '%', on: (v) => set({ sheenSoft: v / 100 }) } : null,
+      { t: 'range', label: 'Fur or hair (length)', value: Math.round((mat.fur || 0) * 100), min: 0, max: 60, show: (v) => (v ? (v / 100).toFixed(2) : 'none'), on: (v) => set({ fur: v / 100 }) },
+      (mat.fur || 0) > 0 ? { t: 'row', items: [{ t: 'range', label: 'Thickness', value: mat.furDensity || 12, min: 2, max: 40, on: (v) => set({ furDensity: v }) }, { t: 'color', label: 'Tip colour', value: mat.furTip || mat.color, on: (v, l) => { if (!l) set({ furTip: v }); } }] } : null,
+      (mat.fur || 0) > 0 ? { t: 'range', label: 'Droop', value: Math.round((mat.furDroop ?? 0.3) * 100), min: 0, max: 150, show: (v) => v + '%', on: (v) => set({ furDroop: v / 100 }) } : null,
       { t: 'range', label: 'Relief (emboss) on pictures, patterns and gradients', value: Math.round((mat.relief || 0) * 100), min: 0, max: 300, step: 5, show: (v) => (v ? v + '%' : 'flat'), on: (v) => set({ relief: v / 100 }) },
       (mat.relief || 0) > 0 ? { t: 'check', label: 'Raise the dark parts (instead of the light ones)', value: !!mat.reliefDark, on: (v) => set({ reliefDark: v }) } : null,
       { t: 'html', mount: (el) => { el.append(paintPicker((mat.faces || {})[face] || { type: 'none' }, (f) => { mat.faces = { ...(mat.faces || {}) }; if (f.type === 'none') delete mat.faces[face]; else mat.faces[face] = f; changed(m.id); showProps(); }, { none: 'Plain', unit: 'mm', label: face === 'all' ? 'Every face' : face[0].toUpperCase() + face.slice(1), base: mat.color })); } },
@@ -814,6 +817,7 @@
     chrome: ['Retro chrome', 'Shiny 80s letters on a night sky', '<defs><linearGradient id="st-c" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b1035"/><stop offset="1" stop-color="#7a2a8f"/></linearGradient><linearGradient id="st-m" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".5" stop-color="#7f8fa6"/><stop offset=".55" stop-color="#2c3e50"/><stop offset="1" stop-color="#dfe6ee"/></linearGradient></defs><rect x="4" y="10" width="66" height="52" rx="4" fill="url(#st-c)"/><text x="37" y="44" text-anchor="middle" font-family="Orbitron, sans-serif" font-size="16" font-weight="bold" fill="url(#st-m)">RAD</text>'],
     still: ['Shapes still life', 'A few shapes in a soft studio light', '<rect x="4" y="10" width="66" height="52" rx="4" fill="#eef1f5"/><circle cx="26" cy="40" r="10" fill="#e8590c"/><path d="M40 50l8-18 8 18z" fill="#3f7fe0"/><rect x="48" y="38" width="12" height="12" fill="#2f9e44"/>'],
     test: ['Test scene', 'Everything at once: moving letters, materials, moves and a camera move', '<rect x="4" y="10" width="66" height="52" rx="4" fill="#e9edf3"/><text x="37" y="30" text-anchor="middle" font-family="Archivo Black, Impact, sans-serif" font-size="13" fill="#e6b422" transform="rotate(-6 37 30)">TEST</text><circle cx="17" cy="48" r="6" fill="#cfe8ff" stroke="#9fc3e0"/><rect x="28" y="42" width="11" height="11" fill="#e03131"/><path d="M44 53l6-12 6 12z" fill="#2f9e44"/><circle cx="62" cy="48" r="5" fill="none" stroke="#adb5bd" stroke-width="3"/>'],
+    doll: ['Doll demo', 'A rag doll with fur hair and a fabric dress: blinking eyes, a turning head, a waving arm and a flag in the wind', '<rect x="4" y="10" width="66" height="52" rx="4" fill="#fff4e6"/><path d="M27 58l10-22 10 22z" fill="#e03131"/><circle cx="37" cy="28" r="9" fill="#f3d2b4"/><path d="M28 26a9 9 0 0 1 18 0c-3-4-15-4-18 0z" fill="#6b3f22"/><circle cx="34" cy="28" r="1.4" fill="#111"/><circle cx="40" cy="28" r="1.4" fill="#111"/><path d="M56 58V22" stroke="#adb5bd" stroke-width="1.5"/><path d="M56 23c5-2 8 2 12 0v8c-4 2-7-2-12 0z" fill="#1c7ed6"/>'],
     ball: ['Bouncing ball demo', 'A retro checkered ball bouncing and spinning in front of a grid', '<rect x="4" y="10" width="66" height="52" rx="4" fill="#244444"/><path d="M14 18h46M14 28h46M14 38h46M14 48h46M20 14v44M32 14v44M44 14v44M56 14v44" stroke="#3fe0b8" stroke-width="1.2"/><circle cx="37" cy="32" r="13" fill="#fff"/><path d="M27 24l7 0 0 7-7 0zM41 24l7 0 0 7-7 0zM34 31l7 0 0 7-7 0zM27 38l7 0 0 5-7 0zM41 38l7 0 0 5-7 0z" fill="#e8102e"/>'],
     glass: ['Glass and gold', 'A glass ball and a gold ring', '<rect x="4" y="10" width="66" height="52" rx="4" fill="#f4efe6"/><circle cx="28" cy="38" r="12" fill="#cfe8ff" stroke="#9fc3e0" stroke-width="2" opacity=".8"/><ellipse cx="50" cy="44" rx="11" ry="6" fill="none" stroke="#e6b422" stroke-width="4"/>'],
   };
@@ -894,6 +898,53 @@
       // the camera goes all the way round once, ending where it started, so the animation loops
       d.camera = { pos: [0, 3.4, 11.5], target: [0, 1.4, 0.5], fov: 40 };
     }
+    if (kind === 'doll') {
+      // a rag doll from shapes: fabric dress, fur hair, button eyes that blink, a head that turns and tilts, a waving arm,
+      // and a flag flapping beside her. Parts sit in groups, so the head and arm turn about the neck and shoulder.
+      const L = 6, tracks = {}, K = (list) => list.map(([t, v, ease]) => ({ t, v, ease: ease || 'ease' }));
+      // a fabric in the colour given (the fabric presets bring their own colour otherwise)
+      const fab = (preset, colour, extra = {}) => ({ ...E.defaultMat(colour, preset), color: colour, ...extra });
+      const part = (name, shape, mat, pos, o = {}) => obj({ kind: 'shape', name, shape, mat, pos, ...o });
+      const doll = obj({ kind: 'group', name: 'Doll', pos: [0, 0.12, 0] });
+      const inDoll = (o, g = doll) => { o.parent = g.id; return o; };
+      obj({ kind: 'shape', name: 'Stage', shape: { type: 'stage', form: 'round', w: 3.4, h: 0.12, corner: 0.3, edge: 0.03, steps: 1, stepIn: 0.5 }, mat: fab('velvet', '#5f3dc4'), pos: [0, 0.06, 0] });
+      [-1, 1].forEach((sd) => {
+        inDoll(part(sd < 0 ? 'Left leg' : 'Right leg', { type: 'capsule', r: 0.15, h: 0.75 }, fab('felt', '#f8f0e3', { weave: 'knit', weaveSize: 30 }), [sd * 0.2, 0.55, 0]));
+        inDoll(part(sd < 0 ? 'Left shoe' : 'Right shoe', { type: 'sphere', r: 0.17 }, E.defaultMat('#212529', 'gloss'), [sd * 0.2, 0.12, 0.06], { scale: [1, 0.7, 1.3] }));
+      });
+      inDoll(part('Dress', { type: 'cone', r: 0.9, h: 1.45 }, { ...fab('cotton', '#e03131'), faces: { sides: { type: 'pattern', pattern: 'dots', fg: '#ffffff', bg: '#e03131', size: 4 } } }, [0, 1.55, 0]));
+      inDoll(part('Collar', { type: 'torus', r: 0.22, tube: 0.07 }, fab('cotton', '#ffffff'), [0, 2.2, 0], { rot: [90, 0, 0] }));
+      // the waving arm turns at the shoulder
+      const armR = inDoll(obj({ kind: 'group', name: 'Right arm', pos: [0.32, 2.05, 0] }));
+      inDoll(part('Right arm piece', { type: 'capsule', r: 0.1, h: 0.75 }, fab('cotton', '#e03131'), [0.12, -0.42, 0], { rot: [0, 0, 18] }), armR);
+      inDoll(part('Right hand', { type: 'sphere', r: 0.12 }, fab('felt', '#f3d2b4', { weave: 'none' }), [0.26, -0.86, 0]), armR);
+      inDoll(part('Left arm', { type: 'capsule', r: 0.1, h: 0.75 }, fab('cotton', '#e03131'), [-0.44, 1.63, 0], { rot: [0, 0, -18] }));
+      inDoll(part('Left hand', { type: 'sphere', r: 0.12 }, fab('felt', '#f3d2b4', { weave: 'none' }), [-0.58, 1.19, 0]));
+      // a pinwheel in her other hand: a stick, and a four-bladed star that spins, its front cycling through rainbow colours
+      inDoll(part('Pinwheel stick', { type: 'cylinder', r: 0.025, h: 1.1 }, E.defaultMat('#c99a6b', 'matte'), [-0.6, 1.62, 0.12]));
+      const wheel = inDoll(part('Pinwheel', { type: 'star', r: 0.34, inner: 0.2, points: 4, d: 0.03 }, { ...E.defaultMat('#ffffff', 'gloss'), cycle: { preset: 'rainbow', speed: 1.2, bands: 4, dir: 'left', front: true } }, [-0.6, 2.17, 0.17]));
+      tracks[wheel.id] = { keys: { rot: K([[0, [0, 0, 0], 'linear'], [L, [0, 0, -1080]]]) } };
+      // the head turns and tilts at the neck
+      const head = inDoll(obj({ kind: 'group', name: 'Head', pos: [0, 2.28, 0] }));
+      const skin = fab('felt', '#f3d2b4', { weave: 'none', sheen: 0.4 });
+      inDoll(part('Face', { type: 'sphere', r: 0.56 }, skin, [0, 0.52, 0]), head);
+      const hair = { ...fab('felt', '#6b3f22', { weave: 'none' }), fur: 0.12, furDensity: 14, furTip: '#a0673a', furDroop: 0.4 };
+      inDoll(part('Hair', { type: 'sphere', r: 0.56 }, hair, [0, 0.66, -0.14], { scale: [1.04, 0.92, 0.92] }), head);
+      [-1, 1].forEach((sd) => inDoll(part(sd < 0 ? 'Left bun' : 'Right bun', { type: 'sphere', r: 0.2 }, hair, [sd * 0.62, 0.62, -0.08]), head));
+      const eyes = [-1, 1].map((sd) => inDoll(part(sd < 0 ? 'Left eye' : 'Right eye', { type: 'sphere', r: 0.075 }, E.defaultMat('#111111', 'gloss'), [sd * 0.19, 0.56, 0.5]), head));
+      inDoll(part('Nose', { type: 'sphere', r: 0.05 }, E.defaultMat('#e8817a', 'matte'), [0, 0.44, 0.56]), head);
+      inDoll(part('Smile', { type: 'torus', r: 0.11, tube: 0.022 }, E.defaultMat('#c92a2a', 'matte'), [0, 0.32, 0.5], { scale: [1, 0.55, 0.4] }), head);
+      [-1, 1].forEach((sd) => inDoll(part(sd < 0 ? 'Left cheek' : 'Right cheek', { type: 'sphere', r: 0.08 }, { ...E.defaultMat('#f08c9b', 'matte'), opacity: 0.85 }, [sd * 0.32, 0.4, 0.43], { scale: [1, 0.7, 0.4] })), head);
+      // moves: head turns and tilts; blinks; the arm waves
+      tracks[head.id] = { keys: { rot: K([[0, [0, 0, 0]], [1.5, [6, 28, 7]], [3, [0, 0, 0]], [4.5, [4, -28, -7]], [6, [0, 0, 0]]]) } };
+      const blink = K([[0, [1, 1, 1], 'hold'], [1.0, [1, 1, 1], 'linear'], [1.08, [1, 0.08, 1], 'linear'], [1.18, [1, 1, 1], 'hold'], [3.7, [1, 1, 1], 'linear'], [3.78, [1, 0.08, 1], 'linear'], [3.88, [1, 1, 1], 'linear'], [3.98, [1, 0.08, 1], 'linear'], [4.08, [1, 1, 1], 'hold'], [6, [1, 1, 1]]]);
+      eyes.forEach((e) => { tracks[e.id] = { keys: { scale: JSON.parse(JSON.stringify(blink)) } }; });
+      tracks[armR.id] = { keys: { rot: K([[0, [0, 0, 20]], [0.75, [0, 0, 120]], [1.25, [0, 0, 95]], [1.75, [0, 0, 125]], [2.25, [0, 0, 95]], [3, [0, 0, 20]], [6, [0, 0, 20]]]) } };
+      const flag = obj({ kind: 'shape', name: 'Flag', shape: { type: 'flag', w: 1.8, h: 1.1, pole: 3.6, wind: 1.2, speed: 1 }, mat: { ...fab('cotton', '#ffffff'), faces: { pole: { type: 'solid', color: '#adb5bd' }, cloth: { type: 'pattern', pattern: 'hstripes', fg: '#1c7ed6', bg: '#ffffff', size: 8 } } }, pos: [2.4, 1.8, -0.6] });
+      d.anim = { length: L, fps: 30, loop: true, tracks, camera: { move: 'swing', amount: 24 } };
+      Object.assign(d.scene, { bg: { type: 'gradient', c1: '#fff4e6', c2: '#ffd8a8', angle: 0 }, light: 'soft', lightAngle: 25, groundColor: '#f1e6d6' });
+      d.camera = { pos: [1.2, 2.6, 7.2], target: [0.5, 1.7, 0], fov: 38 };
+    }
     if (kind === 'ball') {
       const L = 4, { ball, keys } = bouncingBall({ L, R: 1.6, x0: -5, x1: 5, z: 0, up: 4.2 });
       const grid = { type: 'pattern', pattern: 'grid', fg: '#3fe0b8', bg: '#244444', size: 3 };
@@ -904,7 +955,7 @@
       d.camera = { pos: [0, 4.6, 21], target: [0, 4.2, 0], fov: 38 };
     }
     await openDoc(d);
-    if (kind === 'ball') { resetHistory(); if (window.TL3) { TL3.seek(0); TL3.play(); } }
+    if (kind === 'ball' || kind === 'doll') { resetHistory(); if (window.TL3) { TL3.seek(0); TL3.play(); } }
     else if (kind === 'test') { resetHistory(); if (window.TL3) { TL3.seek(0); TL3.play(); } }
     else if (kind !== 'blank') { E.fit(); E.saveCamera(); resetHistory(); }
   }
@@ -1001,6 +1052,7 @@
       { label: 'How to use 3DCraft', run: () => help() },
       { label: 'Load test scene', run: () => startScene('test') },
       { label: 'Load the bouncing ball demo', run: () => startScene('ball') },
+      { label: 'Load the doll demo', run: () => startScene('doll') },
       { label: 'Keyboard shortcuts', run: () => info('Keyboard shortcuts', keysHtml) },
       { label: 'About 3DCraft', run: () => info('About 3DCraft', aboutHtml) },
     ]],
