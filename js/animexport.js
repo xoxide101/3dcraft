@@ -13,15 +13,18 @@
   };
   $('an-fmt').innerHTML = Object.entries(FORMATS).map(([k, [n]]) => `<option value="${k}">${n}</option>`).join('');
   $('an-size').innerHTML = SIZES.map(([w, h, n], i) => `<option value="${i}" ${i === 1 ? 'selected' : ''}>${n}</option>`).join('');
-  const sync = () => { const f = $('an-fmt').value; $('an-look').onchange = sync; $('an-tip').textContent = FORMATS[f][1]; $('an-transp-f').hidden = !(f === 'png' || f === 'gif'); const a = E.anim(); if (a) $('an-info').textContent = `${a.length} s at ${a.fps} frames a second = ${Math.round(a.length * a.fps)} frames.`; };
+  const sync = () => { const f = $('an-fmt').value; $('an-tip').textContent = FORMATS[f][1]; $('an-transp-f').hidden = !(f === 'png' || f === 'gif'); const a = E.anim(); if (a) $('an-info').textContent = `${a.length} s at ${a.fps} frames a second = ${Math.round(a.length * a.fps)} frames.`; };
   $('an-fmt').onchange = sync;
+  // the look: Quick, or ray-traced at a quality (buttons, so the choice is in plain sight)
+  const LOOK_TIPS = { quick: 'Quick: frames drawn as in the view, in seconds.', draft: 'Ray-traced Draft: real reflections, glass and soft shadows. The first frame takes up to half a minute, then about a second a frame.', good: 'Ray-traced Good: cleaner, a few seconds a frame.', high: 'Ray-traced High: the cleanest, for the final cut; slow.' };
+  $('an-look-seg').onclick = (e) => { const b = e.target.closest('[data-look]'); if (!b) return; $('an-look').value = b.dataset.look; document.querySelectorAll('#an-look-seg [data-look]').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); $('an-look-tip').textContent = LOOK_TIPS[b.dataset.look]; };
   // Ray-traced frames: each frame put in place, path-traced at the chosen quality and smoothed, then added like any frame
   let rtJob = null;
   const rtFrame = (w, h, quality, transparent) => new Promise((res) => {
     rtJob = E.pathRender(w, h, { quality, transparent, edges: 1, onDone: (c, n, early, sm) => { let out = c; try { const m = sm && sm.make('medium'); if (m) out = m; } catch (e) {} if (sm) sm.dispose(); rtJob = null; res(out); } });
   });
   let cancel = false, busy = false;
-  window.ANIM3 = { open: () => { if (!E.doc) return; sync(); $('an-status').textContent = ''; $('an-bar').style.width = '0'; $('animdlg').hidden = false; } };
+  window.ANIM3 = { open: (look) => { if (!E.doc) return; sync(); if (look) { const b = document.querySelector(`#an-look-seg [data-look="${look}"]`); if (b) b.click(); } $('an-status').textContent = ''; $('an-bar').style.width = '0'; $('animdlg').hidden = false; } };
   $('an-close').onclick = () => { if (busy) { cancel = true; if (rtJob) rtJob.stop(); } else $('animdlg').hidden = true; };
   const download = (blob, name) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 8000); };
   const baseName = () => (E.doc.name || 'animation').replace(/[^\w -]+/g, '').trim() || 'animation';

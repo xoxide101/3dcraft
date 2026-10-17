@@ -122,7 +122,9 @@
     <label class="field"><span>Save as</span><select class="input" id="an-fmt"></select></label>
     <p class="hint" id="an-tip"></p>
     <label class="field"><span>Size</span><select class="input" id="an-size"></select></label>
-    <label class="field"><span>Look</span><select class="input" id="an-look"><option value="quick">Quick (as in the view)</option><option value="draft">Ray-traced: Draft (a few seconds a frame)</option><option value="good">Ray-traced: Good (slower, cleaner)</option><option value="high">Ray-traced: High (slow, for the final cut)</option></select></label>
+    <div class="field"><span>Look</span><div class="seg" id="an-look-seg" role="group"><button class="btn" type="button" data-look="quick" aria-pressed="true">Quick</button><button class="btn" type="button" data-look="draft" aria-pressed="false">Ray-traced Draft</button><button class="btn" type="button" data-look="good" aria-pressed="false">Ray-traced Good</button><button class="btn" type="button" data-look="high" aria-pressed="false">Ray-traced High</button></div></div>
+    <input type="hidden" id="an-look" value="quick">
+    <p class="hint" id="an-look-tip">Quick: frames drawn as in the view, in seconds.</p>
     <label class="check" id="an-transp-f"><input type="checkbox" id="an-transp"> See-through background</label>
     <p class="hint" id="an-info"></p>
     <div class="rd-bar"><i id="an-bar"></i></div>

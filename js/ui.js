@@ -961,7 +961,7 @@
         ['Moves', [{ col: [['spin', 'Spin'], ['bounce', 'Bounce'], ['flyin', 'Fly in']].map(([k, n]) => ({ label: n, icon: MI.turn, run: () => TL3.preset(k) })) }, { col: [['fadein', 'Fade in'], ['grow', 'Grow in'], ['float', 'Float']].map(([k, n]) => ({ label: n, icon: MI.turn, run: () => TL3.preset(k) })) }]],
         ['Camera', [{ col: [{ label: 'Camera still', icon: I.screen, run: () => TL3.camera('none') }, { label: 'Turntable', icon: MI.turn, run: () => TL3.camera('turntable') }, { label: 'Swing', icon: MI.turn, run: () => TL3.camera('swing') }] }]],
         ['Timeline', [{ label: 'Timeline', icon: '<rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M3 10h18M8 14h6" class="hue"/>', big: true, title: 'Show or hide the timeline', run: () => toggleTimeline(), pressed: () => !$('timeline').classList.contains('closed') }]],
-        ['Save', [{ label: 'Export animation', icon: I.exportUp, big: true, title: 'GIF, MP4, WebM, AVI or PNG frames', run: () => ANIM3.open() }]],
+        ['Save', [{ label: 'Export animation', icon: I.exportUp, big: true, title: 'GIF, MP4, WebM, AVI or PNG frames', run: () => ANIM3.open() }, { label: 'Ray-traced animation', icon: MI.render, big: true, title: 'Every frame path-traced: real reflections, glass and soft shadows', run: () => ANIM3.open('draft') }]],
       ] },
       { id: 'output', label: 'Export', hue: '#1c7ed6', groups: [
         ['Render', [C('Render', 'Render (ray-traced)', MI.render, { big: true, title: 'A photo-real picture: real reflections, soft shadows and glass. Pick a size and quality.' })]],
