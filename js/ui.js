@@ -509,20 +509,31 @@
   const shrinkImage = (src) => new Promise((res) => { const im = new Image(); im.onload = () => { const k = Math.min(1, 1000 / Math.max(im.naturalWidth, im.naturalHeight)); if (k >= 1) return res(src); const c = document.createElement('canvas'); c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); res(c.toDataURL('image/png')); }; im.onerror = () => res(src); im.src = src; });
   // the background choice (shared look in Picture to 3D and Photos to 3D): off, automatic, or a colour picked by clicking
   const bgState = { tr: { mode: 'auto', tool: 'wand', actions: [], view: 'cut' }, p3: { mode: 'auto', tool: 'wand', actions: [], view: 'cut' } };
-  const BG_HINTS = { off: 'The whole picture is used.', auto: 'The colour round the edges is taken out where it touches the outside.', };
-  const TOOL_HINTS = { wand: 'Magic wand: click any area on the preview to take it out (it spreads to the connected area of a similar colour; Tolerance sets how far).', erase: 'Eraser: paint on the preview to take away anything you do not want.', keep: 'Restore: paint on the preview to bring back anything that was taken out.', trim: 'Trim: click points round what you want to keep, then click the first point (or double-click) to close it: everything outside goes. Esc cancels.', cut: 'Lasso cut: click points round something to take out, then click the first point (or double-click) to close it. Esc cancels.' };
+  const BG_HINTS = { off: 'The whole picture is used.', auto: 'The colour round the edges is taken out where it touches the outside.', ai: 'AI cut-out: the main subject is found and the background taken away, even a busy one.' };
+  const TOOL_HINTS = { wand: 'Magic wand: click any area on the preview to take it out (it spreads to the connected area of a similar colour; Tolerance sets how far).', erase: 'Eraser: paint on the preview to take away anything you do not want.', keep: 'Restore: paint on the preview to bring back anything that was taken out.', trim: 'Trim: click points round what you want to keep, then click the first point (or double-click) to close it: everything outside goes. Esc cancels.', cut: 'Lasso cut: click points round something to take out, then click the first point (or double-click) to close it. Esc cancels.', pkeep: 'Keep object (AI): click the object to keep; everything else goes. Click more of it to add to it, Shift-click a part that is not it. Choose the tool again to start a new object.', pcut: 'Take out object (AI): click an object to take it out. Click more of it to add to it, Shift-click a part that should stay. Choose the tool again to start a new one.' };
   // the starting points to choose from: the whole picture, and the automatic removal at three strengths
-  const BG_STARTS = [['off', 'Whole picture', 0], ['gentle', 'Gentle', 20], ['normal', 'Normal', 38], ['strong', 'Strong', 60]];
-  const startOf = (pre) => (bgState[pre].mode === 'off' ? 'off' : (bgState[pre].start || 'normal'));
+  const BG_STARTS = [['off', 'Whole picture', 0], ['gentle', 'Gentle', 20], ['normal', 'Normal', 38], ['strong', 'Strong', 60], ['ai', 'AI cut-out', 0]];
+  const startOf = (pre) => (bgState[pre].mode === 'off' ? 'off' : bgState[pre].mode === 'ai' ? 'ai' : (bgState[pre].start || 'normal'));
+  const modeOf = (k) => (k === 'off' ? 'off' : k === 'ai' ? 'ai' : 'auto');
+  const aiOn = (k) => window.CRAFTAI && CRAFTAI.enabled(k);
   async function bgChoices(pre, src) {
     const el = $(`${pre}-bgmode`); if (!src) { el.innerHTML = ''; return; }
-    el.innerHTML = BG_STARTS.map(([k, n]) => `<button type="button" data-start="${k}" aria-pressed="${startOf(pre) === k}"><img alt=""><span>${n}</span></button>`).join('');
-    for (const [k, , tol] of BG_STARTS) { const cut = await BGREMOVE.remove(src, { mode: k === 'off' ? 'off' : 'auto', tolerance: tol, max: 220 }); const b = el.querySelector(`[data-start="${k}"] img`); if (b) b.src = cut.url; }
+    // the AI cut-out is offered when switched on in AI helpers; its preview is made only once the model is downloaded
+    const have = aiOn('cutout') ? await CRAFTAI.downloaded() : {};
+    const starts = BG_STARTS.filter(([k]) => k !== 'ai' || aiOn('cutout'));
+    const mb = aiOn('cutout') ? CRAFTAI.sizeOf('cutout') : 0;
+    el.innerHTML = starts.map(([k, n]) => `<button type="button" data-start="${k}" aria-pressed="${startOf(pre) === k}" ${k === 'ai' && !have.cutout ? `title="Downloads the AI model once (about ${mb} MB), then works offline"` : ''}><img alt="">${k === 'ai' && !have.cutout ? '<i class="ai-get">✨ click to get</i>' : ''}<span>${n}</span></button>`).join('');
+    for (const [k, , tol] of starts) {
+      if (k === 'ai' && !have.cutout) continue;
+      try { const cut = await BGREMOVE.remove(src, { mode: modeOf(k), tolerance: tol, max: 220 }); const b = el.querySelector(`[data-start="${k}"] img`); if (b) b.src = cut.url; } catch (e) { /* that start could not be shown */ }
+    }
   }
   function syncBg(pre) {
     const st = bgState[pre];
     document.querySelectorAll(`#${pre}-bgmode [data-start]`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.start === startOf(pre))));
+    if (!aiOn('pick') && (st.tool === 'pkeep' || st.tool === 'pcut')) st.tool = 'wand';
     document.querySelectorAll(`#${pre}-tools [data-tool]`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tool === st.tool)));
+    document.querySelectorAll(`#${pre}-tools .ai-pick`).forEach((b) => { b.hidden = !aiOn('pick'); });
     $(`${pre}-bghint`).textContent = BG_HINTS[st.mode] + ' ' + TOOL_HINTS[st.tool] + (st.actions.length ? ` (${st.actions.length} touch-up${st.actions.length > 1 ? 's' : ''})` : '');
     $(`${pre}-wandbtns`).querySelector('[data-wand="undo"]').disabled = !st.actions.length; $(`${pre}-clear`).disabled = !st.actions.length;
     document.querySelectorAll(`#${pre}-view [data-view]`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === st.view)));
@@ -540,6 +551,12 @@
       e.preventDefault();
       if (st.tool === 'wand') { st.actions.push({ t: 'wand', u, v }); syncBg(pre); onChange(); return; }
       if (st.tool === 'trim' || st.tool === 'cut') { lassoPoint(im, u, v, e.detail >= 2); return; }
+      if (st.tool === 'pkeep' || st.tool === 'pcut') {
+        // clicks on the same object build up one pick (Shift = a part that is not it); choosing the tool again starts a new one
+        const keep = st.tool === 'pkeep', last = st.actions[st.actions.length - 1], pt = [u, v, e.shiftKey ? 0 : 1];
+        if (last && last.t === 'pick' && last.keep === keep && st.pickOpen) last.pts.push(pt); else { st.actions.push({ t: 'pick', keep, pts: [pt] }); st.pickOpen = true; }
+        syncBg(pre); onChange(); return;
+      }
       stroke = { t: st.tool, r: +$(`${pre}-size`).value / 200, pts: [[u, v]] };
       const r = im.getBoundingClientRect(), br = box.getBoundingClientRect();
       layer = document.createElement('canvas'); layer.width = r.width; layer.height = r.height; layer.style.cssText = `position:absolute;left:${r.left - br.left}px;top:${r.top - br.top}px;width:${r.width}px;height:${r.height}px;pointer-events:none`; box.style.position = 'relative'; box.append(layer);
@@ -597,8 +614,8 @@
     }, 200);
   }
   document.querySelectorAll('#tr-mode [data-m]').forEach((b) => { b.onclick = () => { traceMode = b.dataset.m; syncTraceUi(); runTrace(); }; });
-  $('tr-bgmode').onclick = (e) => { const b = e.target.closest('[data-start]'); if (!b) return; const [k, , tol] = BG_STARTS.find((x) => x[0] === b.dataset.start); bgState.tr.mode = k === 'off' ? 'off' : 'auto'; bgState.tr.start = k; if (tol) $('tr-tol').value = tol; syncTraceUi(); runTrace(); };
-  $('tr-tools').onclick = (e) => { const b = e.target.closest('[data-tool]'); if (!b) return; $('trace-src').lassoCancel && $('trace-src').lassoCancel(); bgState.tr.tool = b.dataset.tool; syncTraceUi(); };
+  $('tr-bgmode').onclick = (e) => { const b = e.target.closest('[data-start]'); if (!b) return; const [k, , tol] = BG_STARTS.find((x) => x[0] === b.dataset.start); bgState.tr.mode = modeOf(k); bgState.tr.start = k; if (tol) $('tr-tol').value = tol; syncTraceUi(); runTrace(); };
+  $('tr-tools').onclick = (e) => { const b = e.target.closest('[data-tool]'); if (!b) return; $('trace-src').lassoCancel && $('trace-src').lassoCancel(); bgState.tr.tool = b.dataset.tool; bgState.tr.pickOpen = false; syncTraceUi(); };
   $('tr-size').oninput = () => syncBg('tr');
   const wandBtn = (pre, b, after) => { const st = bgState[pre]; if (b.dataset.wand === 'undo') st.actions.pop(); else if (b.dataset.wand === 'invert') st.actions.push({ t: 'invert' }); else st.actions = []; syncBg(pre); after(); };
   $('tr-wandbtns').onclick = (e) => { const b = e.target.closest('[data-wand]'); if (b) wandBtn('tr', b, () => { syncTraceUi(); runTrace(); }); };
@@ -672,12 +689,12 @@
 
 
   // ------------------------------------------------------------------ photos to 3D (one photo guessed, or a turntable set)
-  let p3Mode = 'one', p3Dir = 'ccw', p3Edge = 'round', p3Photos = [];
+  let p3Mode = 'one', p3Dir = 'ccw', p3Edge = 'round', p3Shape = 'puff', p3Photos = [];
   const p3Tips = { one: 'One photo of something on a plain background. Its outline is puffed up like a balloon into a rounded 3D shape, painted with the photo: a guess, good for characters, animals, fruit and logos.',
     turn: 'Photos of an object turned on a turntable (or a lazy Susan) in front of a plain background, the camera kept still: 12 to 36, evenly all the way round, chosen in the order taken. The shape is carved from every angle and painted with the photos. Deep hollows cannot be seen from outside.' };
   async function p3Preview() {
     const el = $('p3-prev'); el.hidden = !p3Photos.length; if (!p3Photos.length) return;
-    const cut = await BGREMOVE.remove(p3Photos[0], { ...bgOpts('p3'), max: 600, view: bgState.p3.view });
+    let cut; try { cut = await BGREMOVE.remove(p3Photos[0], { ...bgOpts('p3'), max: 600, view: bgState.p3.view }); } catch (e) { $('p3-status').textContent = e.message; return; }
     el.innerHTML = `<img src="${cut.view || cut.url}" alt="The first photo with its background taken out">`; el.classList.add('picking');
   }
   function p3Sync() {
@@ -685,6 +702,9 @@
     document.querySelectorAll('#p3-mode [data-p3]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.p3 === p3Mode)));
     document.querySelectorAll('#p3-dir [data-dir]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.dir === p3Dir)));
     document.querySelectorAll('#p3-edge [data-edge]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.edge === p3Edge)));
+    if (!aiOn('depth') && p3Shape !== 'puff') p3Shape = 'puff';
+    $('p3-shape').closest('.field').hidden = !aiOn('depth');
+    document.querySelectorAll('#p3-shape [data-shape]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.shape === p3Shape)));
     $('p3-reach-v').textContent = +$('p3-reach').value >= 100 ? 'whole shape' : $('p3-reach').value + '% (from the outside)';
     $('p3-tip').textContent = p3Tips[p3Mode]; $('p3-one-opts').hidden = p3Mode !== 'one'; $('p3-turn-opts').hidden = p3Mode !== 'turn';
     $('p3-pick').textContent = p3Mode === 'one' ? 'Choose a photo…' : 'Choose the photos…';
@@ -696,12 +716,13 @@
   const openPhotos3D = (mode) => { if (!E.doc) return; if (mode) p3Mode = mode; $('p3-status').textContent = ''; p3Sync(); p3Preview(); bgChoices('p3', p3Photos[0]); $('p3dlg').hidden = false; };
   $('p3-mode').onclick = (e) => { const b = e.target.closest('[data-p3]'); if (b) { p3Mode = b.dataset.p3; p3Sync(); } };
   $('p3-dir').onclick = (e) => { const b = e.target.closest('[data-dir]'); if (b) { p3Dir = b.dataset.dir; p3Sync(); } };
+  $('p3-shape').onclick = (e) => { const b = e.target.closest('[data-shape]'); if (b) { p3Shape = b.dataset.shape; p3Sync(); } };
   $('p3-edge').onclick = (e) => { const b = e.target.closest('[data-edge]'); if (b) { p3Edge = b.dataset.edge; p3Sync(); } };
   $('p3-reach').oninput = p3Sync;
   ['p3-tol', 'p3-puff', 'p3-shade', 'p3-smooth'].forEach((id) => { $(id).oninput = p3Sync; });
   $('p3-tol').onchange = p3Preview;
-  $('p3-bgmode').onclick = (e) => { const b = e.target.closest('[data-start]'); if (!b) return; const [k, , tol] = BG_STARTS.find((x) => x[0] === b.dataset.start); bgState.p3.mode = k === 'off' ? 'off' : 'auto'; bgState.p3.start = k; if (tol) $('p3-tol').value = tol; p3Sync(); p3Preview(); };
-  $('p3-tools').onclick = (e) => { const b = e.target.closest('[data-tool]'); if (!b) return; $('p3-prev').lassoCancel && $('p3-prev').lassoCancel(); bgState.p3.tool = b.dataset.tool; p3Sync(); };
+  $('p3-bgmode').onclick = (e) => { const b = e.target.closest('[data-start]'); if (!b) return; const [k, , tol] = BG_STARTS.find((x) => x[0] === b.dataset.start); bgState.p3.mode = modeOf(k); bgState.p3.start = k; if (tol) $('p3-tol').value = tol; p3Sync(); p3Preview(); };
+  $('p3-tools').onclick = (e) => { const b = e.target.closest('[data-tool]'); if (!b) return; $('p3-prev').lassoCancel && $('p3-prev').lassoCancel(); bgState.p3.tool = b.dataset.tool; bgState.p3.pickOpen = false; p3Sync(); };
   $('p3-size').oninput = () => syncBg('p3');
   $('p3-wandbtns').onclick = (e) => { const b = e.target.closest('[data-wand]'); if (b) wandBtn('p3', b, () => { p3Sync(); p3Preview(); }); };
   $('p3-clear').onclick = (e) => wandBtn('p3', e.currentTarget, () => { p3Sync(); p3Preview(); });
@@ -715,6 +736,13 @@
     p3Sync(); p3Preview(); bgChoices('p3', p3Photos[0]);
   };
   $('p3-cancel').onclick = () => { $('p3dlg').hidden = true; };
+  // an AI model being fetched or started: shown where the work was asked for
+  if (window.CRAFTAI) CRAFTAI.onProgress((k, p) => {
+    const name = CRAFTAI.MODELS[k].name;
+    const msg = p.status === 'starting' ? `Getting the AI model (${name})…` : p.status === 'ready' ? '' : p.status === 'cpu' ? 'The graphics card could not run that AI model, so the processor is doing it (slower).' : p.status === 'error' ? `The AI model could not be loaded: ${p.message}` : p.total ? `Getting the AI model (${name}): ${Math.round((p.loaded / p.total) * 100)}% of ${Math.round(p.total / 1e6)} MB, only this once` : '';
+    if (!$('p3dlg').hidden) $('p3-status').textContent = msg; else if (!$('tracedlg').hidden && msg) $('trace-info').textContent = msg;
+    if (p.status === 'ready' && k === 'cutout') ['tr', 'p3'].forEach((pre) => { const src = pre === 'tr' ? traceSrc : p3Photos[0]; if (src && !$(pre === 'tr' ? 'tracedlg' : 'p3dlg').hidden) bgChoices(pre, src); });
+  });
   async function makePhotos3D(photos, mode, o) {
     const status = (m) => { $('p3-status').textContent = m; };
     const r = mode === 'one' ? await PHOTO3D.build1(photos[0], o, status) : await PHOTO3D.build(photos, o, status);
@@ -725,7 +753,7 @@
   }
   $('p3-go').onclick = async () => {
     $('p3-go').disabled = true;
-    try { await makePhotos3D(p3Photos, p3Mode, { detail: +$('p3-detail').value, tolerance: +$('p3-tol').value, bg: bgOpts('p3'), puff: +$('p3-puff').value / 100, edge: p3Edge, reach: +$('p3-reach').value / 100, shading: +$('p3-shade').value / 100, flatBack: $('p3-flat').checked, smooth: +$('p3-smooth').value, dir: p3Dir }); $('p3dlg').hidden = true; toast('Your photo is in 3D: save it as STL or OBJ from Export to print it.'); }
+    try { await makePhotos3D(p3Photos, p3Mode, { detail: +$('p3-detail').value, tolerance: +$('p3-tol').value, bg: bgOpts('p3'), puff: +$('p3-puff').value / 100, edge: p3Edge, shape: p3Shape, reach: +$('p3-reach').value / 100, shading: +$('p3-shade').value / 100, flatBack: $('p3-flat').checked, smooth: +$('p3-smooth').value, dir: p3Dir }); $('p3dlg').hidden = true; toast('Your photo is in 3D: save it as STL or OBJ from Export to print it.'); }
     catch (err) { $('p3-status').textContent = err.message; }
     $('p3-go').disabled = false;
   };
@@ -1011,6 +1039,7 @@
       { label: 'Picture to 3D…', run: () => openTrace() },
       { label: 'Photo cut-out…', run: () => photoCutout(), disabled: () => !E.doc },
       { label: 'Photos to 3D (one photo or a turntable set)…', run: () => openPhotos3D(), disabled: () => !E.doc },
+      { label: 'AI helpers (depth, object picking, cut-out)…', run: () => CRAFTAI.openSettings() },
       { label: 'Symbol or emoji in 3D…', run: () => CraftSymbols.open({ onPick: addSymbol }) },
       { label: '3D model from a file…', run: () => $('model-input').click() },
     ]],
@@ -1075,7 +1104,7 @@
   const toggleL = document.createElement('button'); toggleL.className = 'crb-small pc-toggle'; toggleL.textContent = 'Side panel'; toggleL.onclick = () => $('app').querySelector('.work').classList.toggle('show-left');
   const toggleR = document.createElement('button'); toggleR.className = 'crb-small pc-toggle'; toggleR.textContent = 'Properties'; toggleR.onclick = () => $('app').querySelector('.work').classList.toggle('show-right');
   const st = document.createElement('style'); st.textContent = '.crb .crb-small.pc-toggle { display: none; } @media (max-width: 980px) { .crb .crb-small.pc-toggle { display: inline-flex; } }'; document.head.append(st);
-  const MI = { ball: '<circle cx="12" cy="10" r="7"/><path d="M8 5l3 0 0 3-3 0zM14 8l3 0 0 3-3 0zM8 11l3 0 0 3-3 0z" class="hue"/><path d="M6 21h12"/>', backdrop: '<path d="M3 18l5-6 4 4 3-3 6 5z" class="hue"/><path d="M2 20h20"/><circle cx="17" cy="7" r="2"/><path d="M5 9c1-2 4-2 5 0" opacity=".6"/>', shuffle: '<path d="M3 7h4l10 10h4M3 17h4l3-3M14 10l3-3h4M18 4l3 3-3 3M18 14l3 3-3 3"/>', test: '<rect x="3" y="4" width="18" height="14" rx="2"/><path d="M7 14l3-4 3 3 2-2 3 3" class="hue"/><path d="M9 21h6M12 18v3"/>', render: '<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M12 3v18M3 7l9 4 9-4" opacity=".5"/><circle cx="17" cy="6" r="3" class="hue"/>', gold: '<circle cx="12" cy="12" r="8" class="hue"/><path d="M8 9a5 5 0 0 1 5-2" opacity=".7"/>', layout4: '<rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8" class="hue"/>', layout1: '<rect x="3" y="4" width="18" height="16" rx="1.5"/>', move: '<path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/>', turn: '<path d="M20 12a8 8 0 1 1-3-6.3"/><path d="M20 4v5h-5" class="hue"/>', size: '<rect x="4" y="4" width="10" height="10"/><path d="M14 14l6 6M20 15v5h-5" class="hue"/>', text3d: '<path d="M5 6V4h12v2M11 4v14M8 18h6"/><path d="M17 6l2 2v12h-6l-2-2" opacity=".5"/>', trace: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6" class="hue"/>', model: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" class="hue"/>', ground: '<path d="M3 18h18"/><ellipse cx="12" cy="18" rx="6" ry="1.5" class="hue"/><rect x="9" y="8" width="6" height="8"/>', light: '<circle cx="12" cy="10" r="5"/><path d="M10 17h4M10 20h4" class="hue"/>', star: '<path d="M12 3l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.1-5.4 3.1 1.3-6L3.3 9.2l6.1-.6z"/>' };
+  const MI = { ball: '<circle cx="12" cy="10" r="7"/><path d="M8 5l3 0 0 3-3 0zM14 8l3 0 0 3-3 0zM8 11l3 0 0 3-3 0z" class="hue"/><path d="M6 21h12"/>', backdrop: '<path d="M3 18l5-6 4 4 3-3 6 5z" class="hue"/><path d="M2 20h20"/><circle cx="17" cy="7" r="2"/><path d="M5 9c1-2 4-2 5 0" opacity=".6"/>', shuffle: '<path d="M3 7h4l10 10h4M3 17h4l3-3M14 10l3-3h4M18 4l3 3-3 3M18 14l3 3-3 3"/>', test: '<rect x="3" y="4" width="18" height="14" rx="2"/><path d="M7 14l3-4 3 3 2-2 3 3" class="hue"/><path d="M9 21h6M12 18v3"/>', render: '<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M12 3v18M3 7l9 4 9-4" opacity=".5"/><circle cx="17" cy="6" r="3" class="hue"/>', gold: '<circle cx="12" cy="12" r="8" class="hue"/><path d="M8 9a5 5 0 0 1 5-2" opacity=".7"/>', layout4: '<rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8" class="hue"/>', layout1: '<rect x="3" y="4" width="18" height="16" rx="1.5"/>', move: '<path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/>', turn: '<path d="M20 12a8 8 0 1 1-3-6.3"/><path d="M20 4v5h-5" class="hue"/>', size: '<rect x="4" y="4" width="10" height="10"/><path d="M14 14l6 6M20 15v5h-5" class="hue"/>', text3d: '<path d="M5 6V4h12v2M11 4v14M8 18h6"/><path d="M17 6l2 2v12h-6l-2-2" opacity=".5"/>', trace: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6" class="hue"/>', model: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" class="hue"/>', ground: '<path d="M3 18h18"/><ellipse cx="12" cy="18" rx="6" ry="1.5" class="hue"/><rect x="9" y="8" width="6" height="8"/>', light: '<circle cx="12" cy="10" r="5"/><path d="M10 17h4M10 20h4" class="hue"/>', ai: '<rect x="5" y="5" width="14" height="14" rx="3"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/><path d="M9.5 14.5l1.5-5h2l1.5 5M10 13h4" class="hue"/>', star: '<path d="M12 3l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.1-5.4 3.1 1.3-6L3.3 9.2l6.1-.6z"/>' };
   const ribbon = window.CraftRibbon({
     mount: $('app'), storageKey: '3dcraft', extraEls: [toggleL, toggleR],
     tabs: [
@@ -1088,7 +1117,7 @@
       ] },
       { id: 'insert', label: 'Insert', hue: '#7048e8', groups: [
         ['Shapes', [{ col: [{ row: ['box', 'roundbox', 'sphere', 'cylinder', 'trafficcone', 'pyramid', 'prism'].map((k) => ({ label: E.SHAPES[k][0], icon: SH_ICON[k], iconOnly: true, run: () => addShape(k) })) }, { row: ['torus', 'washer', 'capsule', 'star', 'heart', 'plane', 'stage'].map((k) => ({ label: E.SHAPES[k][0], icon: SH_ICON[k], iconOnly: true, run: () => addShape(k) })) }] }]],
-        ['Words and pictures', [C('3D text', '3D text', MI.text3d, { big: true }), { label: 'Photos to 3D', icon: MI.model, big: true, title: 'Make a 3D shape from one photo (a guess) or from turntable photos (carved from every angle)', run: () => openPhotos3D() }, { label: 'Photo cut-out', icon: MI.trace, big: true, title: 'A photo cut out round its shape and pulled out into 3D, with the photo on it and an emboss', run: () => photoCutout() }, C('Picture to 3D', 'Picture to 3D', MI.trace, { big: true, title: 'Trace a logo or drawing into colours and pull it out into 3D' }), C('Symbol or emoji', 'Symbols & emoji', MI.star, { big: true })]],
+        ['Words and pictures', [C('3D text', '3D text', MI.text3d, { big: true }), { label: 'Photos to 3D', icon: MI.model, big: true, title: 'Make a 3D shape from one photo (a guess) or from turntable photos (carved from every angle)', run: () => openPhotos3D() }, { label: 'Photo cut-out', icon: MI.trace, big: true, title: 'A photo cut out round its shape and pulled out into 3D, with the photo on it and an emboss', run: () => photoCutout() }, C('Picture to 3D', 'Picture to 3D', MI.trace, { big: true, title: 'Trace a logo or drawing into colours and pull it out into 3D' }), C('Symbol or emoji', 'Symbols & emoji', MI.star, { big: true }), { label: 'AI helpers', icon: MI.ai, big: true, title: 'AI that runs inside this browser: depth from one photo, object picking and background cut-out. Checks this computer and lets you choose.', run: () => CRAFTAI.openSettings() }]],
         ['Objects', [{ col: [{ row: OBJECTS.slice(0, 5).map(([n, t, patch, ic]) => ({ label: n, icon: OBJ_ICON[ic], iconOnly: true, run: () => addShape(t, patch, n) })) }, { row: OBJECTS.slice(5).map(([n, t, patch, ic]) => ({ label: n, icon: OBJ_ICON[ic], iconOnly: true, run: () => addShape(t, patch, n) })) }] }]],
         ['Models', [C('3D model', '3D model', MI.model, { big: true, title: 'GLB, OBJ (choose its MTL and pictures with it), STL or PLY, including scans from photogrammetry apps' })]],
       ] },

@@ -2,3 +2,4 @@ __pycache__/
 *.bak
 lib/build/node_modules/
 gf/
+lib/ai-build/node_modules/

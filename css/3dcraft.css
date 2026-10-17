@@ -157,7 +157,9 @@
 .p3-prev { height: 170px; border-radius: 8px; border: 1px solid var(--line); display: grid; place-items: center; overflow: hidden; }
 .p3-prev img, #trace-src img { max-width: 100%; max-height: 100%; }
 .picking, .picking img { cursor: crosshair; }
-.bg-choices { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.bg-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 4px; }
+.bg-choices button { position: relative; }
+.bg-choices .ai-get { position: absolute; left: 0; right: 0; top: 34%; text-align: center; font-style: normal; font-weight: 600; font-size: 11px; color: var(--accent); pointer-events: none; }
 .bg-choices button { border: 2px solid var(--line); border-radius: 8px; padding: 2px; background: var(--panel); cursor: pointer; display: grid; gap: 2px; font: inherit; font-size: 11px; color: inherit; }
 .bg-choices button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
 .bg-choices img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; border-radius: 5px; background: repeating-conic-gradient(#d0d4da 0 25%, #fff 0 50%) 0 0 / 10px 10px; }

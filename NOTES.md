@@ -4,7 +4,7 @@ How 3DCraft is built and what to keep in mind when changing it. For what it does
 
 ## How it is built
 
-- **No build step for the app.** `index.html` loads `fonts/fonts.css`, `css/base.css` (the shared Craft styles, own copy) and `css/3dcraft.css`, then `lib/craft3d-libs.js`, `fonts/fonts3d.js`, `js/craft-titlebar.js`, `js/fills.js`, `js/tracer.js`, `js/craft-symbols.js`, `js/scene.js`, `js/ui.js`, `js/timeline.js`, `js/animexport.js` and `js/range-type.js`.
+- **No build step for the app.** `index.html` loads `fonts/fonts.css`, `css/base.css` (the shared Craft styles, own copy) and `css/3dcraft.css`, then `lib/craft3d-libs.js`, `fonts/fonts3d.js`, `js/craft-titlebar.js`, `js/fills.js`, `js/tracer.js`, `js/craft-symbols.js`, `js/scene.js`, `js/ui.js`, `js/timeline.js`, `js/craft-ai.js`, `js/bgremove.js`, `js/photo3d.js`, `js/animexport.js` and `js/range-type.js` (`lib/craft-ai-libs.js` is added only when an AI helper is first used).
 - **The libraries** are one IIFE bundle (`lib/craft3d-libs.js`) so the app works from `file://` without modules: three.js 0.186 with OrbitControls, TransformControls, SVGLoader, GLTF/OBJ/MTL/STL/PLY loaders and exporters, RoomEnvironment, RoundedBoxGeometry and BufferGeometryUtils (as `window.THREE`), three-gpu-pathtracer's WebGLPathTracer, gifenc (`window.Gifenc`), webm-muxer and mp4-muxer (`window.WebMMuxer`, `window.MP4Muxer`), opentype.js (`window.opentype`) and ImageTracer (`window.ImageTracer`). To rebuild: `cd lib/build && npm install && npm run build` (`entry.js` lists what goes in).
 - **Fonts:** `fetch_fonts.py` downloads the 3D fonts as TrueType (`fonts/3d/*.ttf`: opentype.js cannot read woff2) plus the interface font, writes each one again as a script (`fonts/3d/*.js`, the font as base64 in `window.CRAFT_FONT_DATA`, because a page opened from the folder (`file://`) cannot fetch files but can load scripts; `E3.loadFont` adds the script when a font is first needed), writes `fonts/fonts.css` (so the font menu shows each font) and `fonts/fonts3d.js` (`window.CRAFT_FONTS3D = [[family, group, { weight: file }]]`), and runs `make_symbols.py` for `fonts/symbols.js` (kept to the sets 3D can draw: Noto Sans Symbols 2 and the emoji).
 - **Title bar, ribbon, fills, symbols picker and slider-typing helper** are own copies of the shared Craft pieces.
@@ -79,6 +79,17 @@ Headless Chrome over the DevTools protocol, opening `index.html` from the folder
 - **Render now** is a button put in front of the title bar's search box (`renderNow`): it opens the Render window and clicks Render.
 - **Load test scene** (`startScene('test')`) builds a 6-second scene with letter animations, every kind of material, keyed moves and camera keys, and starts playing; it is the quickest check that rendering, colours and animation all still work.
 
+## AI helpers (`js/craft-ai.js`, `window.CRAFTAI`)
+
+- **Library:** `lib/craft-ai-libs.js` is Transformers.js 3.8.1 (with its ONNX Runtime Web 1.22, exposed as `CraftTF.ort`) bundled as one classic script by `lib/ai-build` (`npm install && npm run build`). It is loaded only when an AI tool is first used. Transformers.js 4.x was tried: its ONNX Runtime preview build needs 17 storage buffers per shader where Chrome allows 16, so SlimSAM and BiRefNet fail on the graphics card; 3.8 (the older WebGPU backend, JSEP) works.
+- **Probe on start:** WebGPU adapter (vendor, architecture, half-precision, buffer size), processor threads, memory, Cache API; a level (high, medium, basic). It ticks "Use the graphics card"; settings live in `localStorage['3dcraft-ai']` (`{ on, gpu, use: { depth, pick, cutout, best } }`).
+- **Models:** depth = Depth Anything V2 Small (pipeline `depth-estimation`, fp16 on the graphics card, q8 on the processor); pick = SlimSAM (`SamModel` + processor; the image embedding is kept per picture, so each click only runs the small decoder); cutout = U²-Net run directly with `ort` on the processor (its MaxPool with ceil mode is not supported on WebGPU yet; U²-Netp on basic computers), input 320 × 320 ImageNet-normalised, output min-max stretched; best = BEN2 (`background-removal` pipeline, fp16, graphics card only, about 20 s). BiRefNet lite fails on WebGPU in this runtime.
+- **Downloads and offline:** Transformers.js keeps models in the Cache API (`transformers-cache`); `fetchCached` puts U²-Net and the runtime's 20 MB `.wasm` there too (set as `ort.env.wasm.wasmBinary`). The runtime's small `.mjs` loader is imported from jsDelivr (a blob-URL copy hung the runtime from `file://`), so it relies on the browser's HTTP cache when offline.
+- **One model at a time:** all runs go through one queue (`inTurn`), because the models share one runtime that must not be entered twice. A model that fails on the graphics card is retried on the processor (`cpuOnly`).
+- **Answers are kept** (`memo`, 12 entries, keyed by the picture), so previews at different sizes, sliders and Make it 3D reuse one cut-out, depth or pick.
+- **Where it is used:** `BGREMOVE.remove` mode `'ai'` (the cut-out as the starting mask) and the action `{ t: 'pick', keep, pts: [[u, v, 1 | 0]] }`; `PHOTO3D.build1` option `shape: 'puff' | 'depth' | 'both'` (depth stretched over the shape's nearest and farthest parts, eased to nothing at the very edge so front and back still meet). The AI cut-out start is offered only when switched on; its thumbnail is made only once the model is downloaded (a "click to get" label until then).
+- Testing used a public sample photo from the Transformers.js docs, only in a scratch folder.
+
 ## Planned
 
 - Talk first: Lighting (and shadow depth, strength and direction), maybe its own tab like the Backdrop and Ground.
@@ -87,3 +98,4 @@ Headless Chrome over the DevTools protocol, opening `index.html` from the folder
 - Custom backdrops further (layer mapping, pictures traced into Modern 3D cut-outs): talk first.
 - Distance haze in ray-traced renders; weather layers (rain, snow, fog).
 - More colour-cycling presets as they are described (one remembered from an old games console is still to come).
+- AI helpers next: a small chat model in the browser (WebLLM) that drives the same commands as the buttons; relief and emboss from AI depth; upscaling; image to SVG conversions; the same kit in the other Craft apps when asked.

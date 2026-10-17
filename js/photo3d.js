@@ -126,7 +126,8 @@
   }
   // One photo: a guess at the shape by puffing the silhouette up like a balloon (thick in the middle, round to thin edges,
   // from each point's distance to the edge), plus some of the photo's light and dark as bumps if asked. The back is the
-  // same (or flat, for standing on a printer's bed). o = { detail (cells across), tolerance, puff, shading, flatBack }
+  // same (or flat, for standing on a printer's bed). o = { detail (cells across), tolerance, puff, shading, flatBack,
+  // shape: 'puff' | 'depth' (AI works out how near each part is, CRAFTAI.depth) | 'both' }
   async function build1(photo, o = {}, onStep = () => {}) {
     onStep('Cutting out the photo…'); await new Promise((r) => setTimeout(r, 20));
     const res = o.detail || 160, v = await silhouetteOf(photo, res * 1.6, o);
@@ -138,7 +139,20 @@
     for (let w = 1; w < H; w++) for (let u = 1; u < W - 1; u++) { const o2 = w * W + u; if (!d[o2]) continue; d[o2] = Math.min(d[o2], d[o2 - 1] + 3, d[o2 - W] + 3, d[o2 - W - 1] + 4, d[o2 - W + 1] + 4); }
     for (let w = H - 2; w >= 0; w--) for (let u = W - 2; u > 0; u--) { const o2 = w * W + u; if (!d[o2]) continue; d[o2] = Math.min(d[o2], d[o2 + 1] + 3, d[o2 + W] + 3, d[o2 + W + 1] + 4, d[o2 + W - 1] + 4); }
     let maxD = 0; for (let i = 0; i < d.length; i++) { d[i] /= 3; if (d[i] > maxD) maxD = d[i]; }
-    onStep('Puffing it up…'); await new Promise((r) => setTimeout(r, 20));
+    // AI depth: how near each part of the photo is (0 far – 1 near), stretched to the nearest and farthest parts of the shape
+    const mix = o.shape === 'depth' ? 1 : o.shape === 'both' ? 0.5 : 0;
+    let near = null;
+    if (mix) {
+      onStep('Working out the depth (AI)…');
+      const dm = await CRAFTAI.depth(photo); near = new Float32Array(W * H); let lo = Infinity, hi = -Infinity;
+      for (let w = 0; w < H; w++) for (let u = 0; u < W; u++) {
+        if (!d[w * W + u]) continue;
+        const X = Math.min(dm.W - 1, Math.floor(((u + v.x0 - 1 + 0.5) * dm.W) / v.W)), Y = Math.min(dm.H - 1, Math.floor(((w + v.y0 - 1 + 0.5) * dm.H) / v.H)), z = dm.d[Math.max(0, Y) * dm.W + Math.max(0, X)];
+        near[w * W + u] = z; if (z < lo) lo = z; if (z > hi) hi = z;
+      }
+      const k = 1 / Math.max(1e-6, hi - lo); for (let i = 0; i < near.length; i++) if (d[i]) near[i] = (near[i] - lo) * k;
+    }
+    onStep(mix ? 'Shaping it from the depth…' : 'Puffing it up…'); await new Promise((r) => setTimeout(r, 20));
     // the edge: its shape (round, angled, square, puffy) and how far in it reaches (a narrow edge with a flat top, up to
     // the whole shape); thickness is how tall it is, compared with the shape's own size
     const puff = o.puff ?? 1, shade = o.shading ?? 0.3, edge = o.edge || 'round', reach = Math.max(0.03, Math.min(1, o.reach ?? 1));
@@ -148,7 +162,10 @@
     for (let w = 0; w < H; w++) for (let u = 0; u < W; u++) {
       const o2 = w * W + u; if (!d[o2]) continue;
       const t = Math.max(0, d[o2] - 1), x = Math.min(1, t / band), q = at(u, w), lum = (0.299 * v.rgb[q] + 0.587 * v.rgb[q + 1] + 0.114 * v.rgb[q + 2]) / 255;
-      h[o2] = top * prof(x) + lum * maxD * shade * 0.5 * Math.min(1, t / 3);
+      // depth: the nearest part stands out by the thickness, the farthest a little; it eases to nothing at the very edge so
+      // the front and back still meet
+      const dz = near ? maxD * 1.1 * puff * (0.18 + 0.82 * near[o2]) * Math.sqrt(Math.min(1, t / Math.max(2, maxD * 0.12))) : 0;
+      h[o2] = top * prof(x) * (1 - mix) + dz * mix + lum * maxD * shade * 0.5 * Math.min(1, t / 3);
     }
     // front and back sheets over the cut-out pixels, joined at the edge
     const id = new Int32Array(W * H).fill(-1), pos = [], cols = [], tri = [];

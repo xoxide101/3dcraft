@@ -2,7 +2,7 @@
    The background is flooded in from the picture's edges (or from a point you click), so only background that touches
    the outside goes: white eyes inside a white-background drawing stay. It follows small colour steps, so shadows,
    gradients and darker corners on a photo's backdrop go too, while the object's edge (a bigger step) stops it.
-   remove(src, { mode: 'auto' | 'off', actions: [{ t: 'wand', u, v } | { t: 'erase' | 'keep', r (0–1 of the width), pts: [[u, v], …] } | { t: 'lasso', keep: true (trim to inside) | false (cut inside out), pts } | { t: 'invert' }], view: 'mask' (also return the picture with the removal shown in red), tolerance: 5–160, max })
+   remove(src, { mode: 'auto' | 'off' | 'ai' (the AI cut-out, CRAFTAI), actions: [{ t: 'wand', u, v } | { t: 'erase' | 'keep', r (0–1 of the width), pts: [[u, v], …] } | { t: 'lasso', keep: true (trim to inside) | false (cut inside out), pts } | { t: 'invert' } | { t: 'pick', keep: true (keep only that object) | false (take it out), pts: [[u, v, 1 | 0], …] } (AI object picking)], view: 'mask' (also return the picture with the removal shown in red), tolerance: 5–160, max })
    Touch-ups, in order: magic wand clicks (remove the connected area of a similar colour), eraser and restore strokes.
    Magic wand: each click removes the area connected to it whose colour is close to the colour clicked.
    → Promise<{ url (PNG with the background see-through), canvas, colour, removed (0–1) }> */
@@ -40,14 +40,20 @@
       if (dBg < tol || (from >= 0 && dist(i, D[from * 4], D[from * 4 + 1], D[from * 4 + 2]) < step && dBg < tol * 1.6)) { seen[p] = 1; q[qt++] = p; }
     };
     const spread = () => { while (qh < qt) { const p = q[qh++], px = p % W, py = (p / W) | 0; if (px > 0) tryAdd(p - 1, p); if (px < W - 1) tryAdd(p + 1, p); if (py > 0) tryAdd(p - W, p); if (py < H - 1) tryAdd(p + W, p); } };
-    if (o.mode !== 'off') {
+    // a model's mask (W2 × H2, 0–255) read at this picture's size
+    const maskAt = (m) => { const out = new Uint8Array(W * H); for (let yy = 0; yy < H; yy++) for (let xx = 0; xx < W; xx++) out[yy * W + xx] = m.a[Math.min(m.H - 1, Math.floor(((yy + 0.5) * m.H) / H)) * m.W + Math.min(m.W - 1, Math.floor(((xx + 0.5) * m.W) / W))]; return out; };
+    if (o.mode === 'ai') {
+      // the AI cut-out: the model's soft mask is the starting point (touch-ups follow as usual)
+      const m = maskAt(await CRAFTAI.cutout(src));
+      for (let p = 0; p < W * H; p++) D[p * 4 + 3] = Math.min(D[p * 4 + 3], m[p]);
+    } else if (o.mode !== 'off') {
       for (let xx = 0; xx < W; xx++) { tryAdd(xx, -1); tryAdd((H - 1) * W + xx, -1); }
       for (let yy = 0; yy < H; yy++) { tryAdd(yy * W, -1); tryAdd(yy * W + W - 1, -1); }
       spread();
     }
     // the automatic removal, with a one-pixel soft edge so cut-outs are not jagged
-    for (let p = 0; p < W * H; p++) if (seen[p]) D[p * 4 + 3] = 0;
-    for (let yy = 1; yy < H - 1; yy++) for (let xx = 1; xx < W - 1; xx++) {
+    if (o.mode !== 'ai') for (let p = 0; p < W * H; p++) if (seen[p]) D[p * 4 + 3] = 0;
+    if (o.mode !== 'ai') for (let yy = 1; yy < H - 1; yy++) for (let xx = 1; xx < W - 1; xx++) {
       const p = yy * W + xx; if (seen[p]) continue;
       const n = seen[p - 1] + seen[p + 1] + seen[p - W] + seen[p + W]; if (n) D[p * 4 + 3] = Math.min(D[p * 4 + 3], 255 - n * 45);
     }
@@ -63,6 +69,12 @@
     };
     for (const a of actions) {
       if (a.t === 'invert') { for (let p = 0; p < W * H; p++) D[p * 4 + 3] = orig[p * 4 + 3] - D[p * 4 + 3]; continue; }
+      if (a.t === 'pick') {
+        // AI object picking: the object under the clicks (green points), not the red ones; keep just it, or take it out
+        const m = maskAt(await CRAFTAI.pick(src, a.pts));
+        for (let p = 0; p < W * H; p++) { const k2 = m[p] / 255; D[p * 4 + 3] = Math.round(D[p * 4 + 3] * (a.keep ? k2 : 1 - k2)); }
+        continue;
+      }
       if (a.t === 'wand') {
         // the colour under the click, spread to the connected area close to that colour (in the picture as it was)
         seen.fill(0); qh = qt = 0;

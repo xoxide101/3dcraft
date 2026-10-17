@@ -37,6 +37,11 @@ Your scene autosaves in the browser; **Save** keeps a `.3dcraft.json` file (pict
 - **Photos to 3D** (Insert tab, Add tab, Insert menu), made into a coloured mesh you can light, animate, render or save as STL/OBJ for printing:
   - **One photo (a guess):** something on a plain background is cut out and raised into a 3D shape: choose the **edge shape** (Round, Angled, Square or Puffy), how far the edge **reaches in** (just the outside, for a flat top like a badge or cookie, up to the whole shape, fully domed), the **thickness**, some of the photo's shading as bumps, and a flat back for a printer's bed.
   - **Turntable photos:** 12 to 36 photos of an object turned evenly on a turntable (camera kept still, plain background) are carved into its shape from every angle and painted with the photos. Deep hollows can't be seen from outside.
+- **AI helpers** (Insert › AI helpers): small AI models that run **inside your browser**, with no server, account or key, and nothing sent anywhere. 3DCraft checks the computer when it starts (graphics card, its abilities, processor threads, memory) and ticks the boxes to suit; change anything you like. Each model downloads once when first used (or with **Download now**), then works offline; **Remove downloaded models** frees the space.
+  - **AI cut-out:** a fifth start next to Whole picture / Gentle / Normal / Strong in Picture to 3D and Photos to 3D. It finds the main subject of a photo and takes away even a busy background (U²-Net, about 4 seconds a picture). Tick **Best-quality cut-out** for finer edges such as fur (BEN2, slower, graphics card only).
+  - **🎯 Keep object (AI)** and **Take out object (AI)**: touch-up tools next to the magic wand. Click an object and it is outlined for you (SlimSAM): keep just it, or take it out. Click more of it to add to it; Shift-click a part that is not it.
+  - **AI depth** for one photo: Photos to 3D › Shape from › **AI depth** (or **Both**, half puffed up and half depth). It works out how near each part of the photo is (Depth Anything V2), so the shape follows the real object instead of a balloon guess.
+  - With a graphics card the browser can use (WebGPU), depth and picking run on it in about a second or less; without one they run on the processor, slower but the same.
 - **Photo cut-out:** any picture or photo cut out round its shape (by its see-through parts, or a plain background removed with a tolerance) and made into a solid with the photo on the front and back, a thickness, rounded edges and an emboss (Relief). Animate it, render it, or save it as GLB, OBJ or STL.
 - **3D symbols and emoji:** the Symbols tab puts dingbats (Noto Sans Symbols 2) and emoji (Noto Emoji) into the scene as solid 3D shapes.
 - **3D models and scans in:** GLB, GLTF, OBJ, STL and **PLY**, kept inside the scene file. Scans from photogrammetry apps come in with their colours: a PLY mesh or point cloud with a colour on every point, or an OBJ chosen (or dropped) together with its **MTL and texture pictures**. Then size, light, animate and render them, or save them again as STL or OBJ for printing.
@@ -128,7 +133,7 @@ The **Timeline** under the 3D view works like a motion-graphics timeline:
 
 ## Requirements
 
-A current Chrome, Edge or Firefox with WebGL 2. Ray-traced renders are much faster with a graphics card.
+A current Chrome, Edge or Firefox with WebGL 2. Ray-traced renders are much faster with a graphics card. The AI helpers need an internet connection the first time each model is used (they download from huggingface.co and are kept by the browser); they run fastest in Chrome or Edge with a graphics card (WebGPU).
 
 ## How this was made
 
@@ -150,6 +155,8 @@ Open-source libraries it uses are listed with their licences in Credits.
 - [ImageTracer](https://github.com/jankovicsandras/imagetracerjs) (public domain) for tracing pictures.
 - Fonts from Google Fonts under the SIL Open Font License or the Apache License, stored in `fonts/` (run `python fetch_fonts.py` to download them again).
 - Emoji and symbol names from Unicode data (Unicode License).
+- [Transformers.js](https://github.com/huggingface/transformers.js) 3.8 and [ONNX Runtime Web](https://onnxruntime.ai) (Apache-2.0 / MIT) to run the AI helpers in the browser (`lib/craft-ai-libs.js`).
+- AI models, downloaded when first used: [Depth Anything V2 Small](https://huggingface.co/onnx-community/depth-anything-v2-small) (Apache-2.0), [SlimSAM](https://huggingface.co/Xenova/slimsam-77-uniform) (Apache-2.0), [U²-Net and U²-Netp](https://huggingface.co/BritishWerewolf/U-2-Net) (Apache-2.0) and [BEN2](https://huggingface.co/onnx-community/BEN2-ONNX) (MIT).
 
 ## Development notes
 
