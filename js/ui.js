@@ -664,7 +664,7 @@
 
 
   // ------------------------------------------------------------------ photos to 3D (one photo guessed, or a turntable set)
-  let p3Mode = 'one', p3Dir = 'ccw', p3Photos = [];
+  let p3Mode = 'one', p3Dir = 'ccw', p3Edge = 'round', p3Photos = [];
   const p3Tips = { one: 'One photo of something on a plain background. Its outline is puffed up like a balloon into a rounded 3D shape, painted with the photo: a guess, good for characters, animals, fruit and logos.',
     turn: 'Photos of an object turned on a turntable (or a lazy Susan) in front of a plain background, the camera kept still: 12 to 36, evenly all the way round, chosen in the order taken. The shape is carved from every angle and painted with the photos. Deep hollows cannot be seen from outside.' };
   async function p3Preview() {
@@ -676,6 +676,8 @@
     syncBg('p3');
     document.querySelectorAll('#p3-mode [data-p3]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.p3 === p3Mode)));
     document.querySelectorAll('#p3-dir [data-dir]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.dir === p3Dir)));
+    document.querySelectorAll('#p3-edge [data-edge]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.edge === p3Edge)));
+    $('p3-reach-v').textContent = +$('p3-reach').value >= 100 ? 'whole shape' : $('p3-reach').value + '% (from the outside)';
     $('p3-tip').textContent = p3Tips[p3Mode]; $('p3-one-opts').hidden = p3Mode !== 'one'; $('p3-turn-opts').hidden = p3Mode !== 'turn';
     $('p3-pick').textContent = p3Mode === 'one' ? 'Choose a photo…' : 'Choose the photos…';
     $('p3-count').textContent = p3Photos.length ? `${p3Photos.length} photo${p3Photos.length > 1 ? 's' : ''}` + (p3Mode === 'one' && p3Photos.length > 1 ? ' (the first is used)' : '') : 'No photos yet.';
@@ -686,6 +688,8 @@
   const openPhotos3D = (mode) => { if (!E.doc) return; if (mode) p3Mode = mode; $('p3-status').textContent = ''; p3Sync(); p3Preview(); bgChoices('p3', p3Photos[0]); $('p3dlg').hidden = false; };
   $('p3-mode').onclick = (e) => { const b = e.target.closest('[data-p3]'); if (b) { p3Mode = b.dataset.p3; p3Sync(); } };
   $('p3-dir').onclick = (e) => { const b = e.target.closest('[data-dir]'); if (b) { p3Dir = b.dataset.dir; p3Sync(); } };
+  $('p3-edge').onclick = (e) => { const b = e.target.closest('[data-edge]'); if (b) { p3Edge = b.dataset.edge; p3Sync(); } };
+  $('p3-reach').oninput = p3Sync;
   ['p3-tol', 'p3-puff', 'p3-shade', 'p3-smooth'].forEach((id) => { $(id).oninput = p3Sync; });
   $('p3-tol').onchange = p3Preview;
   $('p3-bgmode').onclick = (e) => { const b = e.target.closest('[data-start]'); if (!b) return; const [k, , tol] = BG_STARTS.find((x) => x[0] === b.dataset.start); bgState.p3.mode = k === 'off' ? 'off' : 'auto'; bgState.p3.start = k; if (tol) $('p3-tol').value = tol; p3Sync(); p3Preview(); };
@@ -713,7 +717,7 @@
   }
   $('p3-go').onclick = async () => {
     $('p3-go').disabled = true;
-    try { await makePhotos3D(p3Photos, p3Mode, { detail: +$('p3-detail').value, tolerance: +$('p3-tol').value, bg: bgOpts('p3'), puff: +$('p3-puff').value / 100, shading: +$('p3-shade').value / 100, flatBack: $('p3-flat').checked, smooth: +$('p3-smooth').value, dir: p3Dir }); $('p3dlg').hidden = true; toast('Your photo is in 3D: save it as STL or OBJ from Export to print it.'); }
+    try { await makePhotos3D(p3Photos, p3Mode, { detail: +$('p3-detail').value, tolerance: +$('p3-tol').value, bg: bgOpts('p3'), puff: +$('p3-puff').value / 100, edge: p3Edge, reach: +$('p3-reach').value / 100, shading: +$('p3-shade').value / 100, flatBack: $('p3-flat').checked, smooth: +$('p3-smooth').value, dir: p3Dir }); $('p3dlg').hidden = true; toast('Your photo is in 3D: save it as STL or OBJ from Export to print it.'); }
     catch (err) { $('p3-status').textContent = err.message; }
     $('p3-go').disabled = false;
   };

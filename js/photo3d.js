@@ -139,11 +139,16 @@
     for (let w = H - 2; w >= 0; w--) for (let u = W - 2; u > 0; u--) { const o2 = w * W + u; if (!d[o2]) continue; d[o2] = Math.min(d[o2], d[o2 + 1] + 3, d[o2 + W] + 3, d[o2 + W + 1] + 4, d[o2 + W - 1] + 4); }
     let maxD = 0; for (let i = 0; i < d.length; i++) { d[i] /= 3; if (d[i] > maxD) maxD = d[i]; }
     onStep('Puffing it up…'); await new Promise((r) => setTimeout(r, 20));
-    const puff = o.puff ?? 1, shade = o.shading ?? 0.3, R = maxD * 1.15, h = new Float32Array(W * H), at = (u, w) => (((w + v.y0 - 1) * v.W) + (u + v.x0 - 1)) * 4;
+    // the edge: its shape (round, angled, square, puffy) and how far in it reaches (a narrow edge with a flat top, up to
+    // the whole shape); thickness is how tall it is, compared with the shape's own size
+    const puff = o.puff ?? 1, shade = o.shading ?? 0.3, edge = o.edge || 'round', reach = Math.max(0.03, Math.min(1, o.reach ?? 1));
+    const band = Math.max(1.5, maxD * reach), top = maxD * 0.55 * puff, h = new Float32Array(W * H), at = (u, w) => (((w + v.y0 - 1) * v.W) + (u + v.x0 - 1)) * 4;
+    const PROFILE = { round: (x) => Math.sqrt(Math.max(0, 1 - (1 - x) * (1 - x))), angled: (x) => x, square: (x) => (x > 0 ? 1 : 0), puffy: (x) => Math.pow(Math.sin((x * Math.PI) / 2), 0.45) };
+    const prof = PROFILE[edge] || PROFILE.round;
     for (let w = 0; w < H; w++) for (let u = 0; u < W; u++) {
       const o2 = w * W + u; if (!d[o2]) continue;
-      const t = Math.max(0, d[o2] - 1), round = Math.sqrt(Math.max(0, 2 * t * R - t * t)), q = at(u, w), lum = (0.299 * v.rgb[q] + 0.587 * v.rgb[q + 1] + 0.114 * v.rgb[q + 2]) / 255;
-      h[o2] = (round * puff + lum * maxD * shade * Math.min(1, t / 3)) * 0.9;
+      const t = Math.max(0, d[o2] - 1), x = Math.min(1, t / band), q = at(u, w), lum = (0.299 * v.rgb[q] + 0.587 * v.rgb[q + 1] + 0.114 * v.rgb[q + 2]) / 255;
+      h[o2] = top * prof(x) + lum * maxD * shade * 0.5 * Math.min(1, t / 3);
     }
     // front and back sheets over the cut-out pixels, joined at the edge
     const id = new Int32Array(W * H).fill(-1), pos = [], cols = [], tri = [];
