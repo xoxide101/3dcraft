@@ -812,7 +812,7 @@
       const shapes = T.SVGLoader.createShapes(p); if (!shapes.length) return;
       const col = '#' + p.color.getHexString(), layerDepth = (tr.depth || 0.4) * (tr.stepped ? 1 + (i % 4) * 0.25 : 1);
       shapes.forEach((s) => { s.getPoints(); });
-      const geo = extrudeShapes(shapes, layerDepth / k, (tr.bevel || 0) / k, 6);
+      const geo = extrudeShapes(shapes, layerDepth / k, (tr.bevel || 0) / k, 6, tr.ownColours === false ? box : null);
       geo.translate(-c.x, -c.y, 0); geo.scale(k, k, k);
       const mat = tr.ownColours !== false ? { ...m.mat, color: col, faces: m.mat.faces } : m.mat;
       const mesh = new T.Mesh(geo, materialsFor(mat, SLOTS.extrude)); mesh.castShadow = mesh.receiveShadow = true;

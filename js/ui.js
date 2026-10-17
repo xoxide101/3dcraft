@@ -197,8 +197,8 @@
   $('addgrid').innerHTML = '<h4>Shapes</h4>' + Object.entries(E.SHAPES).filter(([k]) => !E.isObjectShape(k)).map(([k, [n]]) => `<button type="button" data-add="${k}" title="Add a ${n.toLowerCase()}">${ICON(SH_ICON[k])}${n}</button>`).join('')
     + '<h4>Scenery</h4>' + E.SCENERY.map((k) => `<button type="button" data-add="${k}" title="Add a ${E.SHAPES[k][0].toLowerCase()}">${ICON(SCENERY_ICON[k])}${E.SHAPES[k][0]}</button>`).join('')
     + '<h4>Objects</h4>' + OBJECTS.map(([n, , , ic], i) => `<button type="button" data-obj="${i}" title="Add a ${n.toLowerCase()}">${ICON(OBJ_ICON[ic])}${n}</button>`).join('')
-    + `<h4>Words and pictures</h4><button type="button" data-add="text">${ICON('<path d="M5 6V4h14v2M12 4v16M9 20h6"/>')}3D text</button><button type="button" data-add="trace">${ICON('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6"/><circle cx="16" cy="9" r="2"/>')}Picture to 3D</button><button type="button" data-add="model">${ICON('<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" opacity=".6"/>')}3D file…</button>`;
-  $('addgrid').onclick = (e) => { const ob = e.target.closest('[data-obj]'); if (ob) { const [n, t, patch] = OBJECTS[+ob.dataset.obj]; addShape(t, patch, n); return; } const b = e.target.closest('[data-add]'); if (!b) return; const k = b.dataset.add; if (k === 'text') addText(); else if (k === 'trace') openTrace(); else if (k === 'model') $('model-input').click(); else addShape(k); };
+    + `<h4>Words and pictures</h4><button type="button" data-add="text">${ICON('<path d="M5 6V4h14v2M12 4v16M9 20h6"/>')}3D text</button><button type="button" data-add="cutout">${ICON('<path d="M5 19c2-6 5-9 7-14 2 5 5 8 7 14z"/><path d="M8 19l4-6 4 6" opacity=".6"/>')}Photo cut-out</button><button type="button" data-add="trace">${ICON('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6"/><circle cx="16" cy="9" r="2"/>')}Picture to 3D</button><button type="button" data-add="model">${ICON('<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" opacity=".6"/>')}3D file…</button>`;
+  $('addgrid').onclick = (e) => { const ob = e.target.closest('[data-obj]'); if (ob) { const [n, t, patch] = OBJECTS[+ob.dataset.obj]; addShape(t, patch, n); return; } const b = e.target.closest('[data-add]'); if (!b) return; const k = b.dataset.add; if (k === 'text') addText(); else if (k === 'trace') openTrace(); else if (k === 'cutout') photoCutout(); else if (k === 'model') $('model-input').click(); else addShape(k); };
   $('model-input').onchange = (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) importModel(f); };
   CraftSymbols.mount($('sym-panel'), { onPick: addSymbol });
   document.querySelectorAll('.tabs .tab').forEach((t) => { t.onclick = () => showTab(t.dataset.tab); });
@@ -361,6 +361,18 @@
         { t: 'btns', buttons: [{ label: 'Symbols and emoji…', on: () => CraftSymbols.open({ onPick: (r) => { t.text += r.char; if (r.kind === 'emoji') t.font = 'Noto Emoji'; else if (!(window.CRAFT_FONTS3D || []).some(([f]) => f === t.font && f.startsWith('Noto'))) t.font = 'Noto Sans Symbols 2'; changed(m.id); showProps(); } }) }] },
       ] });
       sections.push(lettersSection(m));
+    } else if (m.kind === 'trace' && m.trace.cutout) {
+      const tr = m.trace, re = (patch) => { Object.assign(tr, patch); changed(m.id); }, redo = (patch) => { Object.assign(tr, patch); photoCutout(tr.src, m); };
+      sections.push({ title: 'Photo cut-out', items: [
+        { t: 'range', label: 'Width', value: tr.width || 4, min: 0.5, max: 20, step: 0.1, on: (v) => re({ width: v }) },
+        { t: 'range', label: 'Thickness', value: tr.depth || 0.15, min: 0.01, max: 3, step: 0.01, on: (v) => re({ depth: v }) },
+        { t: 'range', label: 'Rounded edges (bevel)', value: tr.bevel || 0, min: 0, max: 0.1, step: 0.005, on: (v) => re({ bevel: v }) },
+        { t: 'check', label: 'Remove a plain background', value: tr.removeBg !== false, on: (v) => redo({ removeBg: v }) },
+        tr.removeBg !== false ? { t: 'range', label: 'Background tolerance', value: tr.tolerance ?? 40, min: 5, max: 160, step: 5, on: (v) => redo({ tolerance: v }) } : null,
+        { t: 'range', label: 'Outline detail', value: tr.detail ?? 7, min: 1, max: 10, step: 1, on: (v) => redo({ detail: v }) },
+        { t: 'note', html: 'The emboss is <b>Relief</b> under Material. The edges are the Sides face: give them any colour there.' },
+        { t: 'btns', buttons: [{ label: 'Change the picture…', on: async () => { const s2 = await pickImage(); if (s2) { tr.src = s2; photoCutout(s2, m); } } }] },
+      ] });
     } else if (m.kind === 'trace') {
       const tr = m.trace, re = (patch) => { Object.assign(tr, patch); changed(m.id); };
       sections.push({ title: 'Picture to 3D', items: [
@@ -517,6 +529,55 @@
     m.rot = [0, 0, 0]; standOnGround(m, (4 * h) / w);
     addObject(m);
   };
+
+
+  // ------------------------------------------------------------------ photo cut-out
+  // A picture cut out round its shape (its see-through parts, or a plain background taken from the corners), pulled out
+  // into a solid with the photo itself on the front and back. Kept as a 'trace' object with trace.cutout set.
+  function cutoutImages(src, o) {
+    return new Promise((res, rej) => {
+      const img = new Image();
+      img.onload = () => {
+        const k = Math.min(1, 1400 / Math.max(img.naturalWidth, img.naturalHeight)), W = Math.max(1, Math.round(img.naturalWidth * k)), H = Math.max(1, Math.round(img.naturalHeight * k));
+        const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(img, 0, 0, W, H);
+        const d = x.getImageData(0, 0, W, H), D = d.data, at = (u, v) => (v * W + u) * 4, corners = [at(0, 0), at(W - 1, 0), at(0, H - 1), at(W - 1, H - 1)];
+        const cornerAlpha = corners.reduce((s, i) => s + D[i + 3], 0) / 4, bg = [0, 1, 2].map((q) => corners.reduce((s, i) => s + D[i + q], 0) / 4), tol = o.tolerance ?? 40;
+        // see-through where the picture already is, or where it matches the background colour
+        if (o.removeBg !== false && cornerAlpha > 200) for (let i = 0; i < D.length; i += 4) { const dist = Math.hypot(D[i] - bg[0], D[i + 1] - bg[1], D[i + 2] - bg[2]); if (dist < tol) D[i + 3] = 0; else if (dist < tol + 25) D[i + 3] = Math.min(D[i + 3], ((dist - tol) / 25) * 255); }
+        let x0 = W, y0 = H, x1 = -1, y1 = -1;
+        for (let v = 0; v < H; v++) for (let u = 0; u < W; u++) if (D[at(u, v) + 3] > 128) { if (u < x0) x0 = u; if (u > x1) x1 = u; if (v < y0) y0 = v; if (v > y1) y1 = v; }
+        if (x1 < 0) return rej(new Error('Nothing was left after taking out the background: lower the tolerance or turn Remove background off.'));
+        x.putImageData(d, 0, 0);
+        const cw = x1 - x0 + 1, ch = y1 - y0 + 1, pic = document.createElement('canvas'); pic.width = cw; pic.height = ch; pic.getContext('2d').drawImage(c, x0, y0, cw, ch, 0, 0, cw, ch);
+        // the shape alone: black on white, for tracing
+        const mask = document.createElement('canvas'); mask.width = cw + 4; mask.height = ch + 4; const mx = mask.getContext('2d'); mx.fillStyle = '#ffffff'; mx.fillRect(0, 0, cw + 4, ch + 4);
+        const md = mx.getImageData(0, 0, cw + 4, ch + 4), MD = md.data, PD = pic.getContext('2d').getImageData(0, 0, cw, ch).data;
+        for (let v = 0; v < ch; v++) for (let u = 0; u < cw; u++) if (PD[(v * cw + u) * 4 + 3] > 128) { const o2 = ((v + 2) * (cw + 4) + (u + 2)) * 4; MD[o2] = MD[o2 + 1] = MD[o2 + 2] = 0; }
+        mx.putImageData(md, 0, 0);
+        res({ pic: pic.toDataURL('image/png'), mask: mask.toDataURL('image/png'), w: cw, h: ch });
+      };
+      img.onerror = () => rej(new Error('That picture could not be read.'));
+      img.src = src;
+    });
+  }
+  async function makeCutout(src, o, edit) {
+    const im = await cutoutImages(src, o);
+    const t = await CraftTracer.trace(im.mask, { colors: 2, detail: o.detail ?? 7, smooth: 2, removeBg: true });
+    if (!t || !t.svg || !/<path/.test(t.svg)) throw new Error('No outline was found in that picture.');
+    const photo = { type: 'picture', src: im.pic, fit: 'stretch', opacity: 1, size: 20 };
+    const tr = { src, svg: t.svg, colors: 1, paths: (t.svg.match(/<path/g) || []).length, mode: 'cutout', cutout: true, removeBg: o.removeBg !== false, tolerance: o.tolerance ?? 40, detail: o.detail ?? 7,
+      depth: edit ? edit.trace.depth : 0.15, width: edit ? edit.trace.width : 4, bevel: edit ? edit.trace.bevel : 0.015, stepped: false, ownColours: false, aspect: im.w / im.h };
+    if (edit) { edit.trace = tr; edit.mat.faces = { ...(edit.mat.faces || {}), front: photo, back: photo }; changed(edit.id); showProps(); return edit; }
+    const m = { kind: 'trace', name: 'Photo cut-out', trace: tr, mat: { ...E.defaultMat('#f4f1ea', 'matte'), relief: 0.6, faces: { front: photo, back: photo } } };
+    m.rot = [0, 0, 0]; standOnGround(m, (4 * im.h) / im.w);
+    return addObject(m);
+  }
+  async function photoCutout(src, edit) {
+    if (!E.doc) return;
+    if (!src) src = await pickImage(); if (!src) return;
+    toast('Cutting out the picture…');
+    try { return await makeCutout(src, edit ? edit.trace : {}, edit); } catch (e) { info('Photo cut-out', esc(e.message)); }
+  }
 
   // Drop a picture on the view to make it 3D, or a GLB, OBJ or STL file to bring the model in
   $('desk').addEventListener('dragover', (e) => { if ([...(e.dataTransfer.items || [])].some((i) => i.kind === 'file')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
@@ -749,6 +810,7 @@
       '-',
       { label: '3D text', run: () => addText() },
       { label: 'Picture to 3D…', run: () => openTrace() },
+      { label: 'Photo cut-out…', run: () => photoCutout(), disabled: () => !E.doc },
       { label: 'Symbol or emoji in 3D…', run: () => CraftSymbols.open({ onPick: addSymbol }) },
       { label: '3D model from a file…', run: () => $('model-input').click() },
     ]],
@@ -825,7 +887,7 @@
       ] },
       { id: 'insert', label: 'Insert', hue: '#7048e8', groups: [
         ['Shapes', [{ col: [{ row: ['box', 'roundbox', 'sphere', 'cylinder', 'trafficcone', 'pyramid', 'prism'].map((k) => ({ label: E.SHAPES[k][0], icon: SH_ICON[k], iconOnly: true, run: () => addShape(k) })) }, { row: ['torus', 'washer', 'capsule', 'star', 'heart', 'plane', 'stage'].map((k) => ({ label: E.SHAPES[k][0], icon: SH_ICON[k], iconOnly: true, run: () => addShape(k) })) }] }]],
-        ['Words and pictures', [C('3D text', '3D text', MI.text3d, { big: true }), C('Picture to 3D', 'Picture to 3D', MI.trace, { big: true, title: 'Trace a logo or drawing into colours and pull it out into 3D' }), C('Symbol or emoji', 'Symbols & emoji', MI.star, { big: true })]],
+        ['Words and pictures', [C('3D text', '3D text', MI.text3d, { big: true }), { label: 'Photo cut-out', icon: MI.trace, big: true, title: 'A photo cut out round its shape and pulled out into 3D, with the photo on it and an emboss', run: () => photoCutout() }, C('Picture to 3D', 'Picture to 3D', MI.trace, { big: true, title: 'Trace a logo or drawing into colours and pull it out into 3D' }), C('Symbol or emoji', 'Symbols & emoji', MI.star, { big: true })]],
         ['Objects', [{ col: [{ row: OBJECTS.slice(0, 5).map(([n, t, patch, ic]) => ({ label: n, icon: OBJ_ICON[ic], iconOnly: true, run: () => addShape(t, patch, n) })) }, { row: OBJECTS.slice(5).map(([n, t, patch, ic]) => ({ label: n, icon: OBJ_ICON[ic], iconOnly: true, run: () => addShape(t, patch, n) })) }] }]],
         ['Models', [C('3D model', '3D model', MI.model, { big: true, title: 'GLB, OBJ or STL' })]],
       ] },
@@ -918,7 +980,7 @@
     const sb = document.querySelector('.ctb-search');
     if (sb) { const b = document.createElement('button'); b.type = 'button'; b.className = 'ctb-q text ctb-render'; b.id = 'render-now'; b.title = 'Render now: a ray-traced picture of the scene as it is (F9 opens the Render window)'; b.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m3 16 9 5 9-5M3 12l9 5 9-5"/></svg> Render now'; b.onclick = renderNow; sb.before(b); }
   }
-  window.UI3 = { toast, showTab, setLetters, renderNow, openRender, addShape, addText, addSymbol, openTrace, startScene, openDoc, changed, showProps, renderLayers };
+  window.UI3 = { toast, photoCutout, showTab, setLetters, renderNow, openRender, addShape, addText, addSymbol, openTrace, startScene, openDoc, changed, showProps, renderLayers };
   (async () => {
     const last = localStorage.getItem(AUTOSAVE);
     if (last) { try { await openDoc(JSON.parse(last)); return; } catch (e) {} }
