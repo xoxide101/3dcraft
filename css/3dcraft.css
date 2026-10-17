@@ -154,3 +154,11 @@
 .p3-thumbs { display: flex; flex-wrap: wrap; gap: 3px; max-height: 120px; overflow: auto; margin: 6px 0; }
 .p3-thumbs img { width: 48px; height: 48px; object-fit: cover; border-radius: 4px; border: 1px solid var(--line); }
 #p3dlg .dialog { display: grid; gap: 8px; width: min(460px, 94vw); }
+.p3-prev { height: 170px; border-radius: 8px; border: 1px solid var(--line); display: grid; place-items: center; overflow: hidden; }
+.p3-prev img, #trace-src img { max-width: 100%; max-height: 100%; }
+.picking, .picking img { cursor: crosshair; }
+.bg-choices { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.bg-choices button { border: 2px solid var(--line); border-radius: 8px; padding: 2px; background: var(--panel); cursor: pointer; display: grid; gap: 2px; font: inherit; font-size: 11px; color: inherit; }
+.bg-choices button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.bg-choices img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; border-radius: 5px; background: repeating-conic-gradient(#d0d4da 0 25%, #fff 0 50%) 0 0 / 10px 10px; }
+#trace-out svg, #trace-src img { width: 100%; height: 100%; object-fit: contain; display: block; }

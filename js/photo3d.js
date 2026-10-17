@@ -8,12 +8,18 @@
   const T = window.THREE;
 
   // a picture's silhouette: see-through where it matches the background colour (taken from the corners)
+  // a photo's silhouette: what is left after the background remover (see-through = background)
+  async function silhouetteOf(src, maxW, o) {
+    const cut = await BGREMOVE.remove(src, { ...(o.bg || { mode: 'auto', tolerance: o.tolerance ?? 40 }), max: maxW });
+    return silhouette(cut.canvas, maxW, -1);
+  }
   function silhouette(img, maxW, tol) {
-    const k = Math.min(1, maxW / img.naturalWidth), W = Math.round(img.naturalWidth * k), H = Math.round(img.naturalHeight * k);
+    const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height, k = Math.min(1, maxW / iw), W = Math.round(iw * k), H = Math.round(ih * k);
     const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(img, 0, 0, W, H);
     const D = x.getImageData(0, 0, W, H).data, at = (u, v) => (v * W + u) * 4, cs = [at(1, 1), at(W - 2, 1), at(1, H - 2), at(W - 2, H - 2)];
     const bg = [0, 1, 2].map((q) => cs.reduce((s, i) => s + D[i + q], 0) / 4), mask = new Uint8Array(W * H);
-    for (let i = 0; i < W * H; i++) mask[i] = Math.hypot(D[i * 4] - bg[0], D[i * 4 + 1] - bg[1], D[i * 4 + 2] - bg[2]) > tol ? 1 : 0;
+    // tol < 0: the picture is already cut out (its see-through parts are the background)
+    for (let i = 0; i < W * H; i++) mask[i] = tol < 0 ? (D[i * 4 + 3] > 128 ? 1 : 0) : Math.hypot(D[i * 4] - bg[0], D[i * 4 + 1] - bg[1], D[i * 4 + 2] - bg[2]) > tol ? 1 : 0;
     // close little holes and specks: keep a pixel if most of its neighbours agree
     const m2 = new Uint8Array(W * H);
     for (let v = 1; v < H - 1; v++) for (let u = 1; u < W - 1; u++) { let n = 0; for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) n += mask[(v + j) * W + u + i]; m2[v * W + u] = n >= 5 ? 1 : 0; }
@@ -107,7 +113,7 @@
   async function build(photos, o = {}, onStep = () => {}) {
     if (photos.length < 4) throw new Error('Choose at least 4 photos (12 to 36 works best), taken while turning the object evenly all the way round.');
     onStep('Cutting out the photos…'); await new Promise((r) => setTimeout(r, 20));
-    const imgs = await Promise.all(photos.map(load)), views = imgs.map((im) => silhouette(im, 480, o.tolerance ?? 40));
+    const views = []; for (const ph of photos) views.push(await silhouetteOf(ph, 480, o));
     if (views.some((v) => v.n < 50)) throw new Error('In some photos nothing stood out from the background: use a plain background, or change the tolerance.');
     onStep('Carving the shape from every angle…'); await new Promise((r) => setTimeout(r, 20));
     const c = carve(views, o.detail || 96, o.dir);
@@ -123,7 +129,7 @@
   // same (or flat, for standing on a printer's bed). o = { detail (cells across), tolerance, puff, shading, flatBack }
   async function build1(photo, o = {}, onStep = () => {}) {
     onStep('Cutting out the photo…'); await new Promise((r) => setTimeout(r, 20));
-    const img = await load(photo), res = o.detail || 160, v = silhouette(img, res * 1.6, o.tolerance ?? 40);
+    const res = o.detail || 160, v = await silhouetteOf(photo, res * 1.6, o);
     if (v.n < 50) throw new Error('Nothing stood out from the background: use a photo on a plain background, or change the tolerance.');
     const W = v.x1 - v.x0 + 3, H = v.y1 - v.y0 + 3, inside = (u, w) => u >= 0 && w >= 0 && u < W && w < H && v.mask[(w + v.y0 - 1) * v.W + (u + v.x0 - 1)] === 1;
     // distance to the edge (two passes, 3-4 chamfer)

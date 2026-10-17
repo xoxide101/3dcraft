@@ -490,19 +490,64 @@
   async function openTrace(edit, src) {
     if (!E.doc) return;
     traceEdit = edit || null;
-    if (src) { traceSrc = await shrinkImage(src); $('tracedlg').hidden = false; syncTraceUi(); runTrace(); return; }
-    if (edit) { traceSrc = edit.trace.src; traceMode = edit.trace.mode || 'auto'; $('tr-n').value = edit.trace.colors; $('tr-detail').value = edit.trace.detail || 6; $('tr-smooth').value = edit.trace.smooth ?? 1; $('tr-bg').checked = edit.trace.removeBg !== false; $('tr-depth').value = edit.trace.depth || 0.4; $('tr-step').checked = !!edit.trace.stepped; $('tr-own').checked = edit.trace.ownColours !== false; }
+    if (!edit) bgState.tr.actions = [];
+    if (src) { traceSrc = await shrinkImage(src); $('tracedlg').hidden = false; syncTraceUi(); runTrace(); bgChoices('tr', traceSrc); return; }
+    if (edit) { traceSrc = edit.trace.src; traceMode = edit.trace.mode || 'auto'; $('tr-n').value = edit.trace.colors; $('tr-detail').value = edit.trace.detail || 6; $('tr-smooth').value = edit.trace.smooth ?? 1; Object.assign(bgState.tr, edit.trace.bg ? { mode: edit.trace.bg.mode === 'off' ? 'off' : 'auto', actions: (edit.trace.bg.actions || []).slice() } : { mode: edit.trace.removeBg === false ? 'off' : 'auto', actions: [] }); if (edit.trace.bg) $('tr-tol').value = edit.trace.bg.tolerance ?? 40; $('tr-depth').value = edit.trace.depth || 0.4; $('tr-step').checked = !!edit.trace.stepped; $('tr-own').checked = edit.trace.ownColours !== false; }
     else { traceSrc = await pickImage(); if (!traceSrc) return; }
-    $('tracedlg').hidden = false; syncTraceUi(); runTrace();
+    $('tracedlg').hidden = false; syncTraceUi(); runTrace(); bgChoices('tr', traceSrc);
   }
   const pickImage = () => new Promise((res) => { const i = $('image-input'); i.value = ''; i.onchange = () => { const f = i.files[0]; if (!f) return res(null); const r = new FileReader(); r.onload = () => shrinkImage(r.result).then(res); r.readAsDataURL(f); }; i.click(); });
   // pictures are kept in the scene at a sensible size (the tracer never needs more than 1000 pixels)
   const shrinkImage = (src) => new Promise((res) => { const im = new Image(); im.onload = () => { const k = Math.min(1, 1000 / Math.max(im.naturalWidth, im.naturalHeight)); if (k >= 1) return res(src); const c = document.createElement('canvas'); c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); res(c.toDataURL('image/png')); }; im.onerror = () => res(src); im.src = src; });
+  // the background choice (shared look in Picture to 3D and Photos to 3D): off, automatic, or a colour picked by clicking
+  const bgState = { tr: { mode: 'auto', tool: 'wand', actions: [] }, p3: { mode: 'auto', tool: 'wand', actions: [] } };
+  const BG_HINTS = { off: 'The whole picture is used.', auto: 'The colour round the edges is taken out where it touches the outside.', };
+  const TOOL_HINTS = { wand: 'Magic wand: click any area on the preview to take it out (it spreads to the connected area of a similar colour; Tolerance sets how far).', erase: 'Eraser: paint on the preview to take away anything you do not want.', keep: 'Restore: paint on the preview to bring back anything that was taken out.' };
+  // the starting points to choose from: the whole picture, and the automatic removal at three strengths
+  const BG_STARTS = [['off', 'Whole picture', 0], ['gentle', 'Gentle', 22], ['normal', 'Normal', 40], ['strong', 'Strong', 75]];
+  const startOf = (pre) => (bgState[pre].mode === 'off' ? 'off' : (bgState[pre].start || 'normal'));
+  async function bgChoices(pre, src) {
+    const el = $(`${pre}-bgmode`); if (!src) { el.innerHTML = ''; return; }
+    el.innerHTML = BG_STARTS.map(([k, n]) => `<button type="button" data-start="${k}" aria-pressed="${startOf(pre) === k}"><img alt=""><span>${n}</span></button>`).join('');
+    for (const [k, , tol] of BG_STARTS) { const cut = await BGREMOVE.remove(src, { mode: k === 'off' ? 'off' : 'auto', tolerance: tol, max: 220 }); const b = el.querySelector(`[data-start="${k}"] img`); if (b) b.src = cut.url; }
+  }
+  function syncBg(pre) {
+    const st = bgState[pre];
+    document.querySelectorAll(`#${pre}-bgmode [data-start]`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.start === startOf(pre))));
+    document.querySelectorAll(`#${pre}-tools [data-tool]`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tool === st.tool)));
+    $(`${pre}-bghint`).textContent = BG_HINTS[st.mode] + ' ' + TOOL_HINTS[st.tool] + (st.actions.length ? ` (${st.actions.length} touch-up${st.actions.length > 1 ? 's' : ''})` : '');
+    $(`${pre}-wandbtns`).querySelectorAll('button').forEach((b) => { b.disabled = !st.actions.length; });
+    $(`${pre}-size-f`).hidden = st.tool === 'wand'; $(`${pre}-size-v`).textContent = $(`${pre}-size`).value + '%';
+    $(`${pre}-tol-v`).textContent = $(`${pre}-tol`).value;
+  }
+  const bgOpts = (pre) => ({ mode: bgState[pre].mode, actions: JSON.parse(JSON.stringify(bgState[pre].actions)), tolerance: +$(`${pre}-tol`).value });
+  // Touch-ups on a preview: the magic wand on a click, the eraser and restore as brush strokes (drawn live on a layer
+  // over the preview, then applied). onChange runs the preview (and tracing) again.
+  function touchUp(pre, box, onChange) {
+    let stroke = null, layer = null;
+    const pos = (e, im) => { const r = im.getBoundingClientRect(); return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height]; };
+    box.addEventListener('pointerdown', (e) => {
+      const im = box.querySelector('img'); if (!im || e.button !== 0) return; const st = bgState[pre], [u, v] = pos(e, im); if (u < 0 || v < 0 || u > 1 || v > 1) return;
+      e.preventDefault();
+      if (st.tool === 'wand') { st.actions.push({ t: 'wand', u, v }); syncBg(pre); onChange(); return; }
+      stroke = { t: st.tool, r: +$(`${pre}-size`).value / 200, pts: [[u, v]] };
+      const r = im.getBoundingClientRect(), br = box.getBoundingClientRect();
+      layer = document.createElement('canvas'); layer.width = r.width; layer.height = r.height; layer.style.cssText = `position:absolute;left:${r.left - br.left}px;top:${r.top - br.top}px;width:${r.width}px;height:${r.height}px;pointer-events:none`; box.style.position = 'relative'; box.append(layer);
+      const lx = layer.getContext('2d'); lx.strokeStyle = lx.fillStyle = stroke.t === 'erase' ? 'rgba(224,49,49,0.55)' : 'rgba(47,158,68,0.55)'; lx.lineWidth = stroke.r * r.width * 2; lx.lineCap = lx.lineJoin = 'round';
+      lx.beginPath(); lx.arc(u * r.width, v * r.height, stroke.r * r.width, 0, Math.PI * 2); lx.fill(); lx.beginPath(); lx.moveTo(u * r.width, v * r.height);
+      try { box.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    box.addEventListener('pointermove', (e) => { if (!stroke) return; const im = box.querySelector('img'), [u, v] = pos(e, im); stroke.pts.push([u, v]); const lx = layer.getContext('2d'); lx.lineTo(u * layer.width, v * layer.height); lx.stroke(); });
+    const end = () => { if (!stroke) return; bgState[pre].actions.push(stroke); stroke = null; syncBg(pre); onChange(); setTimeout(() => { if (layer) { layer.remove(); layer = null; } }, 400); };
+    box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
+  }
+  let traceShown = null;
   function syncTraceUi() {
+    syncBg('tr');
     document.querySelectorAll('#tr-mode [data-m]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.m === traceMode)));
     $('tr-n-f').hidden = traceMode !== 'n';
     ['n', 'detail', 'smooth', 'depth'].forEach((k) => { $(`tr-${k}-v`).textContent = $(`tr-${k}`).value; });
-    $('trace-src').innerHTML = `<img src="${traceSrc}" alt="Your picture">`;
+    $('trace-src').classList.add('picking');
   }
   let traceT = null;
   async function runTrace() {
@@ -510,7 +555,10 @@
     traceT = setTimeout(async () => {
       $('trace-info').textContent = 'Tracing…';
       try {
-        traceResult = await CraftTracer.trace(traceSrc, { colors: traceMode === 'auto' ? 'auto' : +$('tr-n').value, detail: +$('tr-detail').value, smooth: +$('tr-smooth').value, removeBg: $('tr-bg').checked });
+        // the background taken out first (the preview shows what is left), then the rest traced
+        const cut = await BGREMOVE.remove(traceSrc, { ...bgOpts('tr'), max: 1000 });
+        $('trace-src').innerHTML = `<img src="${cut.url}" alt="Your picture">`; traceShown = cut.url;
+        traceResult = await CraftTracer.trace(cut.url, { colors: traceMode === 'auto' ? 'auto' : +$('tr-n').value, detail: +$('tr-detail').value, smooth: +$('tr-smooth').value, removeBg: false });
         $('trace-out').innerHTML = traceResult.svg;
         $('trace-info').textContent = `${traceResult.colors} colours${traceMode === 'auto' ? ' (best match)' : ''}, ${traceResult.paths} outlines`;
         if (traceMode === 'auto') { $('tr-n').value = traceResult.colors; $('tr-n-v').textContent = traceResult.colors; }
@@ -518,13 +566,18 @@
     }, 200);
   }
   document.querySelectorAll('#tr-mode [data-m]').forEach((b) => { b.onclick = () => { traceMode = b.dataset.m; syncTraceUi(); runTrace(); }; });
-  ['tr-n', 'tr-detail', 'tr-smooth', 'tr-bg'].forEach((id) => { $(id).addEventListener('input', () => { syncTraceUi(); runTrace(); }); $(id).addEventListener('change', () => { syncTraceUi(); runTrace(); }); });
+  $('tr-bgmode').onclick = (e) => { const b = e.target.closest('[data-start]'); if (!b) return; const [k, , tol] = BG_STARTS.find((x) => x[0] === b.dataset.start); bgState.tr.mode = k === 'off' ? 'off' : 'auto'; bgState.tr.start = k; if (tol) $('tr-tol').value = tol; syncTraceUi(); runTrace(); };
+  $('tr-tools').onclick = (e) => { const b = e.target.closest('[data-tool]'); if (!b) return; bgState.tr.tool = b.dataset.tool; syncTraceUi(); };
+  $('tr-size').oninput = () => syncBg('tr');
+  $('tr-wandbtns').onclick = (e) => { const b = e.target.closest('[data-wand]'); if (!b) return; if (b.dataset.wand === 'undo') bgState.tr.actions.pop(); else bgState.tr.actions = []; syncTraceUi(); runTrace(); };
+  touchUp('tr', $('trace-src'), () => runTrace());
+  ['tr-n', 'tr-detail', 'tr-smooth', 'tr-tol'].forEach((id) => { $(id).addEventListener('input', () => { syncTraceUi(); runTrace(); }); $(id).addEventListener('change', () => { syncTraceUi(); runTrace(); }); });
   ['tr-depth'].forEach((id) => $(id).addEventListener('input', syncTraceUi));
-  $('tr-pick').onclick = async () => { const s = await pickImage(); if (s) { traceSrc = s; syncTraceUi(); runTrace(); } };
+  $('tr-pick').onclick = async () => { const s = await pickImage(); if (s) { traceSrc = s; bgState.tr.actions = []; bgChoices('tr', s); syncTraceUi(); runTrace(); } };
   $('tr-cancel').onclick = () => { $('tracedlg').hidden = true; };
   $('tr-go').onclick = () => {
     if (!traceResult || !traceResult.paths) return toast('Nothing was traced yet: try more colours or turn off "Leave out the background".');
-    const tr = { src: traceSrc, svg: traceResult.svg, colors: traceResult.colors, paths: traceResult.paths, mode: traceMode, detail: +$('tr-detail').value, smooth: +$('tr-smooth').value, removeBg: $('tr-bg').checked,
+    const tr = { src: traceSrc, svg: traceResult.svg, colors: traceResult.colors, paths: traceResult.paths, mode: traceMode, detail: +$('tr-detail').value, smooth: +$('tr-smooth').value, removeBg: bgState.tr.mode !== 'off', bg: { ...bgOpts('tr') },
       depth: +$('tr-depth').value, stepped: $('tr-step').checked, ownColours: $('tr-own').checked, width: traceEdit ? traceEdit.trace.width : 4, bevel: traceEdit ? traceEdit.trace.bevel : 0 };
     $('tracedlg').hidden = true;
     if (traceEdit) { traceEdit.trace = tr; changed(traceEdit.id); showProps(); return; }
@@ -564,7 +617,8 @@
     });
   }
   async function makeCutout(src, o, edit) {
-    const im = await cutoutImages(src, o);
+    const pre = await BGREMOVE.remove(src, { mode: o.removeBg === false ? 'off' : 'auto', tolerance: o.tolerance ?? 40, max: 1400 });
+    const im = await cutoutImages(pre.url, { ...o, removeBg: false });
     const t = await CraftTracer.trace(im.mask, { colors: 2, detail: o.detail ?? 7, smooth: 2, removeBg: true });
     if (!t || !t.svg || !/<path/.test(t.svg)) throw new Error('No outline was found in that picture.');
     const photo = { type: 'picture', src: im.pic, fit: 'stretch', opacity: 1, size: 20 };
@@ -587,7 +641,13 @@
   let p3Mode = 'one', p3Dir = 'ccw', p3Photos = [];
   const p3Tips = { one: 'One photo of something on a plain background. Its outline is puffed up like a balloon into a rounded 3D shape, painted with the photo: a guess, good for characters, animals, fruit and logos.',
     turn: 'Photos of an object turned on a turntable (or a lazy Susan) in front of a plain background, the camera kept still: 12 to 36, evenly all the way round, chosen in the order taken. The shape is carved from every angle and painted with the photos. Deep hollows cannot be seen from outside.' };
+  async function p3Preview() {
+    const el = $('p3-prev'); el.hidden = !p3Photos.length; if (!p3Photos.length) return;
+    const cut = await BGREMOVE.remove(p3Photos[0], { ...bgOpts('p3'), max: 600 });
+    el.innerHTML = `<img src="${cut.url}" alt="The first photo with its background taken out">`; el.classList.add('picking');
+  }
   function p3Sync() {
+    syncBg('p3');
     document.querySelectorAll('#p3-mode [data-p3]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.p3 === p3Mode)));
     document.querySelectorAll('#p3-dir [data-dir]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.dir === p3Dir)));
     $('p3-tip').textContent = p3Tips[p3Mode]; $('p3-one-opts').hidden = p3Mode !== 'one'; $('p3-turn-opts').hidden = p3Mode !== 'turn';
@@ -597,15 +657,22 @@
     $('p3-go').disabled = !p3Photos.length || (p3Mode === 'turn' && p3Photos.length < 4);
     [['p3-tol', (v) => v], ['p3-puff', (v) => v + '%'], ['p3-shade', (v) => v + '%'], ['p3-smooth', (v) => v]].forEach(([id, f]) => { $(id + '-v').textContent = f($(id).value); });
   }
-  const openPhotos3D = (mode) => { if (!E.doc) return; if (mode) p3Mode = mode; $('p3-status').textContent = ''; p3Sync(); $('p3dlg').hidden = false; };
+  const openPhotos3D = (mode) => { if (!E.doc) return; if (mode) p3Mode = mode; $('p3-status').textContent = ''; p3Sync(); p3Preview(); bgChoices('p3', p3Photos[0]); $('p3dlg').hidden = false; };
   $('p3-mode').onclick = (e) => { const b = e.target.closest('[data-p3]'); if (b) { p3Mode = b.dataset.p3; p3Sync(); } };
   $('p3-dir').onclick = (e) => { const b = e.target.closest('[data-dir]'); if (b) { p3Dir = b.dataset.dir; p3Sync(); } };
   ['p3-tol', 'p3-puff', 'p3-shade', 'p3-smooth'].forEach((id) => { $(id).oninput = p3Sync; });
+  $('p3-tol').onchange = p3Preview;
+  $('p3-bgmode').onclick = (e) => { const b = e.target.closest('[data-start]'); if (!b) return; const [k, , tol] = BG_STARTS.find((x) => x[0] === b.dataset.start); bgState.p3.mode = k === 'off' ? 'off' : 'auto'; bgState.p3.start = k; if (tol) $('p3-tol').value = tol; p3Sync(); p3Preview(); };
+  $('p3-tools').onclick = (e) => { const b = e.target.closest('[data-tool]'); if (!b) return; bgState.p3.tool = b.dataset.tool; p3Sync(); };
+  $('p3-size').oninput = () => syncBg('p3');
+  $('p3-wandbtns').onclick = (e) => { const b = e.target.closest('[data-wand]'); if (!b) return; if (b.dataset.wand === 'undo') bgState.p3.actions.pop(); else bgState.p3.actions = []; p3Sync(); p3Preview(); };
+  touchUp('p3', $('p3-prev'), () => p3Preview());
   $('p3-pick').onclick = () => { const i = $('photos-input'); i.value = ''; i.multiple = p3Mode === 'turn'; i.click(); };
   $('photos-input').onchange = async (e) => {
     const files = [...e.target.files].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    bgState.p3.actions = [];
     p3Photos = await Promise.all(files.map((f) => new Promise((r) => { const rd = new FileReader(); rd.onload = () => r(rd.result); rd.readAsDataURL(f); })));
-    p3Sync();
+    p3Sync(); p3Preview(); bgChoices('p3', p3Photos[0]);
   };
   $('p3-cancel').onclick = () => { $('p3dlg').hidden = true; };
   async function makePhotos3D(photos, mode, o) {
@@ -618,7 +685,7 @@
   }
   $('p3-go').onclick = async () => {
     $('p3-go').disabled = true;
-    try { await makePhotos3D(p3Photos, p3Mode, { detail: +$('p3-detail').value, tolerance: +$('p3-tol').value, puff: +$('p3-puff').value / 100, shading: +$('p3-shade').value / 100, flatBack: $('p3-flat').checked, smooth: +$('p3-smooth').value, dir: p3Dir }); $('p3dlg').hidden = true; toast('Your photo is in 3D: save it as STL or OBJ from Export to print it.'); }
+    try { await makePhotos3D(p3Photos, p3Mode, { detail: +$('p3-detail').value, tolerance: +$('p3-tol').value, bg: bgOpts('p3'), puff: +$('p3-puff').value / 100, shading: +$('p3-shade').value / 100, flatBack: $('p3-flat').checked, smooth: +$('p3-smooth').value, dir: p3Dir }); $('p3dlg').hidden = true; toast('Your photo is in 3D: save it as STL or OBJ from Export to print it.'); }
     catch (err) { $('p3-status').textContent = err.message; }
     $('p3-go').disabled = false;
   };
