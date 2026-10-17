@@ -231,5 +231,87 @@
     onStep('Painting it with the photo…'); await new Promise((r) => setTimeout(r, 20));
     return { ply: toPLY(pos, cols, tri, { nx: 0, nz: 0, cell: 1 }), triangles: tri.length / 3 };
   }
-  window.PHOTO3D = { build, build1 };
+  // Round things from one side picture (cups, vases, bottles, glasses, chess pieces): the outline's half width on each
+  // row, measured from the centre line, is the profile; it is spun all the way round (a lathe) into a closed body. The
+  // picture is wrapped round the front (each point takes the colour straight in front of it), and the back takes each
+  // row's main colour (so a face on the front is not repeated). Whatever sticks out further on one side (a handle, a
+  // spout) is cut from the picture and rounded into a solid of its own. o = { detail (rows), hollow, wall (0–0.5 of the
+  // widest radius), segments }
+  async function buildRound(photo, o = {}, onStep = () => {}) {
+    onStep('Cutting out the picture…'); await new Promise((r) => setTimeout(r, 20));
+    const v = await silhouetteOf(photo, o.detail ? o.detail * 2.5 : 420, o);
+    if (v.n < 50) throw new Error('Nothing stood out from the background: use a picture on a plain background, or change the tolerance.');
+    onStep('Finding the shape round its middle…'); await new Promise((r) => setTimeout(r, 20));
+    const { W, H, mask, rgb } = v, L = new Int32Array(H).fill(-1), R = new Int32Array(H).fill(-1);
+    for (let y = v.y0; y <= v.y1; y++) for (let x = 0; x < W; x++) if (mask[y * W + x]) { if (L[y] < 0) L[y] = x; R[y] = x; }
+    const mids = []; for (let y = v.y0; y <= v.y1; y++) if (L[y] >= 0) mids.push((L[y] + R[y]) / 2);
+    mids.sort((a, b) => a - b); const cx = mids[Math.floor(mids.length / 2)];
+    // the radius on each row: the nearer side (a handle only sticks out on one side), lightly smoothed
+    const r0 = new Float32Array(H), rad = new Float32Array(H);
+    for (let y = v.y0; y <= v.y1; y++) if (L[y] >= 0) r0[y] = Math.max(0, Math.min(cx - L[y], R[y] - cx) + 0.5);
+    for (let y = v.y0; y <= v.y1; y++) { let s = 0, n = 0; for (let d = -2; d <= 2; d++) { const q = y + d; if (q >= v.y0 && q <= v.y1 && r0[q] > 0) { s += r0[q]; n++; } } rad[y] = n ? s / n : 0; }
+    let maxR = 0; for (let y = v.y0; y <= v.y1; y++) maxR = Math.max(maxR, rad[y]);
+    const at = (x, y) => (Math.max(0, Math.min(H - 1, Math.round(y))) * W + Math.max(0, Math.min(W - 1, Math.round(x)))) * 4;
+    // each row's main colour (for the back), from the inside of the row
+    const rowCol = []; for (let y = 0; y < H; y++) {
+      const bins = new Map(); let best = null;
+      if (rad[y] > 0) for (let x = Math.ceil(cx - rad[y] * 0.9); x <= cx + rad[y] * 0.9; x++) { const i = at(x, y), dark = 0.299 * rgb[i] + 0.587 * rgb[i + 1] + 0.114 * rgb[i + 2] < 55, k = (dark ? 1 << 15 : 0) | (rgb[i] >> 5) << 6 | (rgb[i + 1] >> 5) << 3 | (rgb[i + 2] >> 5); const b = bins.get(k) || [0, 0, 0, 0, dark]; b[0] += rgb[i]; b[1] += rgb[i + 1]; b[2] += rgb[i + 2]; b[3]++; bins.set(k, b); }
+      bins.forEach((b) => { if (!best || (best[4] && !b[4]) || (b[4] === best[4] && b[3] > best[3])) best = b; });
+      rowCol.push(best ? [best[0] / best[3], best[1] / best[3], best[2] / best[3]] : [200, 200, 200]);
+    }
+    onStep('Spinning it round…'); await new Promise((r) => setTimeout(r, 20));
+    const S = o.segments || 192, rows = []; for (let y = v.y0; y <= v.y1; y++) if (rad[y] > 0.5) rows.push(y);
+    const pos = [], cols = [], tri = [];
+    const add = (x, y, z, c) => { pos.push(x, y, z); cols.push(c[0], c[1], c[2]); return pos.length / 3 - 1; };
+    const ring = (y, r, colour) => { const first = pos.length / 3; for (let k = 0; k < S; k++) { const t = (k / S) * Math.PI * 2, sx = Math.sin(t), cz = Math.cos(t); add(r * sx, H - y, r * cz, colour(t, sx, cz)); } return first; };
+    const front = (y, r) => (t, sx, cz) => {
+      if (cz <= 0) return rowCol[y];
+      const i = at(cx + r * 0.93 * sx, y), f = Math.min(1, cz / 0.35), b = rowCol[y];
+      return [rgb[i] * f + b[0] * (1 - f), rgb[i + 1] * f + b[1] * (1 - f), rgb[i + 2] * f + b[2] * (1 - f)];
+    };
+    const join = (a, b, flip) => { for (let k = 0; k < S; k++) { const k2 = (k + 1) % S; if (flip) tri.push(a + k, a + k2, b + k, a + k2, b + k2, b + k); else tri.push(a + k, b + k, a + k2, a + k2, b + k, b + k2); } };
+    // a flat end: its own copy of the edge points, so its shading stays flat and does not bleed into the sides
+    const cap = (ringStart0, y, colour, up) => { const ringStart = pos.length / 3; for (let k = 0; k < S; k++) add(pos[(ringStart0 + k) * 3], pos[(ringStart0 + k) * 3 + 1], pos[(ringStart0 + k) * 3 + 2], colour); const c = add(0, H - y, 0, colour); for (let k = 0; k < S; k++) { const k2 = (k + 1) % S; if (up) tri.push(c, ringStart + k, ringStart + k2); else tri.push(c, ringStart + k2, ringStart + k); } };
+    const outer = rows.map((y) => ring(y, rad[y], front(y, rad[y])));
+    for (let i = 0; i + 1 < outer.length; i++) join(outer[i], outer[i + 1], false);
+    const top = rows[0], bottom = rows[rows.length - 1];
+    const inside = (frac) => rowCol[rows[Math.max(0, Math.min(rows.length - 1, Math.round(rows.length * frac)))]];
+    cap(outer[outer.length - 1], bottom, inside(0.96), false);
+    if (o.hollow) {
+      // a wall all round and a base; the top is open with a rim joining the outside to the inside
+      const wall = Math.max(1, maxR * (o.wall ?? 0.08)), base = Math.max(2, Math.round(wall * 1.5)), inRows = rows.filter((y) => y <= bottom - base);
+      const shade = (c) => [c[0] * 0.8, c[1] * 0.8, c[2] * 0.8];
+      const inner = inRows.map((y) => ring(y, Math.max(0.5, rad[y] - wall), () => shade(rowCol[y])));
+      for (let i = 0; i + 1 < inner.length; i++) join(inner[i], inner[i + 1], true);
+      join(outer[0], inner[0], true);
+      cap(inner[inner.length - 1], inRows[inRows.length - 1], shade(rowCol[bottom]), true);
+    } else cap(outer[0], top, inside(0.04), true);
+    // a handle or spout: the part of the outline outside the round body, rounded like a cushion
+    const hm = new Uint8Array(W * H); let hn = 0;
+    for (let y = v.y0; y <= v.y1; y++) for (let x = 0; x < W; x++) if (mask[y * W + x] && Math.abs(x - cx) > rad[y] + 2) { hm[y * W + x] = 1; hn++; }
+    if (hn > Math.max(30, v.n * 0.01)) {
+      onStep('Shaping the handle…'); await new Promise((r) => setTimeout(r, 20));
+      const d = new Float32Array(W * H);
+      for (let i = 0; i < W * H; i++) d[i] = hm[i] ? 1e9 : 0;
+      for (let y = 1; y < H; y++) for (let x = 1; x < W - 1; x++) { const q = y * W + x; if (d[q]) d[q] = Math.min(d[q], d[q - 1] + 3, d[q - W] + 3, d[q - W - 1] + 4, d[q - W + 1] + 4); }
+      for (let y = H - 2; y >= 0; y--) for (let x = W - 2; x > 0; x--) { const q = y * W + x; if (d[q]) d[q] = Math.min(d[q], d[q + 1] + 3, d[q + W] + 3, d[q + W + 1] + 4, d[q + W - 1] + 4); }
+      let maxD = 0; for (let i = 0; i < d.length; i++) { d[i] /= 3; if (d[i] > maxD) maxD = d[i]; }
+      // the handle reaches into the body a little so the two join
+      const idx = new Int32Array(W * H).fill(-1), thick = Math.min(maxR * 0.35, maxD * 1.2), hh = new Float32Array(W * H);
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const q = y * W + x; if (!hm[q]) continue; const t = Math.min(1, d[q] / Math.max(1, maxD)); hh[q] = thick * Math.sqrt(1 - (1 - t) * (1 - t)); }
+      const sideX = (x, y) => { const dx = x - cx, inR = rad[y] * 0.85; return Math.abs(dx) > rad[y] + 2 ? dx : Math.sign(dx) * inR; };
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const q = y * W + x; if (!hm[q]) continue; const i = at(x, y); idx[q] = add(sideX(x, y), H - y, hh[q], [rgb[i], rgb[i + 1], rgb[i + 2]]); }
+      const n0 = pos.length / 3, back = new Int32Array(W * H).fill(-1);
+      for (let q = 0; q < W * H; q++) { if (idx[q] < 0) continue; if (hh[q] <= 1e-6) { back[q] = idx[q]; continue; } const p = idx[q]; back[q] = add(pos[p * 3], pos[p * 3 + 1], -hh[q], [cols[p * 3], cols[p * 3 + 1], cols[p * 3 + 2]]); }
+      void n0;
+      for (let y = 0; y < H - 1; y++) for (let x = 0; x < W - 1; x++) {
+        const a = y * W + x, b = a + 1, c2 = a + W, e = a + W + 1;
+        const face = (p1, p2, p3) => { if (idx[p1] < 0 || idx[p2] < 0 || idx[p3] < 0) return; tri.push(idx[p1], idx[p3], idx[p2], back[p1], back[p2], back[p3]); };
+        face(a, b, e); face(a, e, c2);
+      }
+    }
+    onStep('Painting it…'); await new Promise((r) => setTimeout(r, 20));
+    return { ply: toPLY(pos, cols, tri, { nx: 0, nz: 0, cell: 1 }), triangles: tri.length / 3 };
+  }
+  window.PHOTO3D = { build, build1, buildRound };
 })();

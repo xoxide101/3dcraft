@@ -726,8 +726,10 @@
     document.querySelectorAll('#p3-mode [data-p3]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.p3 === p3Mode)));
     document.querySelectorAll('#p3-dir [data-dir]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.dir === p3Dir)));
     document.querySelectorAll('#p3-edge [data-edge]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.edge === p3Edge)));
-    if (!aiOn('depth') && p3Shape !== 'puff') p3Shape = 'puff';
-    $('p3-shape').closest('.field').hidden = !aiOn('depth');
+    if (!aiOn('depth') && (p3Shape === 'depth' || p3Shape === 'both')) p3Shape = 'puff';
+    document.querySelectorAll('#p3-shape [data-shape=depth], #p3-shape [data-shape=both]').forEach((b) => { b.hidden = !aiOn('depth'); });
+    const round = p3Shape === 'round'; $('p3-round-opts').hidden = !round; $('p3-wall-f').hidden = !$('p3-hollow-cup').checked; $('p3-wall-v').textContent = $('p3-wall').value + '%';
+    ['p3-edge', 'p3-reach', 'p3-puff', 'p3-shade', 'p3-flat'].forEach((id) => { const f = $(id).closest('.field') || $(id).closest('label'); if (f) f.hidden = round; });
     document.querySelectorAll('#p3-shape [data-shape]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.shape === p3Shape)));
     $('p3-reach-v').textContent = +$('p3-reach').value >= 100 ? 'whole shape' : $('p3-reach').value + '% (from the outside)';
     $('p3-tip').textContent = p3Tips[p3Mode]; $('p3-one-opts').hidden = p3Mode !== 'one'; $('p3-turn-opts').hidden = p3Mode !== 'turn';
@@ -744,7 +746,8 @@
   $('p3-shape').onclick = (e) => { const b = e.target.closest('[data-shape]'); if (b) { p3Shape = b.dataset.shape; p3Sync(); } };
   $('p3-edge').onclick = (e) => { const b = e.target.closest('[data-edge]'); if (b) { p3Edge = b.dataset.edge; p3Sync(); } };
   $('p3-reach').oninput = p3Sync;
-  ['p3-tol', 'p3-puff', 'p3-shade', 'p3-smooth', 'p3-hollow'].forEach((id) => { $(id).oninput = p3Sync; });
+  ['p3-tol', 'p3-puff', 'p3-shade', 'p3-smooth', 'p3-hollow', 'p3-wall'].forEach((id) => { $(id).oninput = p3Sync; });
+  $('p3-hollow-cup').onchange = p3Sync;
   $('p3-tol').onchange = p3Preview;
   $('p3-bgmode').onclick = (e) => { const b = e.target.closest('[data-start]'); if (!b) return; const [k, , tol] = BG_STARTS.find((x) => x[0] === b.dataset.start); bgState.p3.mode = modeOf(k); bgState.p3.start = k; if (tol) $('p3-tol').value = tol; p3Sync(); p3Preview(); };
   $('p3-tools').onclick = (e) => { const b = e.target.closest('[data-tool]'); if (!b) return; $('p3-prev').lassoCancel && $('p3-prev').lassoCancel(); bgState.p3.tool = b.dataset.tool; bgState.p3.pickOpen = false; p3Sync(); };
@@ -770,7 +773,7 @@
   });
   async function makePhotos3D(photos, mode, o) {
     const status = (m) => { $('p3-status').textContent = m; };
-    const r = mode === 'one' ? await PHOTO3D.build1(photos[0], o, status) : await PHOTO3D.build(photos, o, status);
+    const r = mode === 'one' ? await (o.shape === 'round' ? PHOTO3D.buildRound : PHOTO3D.build1)(photos[0], o, status) : await PHOTO3D.build(photos, o, status);
     const m = { kind: 'model', name: mode === 'one' ? 'Photo in 3D' : 'Turntable scan', model: { format: 'ply', data: E.b64(r.ply), fit: 3, keepOwn: true, colours: true, points: false, from: mode } };
     standOnGround(m, 3); m.mat = E.defaultMat('#bfc5cc', 'plastic');
     status(`Made: ${r.triangles.toLocaleString()} triangles.`);
@@ -778,7 +781,7 @@
   }
   $('p3-go').onclick = async () => {
     $('p3-go').disabled = true;
-    try { await makePhotos3D(p3Photos, p3Mode, { detail: +$('p3-detail').value, tolerance: +$('p3-tol').value, bg: bgOpts('p3'), puff: +$('p3-puff').value / 100, edge: p3Edge, shape: p3Shape, reach: +$('p3-reach').value / 100, shading: +$('p3-shade').value / 100, flatBack: $('p3-flat').checked, smooth: +$('p3-smooth').value, dir: p3Dir, depthHollows: aiOn('depth') ? +$('p3-hollow').value / 100 : 0 }); $('p3dlg').hidden = true; toast('Your photo is in 3D: save it as STL or OBJ from Export to print it.'); }
+    try { await makePhotos3D(p3Photos, p3Mode, { detail: +$('p3-detail').value, tolerance: +$('p3-tol').value, bg: bgOpts('p3'), puff: +$('p3-puff').value / 100, edge: p3Edge, shape: p3Shape, hollow: $('p3-hollow-cup').checked, wall: +$('p3-wall').value / 100, reach: +$('p3-reach').value / 100, shading: +$('p3-shade').value / 100, flatBack: $('p3-flat').checked, smooth: +$('p3-smooth').value, dir: p3Dir, depthHollows: aiOn('depth') ? +$('p3-hollow').value / 100 : 0 }); $('p3dlg').hidden = true; toast('Your photo is in 3D: save it as STL or OBJ from Export to print it.'); }
     catch (err) { $('p3-status').textContent = err.message; }
     $('p3-go').disabled = false;
   };
