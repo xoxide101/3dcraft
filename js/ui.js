@@ -534,7 +534,7 @@
     if (!aiOn('pick') && (st.tool === 'pkeep' || st.tool === 'pcut')) st.tool = 'wand';
     document.querySelectorAll(`#${pre}-tools [data-tool]`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tool === st.tool)));
     document.querySelectorAll(`#${pre}-tools .ai-pick`).forEach((b) => { b.hidden = !aiOn('pick'); });
-    $(`${pre}-bghint`).textContent = BG_HINTS[st.mode] + ' ' + TOOL_HINTS[st.tool] + (st.actions.length ? ` (${st.actions.length} touch-up${st.actions.length > 1 ? 's' : ''})` : '');
+    $(`${pre}-bghint`).textContent = BG_HINTS[st.mode] + ' ' + TOOL_HINTS[st.tool] + (st.actions.length ? ` (${st.actions.length} touch-up${st.actions.length > 1 ? 's' : ''})` : '') + ' Middle mouse moves the preview, the wheel zooms (double middle-click: fit).';
     $(`${pre}-wandbtns`).querySelector('[data-wand="undo"]').disabled = !st.actions.length; $(`${pre}-clear`).disabled = !st.actions.length;
     document.querySelectorAll(`#${pre}-view [data-view]`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === st.view)));
     $(`${pre}-size-f`).hidden = !['erase', 'keep'].includes(st.tool); $(`${pre}-size-v`).textContent = $(`${pre}-size`).value + '%';
@@ -545,6 +545,30 @@
   // over the preview, then applied). onChange runs the preview (and tracing) again.
   function touchUp(pre, box, onChange) {
     let stroke = null, layer = null;
+    // the preview can be moved with the middle mouse button and zoomed with the wheel (double middle-click: back to fit);
+    // the picture is redrawn after every touch-up, so the view is put back on each new one
+    const view = { z: 1, x: 0, y: 0 }; let pan = null;
+    box.style.position = 'relative';
+    const applyView = () => { const im = box.querySelector('img'); if (!im) return; im.style.transformOrigin = '0 0'; im.style.transform = view.z === 1 && !view.x && !view.y ? '' : `translate(${view.x}px, ${view.y}px) scale(${view.z})`; };
+    new MutationObserver(applyView).observe(box, { childList: true });
+    box.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); }); // no auto-scroll
+    box.addEventListener('pointerdown', (e) => {
+      if (e.button !== 1) return; e.preventDefault();
+      if (pan && e.timeStamp - pan.t < 350 && !pan.moved) { Object.assign(view, { z: 1, x: 0, y: 0 }); applyView(); pan = null; return; }
+      pan = { sx: e.clientX, sy: e.clientY, x: view.x, y: view.y, t: e.timeStamp, moved: false, id: e.pointerId }; box.style.cursor = 'grabbing';
+      try { box.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    box.addEventListener('pointermove', (e) => { if (!pan || pan.id !== e.pointerId || !(e.buttons & 4)) return; view.x = pan.x + e.clientX - pan.sx; view.y = pan.y + e.clientY - pan.sy; if (Math.abs(e.clientX - pan.sx) + Math.abs(e.clientY - pan.sy) > 3) pan.moved = true; applyView(); });
+    box.addEventListener('pointerup', (e) => { if (e.button === 1) box.style.cursor = ''; });
+    box.addEventListener('wheel', (e) => {
+      const im = box.querySelector('img'); if (!im) return; e.preventDefault();
+      const br = box.getBoundingClientRect(), mx = e.clientX - br.left - im.offsetLeft, my = e.clientY - br.top - im.offsetTop;
+      const z = Math.max(1, Math.min(10, view.z * (e.deltaY < 0 ? 1.2 : 1 / 1.2)));
+      // keep the point under the mouse where it is
+      view.x = mx - (mx - view.x) * (z / view.z); view.y = my - (my - view.y) * (z / view.z); view.z = z;
+      if (z === 1 && e.deltaY > 0) { view.x = 0; view.y = 0; }
+      applyView();
+    }, { passive: false });
     const pos = (e, im) => { const r = im.getBoundingClientRect(); return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height]; };
     box.addEventListener('pointerdown', (e) => {
       const im = box.querySelector('img'); if (!im || e.button !== 0) return; const st = bgState[pre], [u, v] = pos(e, im); if (u < 0 || v < 0 || u > 1 || v > 1) return;
