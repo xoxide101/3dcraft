@@ -7,6 +7,7 @@
                                                                                 or BEN2 (MIT) for the best quality (slower)
      pick(src, pts)          → { W, H, a }  pts = [[u, v, 1 keep | 0 not]]     SlimSAM (Apache-2.0)
      recognise(src, labels)  → [{ label, score }] best first                   CLIP ViT-B/32 (MIT), on the processor
+     closest(text, labels)   → { label, score } the label nearest in meaning   CLIP's text model (part of Recognise)
    The models come from huggingface.co; the library (Transformers.js, Apache-2.0) is lib/craft-ai-libs.js. */
 (function () {
   'use strict';
@@ -190,6 +191,31 @@
       return out.map((x) => ({ label: x.label, score: x.score }));
     })());
   }
+  // words compared by meaning: CLIP's text model turns each into a direction, and the nearest label wins
+  let textP = null;
+  const textModel = () => (textP = textP || (async () => { const T = await lib(), id = MODELS.recog.id; return { tok: await T.AutoTokenizer.from_pretrained(id), model: await T.CLIPTextModelWithProjection.from_pretrained(id, { device: 'wasm', dtype: 'q8' }) }; })().catch((e) => { textP = null; throw e; }));
+  async function embed(texts) {
+    const { tok, model } = await textModel(), inp = tok(texts, { padding: true, truncation: true });
+    const { text_embeds: e } = await inTurn(() => model(inp)), d = e.dims[1], out = [];
+    for (let i = 0; i < texts.length; i++) { const v = e.data.slice(i * d, (i + 1) * d); let n = 0; for (const x of v) n += x * x; n = Math.sqrt(n) || 1; out.push(v.map((x) => x / n)); }
+    return out;
+  }
+  const labelVecs = new Map();
+  async function closest(text, labels) {
+    if (!enabled('recog')) throw new Error('Recognise objects is switched off in AI helpers.');
+    // the labels' average is taken away first: CLIP puts some words (like "capsule") near everything, and centring stops
+    // them winning every time; p = how sure (a softmax over all the labels)
+    const key = labels.join('|');
+    if (!labelVecs.has(key)) labelVecs.set(key, embed(labels.map((l) => 'a ' + l.toLowerCase())).then((vs) => {
+      const d = vs[0].length, mean = new Float32Array(d); vs.forEach((v) => v.forEach((x, k) => { mean[k] += x / vs.length; }));
+      const c = (v) => { const o = v.map((x, k) => x - mean[k]); let n = 0; for (const x of o) n += x * x; n = Math.sqrt(n) || 1; return o.map((x) => x / n); };
+      return { vecs: vs.map(c), c };
+    }));
+    const [{ vecs, c }, [q0]] = await Promise.all([labelVecs.get(key), embed(['a ' + text])]), q = c(q0);
+    const sc = vecs.map((v) => { let s2 = 0; for (let k = 0; k < v.length; k++) s2 += v[k] * q[k]; return s2; });
+    const order = sc.map((x, i) => i).sort((a2, b) => sc[b] - sc[a2]), ex = sc.map((x) => Math.exp((x - sc[order[0]]) * 20)), sum = ex.reduce((a2, b) => a2 + b, 0);
+    return { label: labels[order[0]], score: sc[order[0]], p: ex[order[0]] / sum, second: { label: labels[order[1]], score: sc[order[1]] } };
+  }
   // the picture's embedding is worked out once; each set of clicks then only runs the small decoder
   function pick(src, pts) {
     return remember('pick:' + keyOf(src) + JSON.stringify(pts), (async () => {
@@ -265,5 +291,5 @@
     };
   }
 
-  window.CRAFTAI = { sizeOf, recognise, probe: () => probed, found: () => found, settings: () => settings, enabled, ready, depth, cutout, pick, onProgress, downloaded, forget, openSettings, MODELS };
+  window.CRAFTAI = { sizeOf, recognise, closest, probe: () => probed, found: () => found, settings: () => settings, enabled, ready, depth, cutout, pick, onProgress, downloaded, forget, openSettings, MODELS };
 })();

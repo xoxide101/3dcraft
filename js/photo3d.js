@@ -268,7 +268,10 @@
     const { W, H, mask, rgb } = v, L = new Int32Array(H).fill(-1), R = new Int32Array(H).fill(-1);
     for (let y = v.y0; y <= v.y1; y++) for (let x = 0; x < W; x++) if (mask[y * W + x]) { if (L[y] < 0) L[y] = x; R[y] = x; }
     const mids = []; for (let y = v.y0; y <= v.y1; y++) if (L[y] >= 0) mids.push((L[y] + R[y]) / 2);
-    mids.sort((a, b) => a - b); const cx = mids[Math.floor(mids.length / 2)];
+    // the centre line: the most common row middle (rows with a handle have their middle pulled to one side, and can
+    // even be most of the rows, so the median would follow them; plain rows all share the true middle)
+    let cx = o.axis;
+    if (cx == null) { const hist = new Map(); mids.forEach((m) => { const k = Math.round(m); hist.set(k, (hist.get(k) || 0) + 1); }); let bestN = -1; hist.forEach((n, k) => { const n3 = n + (hist.get(k - 1) || 0) * 0.5 + (hist.get(k + 1) || 0) * 0.5; if (n3 > bestN) { bestN = n3; cx = k; } }); }
     // the radius on each row: the nearer side (a handle only sticks out on one side), lightly smoothed
     const r0 = new Float32Array(H), rad = new Float32Array(H);
     for (let y = v.y0; y <= v.y1; y++) if (L[y] >= 0) r0[y] = Math.max(0, Math.min(cx - L[y], R[y] - cx) + 0.5);
@@ -320,7 +323,7 @@
       for (let y = H - 2; y >= 0; y--) for (let x = W - 2; x > 0; x--) { const q = y * W + x; if (d[q]) d[q] = Math.min(d[q], d[q + 1] + 3, d[q + W] + 3, d[q + W + 1] + 4, d[q + W - 1] + 4); }
       let maxD = 0; for (let i = 0; i < d.length; i++) { d[i] /= 3; if (d[i] > maxD) maxD = d[i]; }
       // the handle reaches into the body a little so the two join
-      const idx = new Int32Array(W * H).fill(-1), thick = Math.min(maxR * 0.35, maxD * 1.2), hh = new Float32Array(W * H);
+      const idx = new Int32Array(W * H).fill(-1), thick = Math.min(maxR * 0.35, maxD * 2), hh = new Float32Array(W * H);
       for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const q = y * W + x; if (!hm[q]) continue; const t = Math.min(1, d[q] / Math.max(1, maxD)); hh[q] = thick * Math.sqrt(1 - (1 - t) * (1 - t)); }
       const sideX = (x, y) => { const dx = x - cx, inR = rad[y] * 0.85; return Math.abs(dx) > rad[y] + 2 ? dx : Math.sign(dx) * inR; };
       for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const q = y * W + x; if (!hm[q]) continue; const i = at(x, y); idx[q] = add(sideX(x, y), H - y, hh[q], [rgb[i], rgb[i + 1], rgb[i + 2]]); }

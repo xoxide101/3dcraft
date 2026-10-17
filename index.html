@@ -176,6 +176,16 @@
     <div class="dialog-actions"><button class="btn" id="p3-cancel">Close</button><button class="btn primary" id="p3-go" disabled>Make it 3D</button></div>
   </div>
 </div>
+<div class="backdrop" id="descdlg" hidden>
+  <div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="desc-title">
+    <h2 id="desc-title">Describe it</h2>
+    <p class="hint">Type what you want, in plain words: how many, size, colour, material and the thing. It is made from 3DCraft's own shapes, objects and round things (cups, vases, bottles…); words in quotes become 3D text. You see what it understood before anything is made.</p>
+    <input class="input" id="desc-text" placeholder='e.g. a red mug and three palm trees, or the word "HELLO" in chrome' autocomplete="off">
+    <div class="row" id="desc-examples"></div>
+    <div class="desc-plan" id="desc-plan"></div>
+    <div class="dialog-actions"><button class="btn" id="desc-close">Close</button><button class="btn primary" id="desc-go" disabled>Make it</button></div>
+  </div>
+</div>
 <div class="backdrop" id="info" hidden>
   <div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="info-title">
     <h2 id="info-title"></h2>
@@ -204,6 +214,7 @@
 <script src="js/craft-ai.js"></script>
 <script src="js/bgremove.js"></script>
 <script src="js/photo3d.js"></script>
+<script src="js/describe.js"></script>
 <script src="js/animexport.js"></script>
 <script src="js/range-type.js"></script>
 </body>
