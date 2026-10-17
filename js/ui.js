@@ -500,11 +500,11 @@
   // pictures are kept in the scene at a sensible size (the tracer never needs more than 1000 pixels)
   const shrinkImage = (src) => new Promise((res) => { const im = new Image(); im.onload = () => { const k = Math.min(1, 1000 / Math.max(im.naturalWidth, im.naturalHeight)); if (k >= 1) return res(src); const c = document.createElement('canvas'); c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); res(c.toDataURL('image/png')); }; im.onerror = () => res(src); im.src = src; });
   // the background choice (shared look in Picture to 3D and Photos to 3D): off, automatic, or a colour picked by clicking
-  const bgState = { tr: { mode: 'auto', tool: 'wand', actions: [] }, p3: { mode: 'auto', tool: 'wand', actions: [] } };
+  const bgState = { tr: { mode: 'auto', tool: 'wand', actions: [], view: 'cut' }, p3: { mode: 'auto', tool: 'wand', actions: [], view: 'cut' } };
   const BG_HINTS = { off: 'The whole picture is used.', auto: 'The colour round the edges is taken out where it touches the outside.', };
   const TOOL_HINTS = { wand: 'Magic wand: click any area on the preview to take it out (it spreads to the connected area of a similar colour; Tolerance sets how far).', erase: 'Eraser: paint on the preview to take away anything you do not want.', keep: 'Restore: paint on the preview to bring back anything that was taken out.', trim: 'Trim: click points round what you want to keep, then click the first point (or double-click) to close it: everything outside goes. Esc cancels.', cut: 'Lasso cut: click points round something to take out, then click the first point (or double-click) to close it. Esc cancels.' };
   // the starting points to choose from: the whole picture, and the automatic removal at three strengths
-  const BG_STARTS = [['off', 'Whole picture', 0], ['gentle', 'Gentle', 22], ['normal', 'Normal', 40], ['strong', 'Strong', 75]];
+  const BG_STARTS = [['off', 'Whole picture', 0], ['gentle', 'Gentle', 20], ['normal', 'Normal', 38], ['strong', 'Strong', 60]];
   const startOf = (pre) => (bgState[pre].mode === 'off' ? 'off' : (bgState[pre].start || 'normal'));
   async function bgChoices(pre, src) {
     const el = $(`${pre}-bgmode`); if (!src) { el.innerHTML = ''; return; }
@@ -516,7 +516,8 @@
     document.querySelectorAll(`#${pre}-bgmode [data-start]`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.start === startOf(pre))));
     document.querySelectorAll(`#${pre}-tools [data-tool]`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tool === st.tool)));
     $(`${pre}-bghint`).textContent = BG_HINTS[st.mode] + ' ' + TOOL_HINTS[st.tool] + (st.actions.length ? ` (${st.actions.length} touch-up${st.actions.length > 1 ? 's' : ''})` : '');
-    $(`${pre}-wandbtns`).querySelectorAll('button').forEach((b) => { b.disabled = !st.actions.length; });
+    $(`${pre}-wandbtns`).querySelector('[data-wand="undo"]').disabled = !st.actions.length; $(`${pre}-clear`).disabled = !st.actions.length;
+    document.querySelectorAll(`#${pre}-view [data-view]`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === st.view)));
     $(`${pre}-size-f`).hidden = !['erase', 'keep'].includes(st.tool); $(`${pre}-size-v`).textContent = $(`${pre}-size`).value + '%';
     $(`${pre}-tol-v`).textContent = $(`${pre}-tol`).value;
   }
@@ -578,8 +579,8 @@
       $('trace-info').textContent = 'Tracing…';
       try {
         // the background taken out first (the preview shows what is left), then the rest traced
-        const cut = await BGREMOVE.remove(traceSrc, { ...bgOpts('tr'), max: 1000 });
-        $('trace-src').innerHTML = `<img src="${cut.url}" alt="Your picture">`; traceShown = cut.url;
+        const cut = await BGREMOVE.remove(traceSrc, { ...bgOpts('tr'), max: 1000, view: bgState.tr.view });
+        $('trace-src').innerHTML = `<img src="${cut.view || cut.url}" alt="Your picture">`; traceShown = cut.url;
         traceResult = await CraftTracer.trace(cut.url, { colors: traceMode === 'auto' ? 'auto' : +$('tr-n').value, detail: +$('tr-detail').value, smooth: +$('tr-smooth').value, removeBg: false });
         $('trace-out').innerHTML = traceResult.svg;
         $('trace-info').textContent = `${traceResult.colors} colours${traceMode === 'auto' ? ' (best match)' : ''}, ${traceResult.paths} outlines`;
@@ -591,7 +592,10 @@
   $('tr-bgmode').onclick = (e) => { const b = e.target.closest('[data-start]'); if (!b) return; const [k, , tol] = BG_STARTS.find((x) => x[0] === b.dataset.start); bgState.tr.mode = k === 'off' ? 'off' : 'auto'; bgState.tr.start = k; if (tol) $('tr-tol').value = tol; syncTraceUi(); runTrace(); };
   $('tr-tools').onclick = (e) => { const b = e.target.closest('[data-tool]'); if (!b) return; $('trace-src').lassoCancel && $('trace-src').lassoCancel(); bgState.tr.tool = b.dataset.tool; syncTraceUi(); };
   $('tr-size').oninput = () => syncBg('tr');
-  $('tr-wandbtns').onclick = (e) => { const b = e.target.closest('[data-wand]'); if (!b) return; if (b.dataset.wand === 'undo') bgState.tr.actions.pop(); else bgState.tr.actions = []; syncTraceUi(); runTrace(); };
+  const wandBtn = (pre, b, after) => { const st = bgState[pre]; if (b.dataset.wand === 'undo') st.actions.pop(); else if (b.dataset.wand === 'invert') st.actions.push({ t: 'invert' }); else st.actions = []; syncBg(pre); after(); };
+  $('tr-wandbtns').onclick = (e) => { const b = e.target.closest('[data-wand]'); if (b) wandBtn('tr', b, () => { syncTraceUi(); runTrace(); }); };
+  $('tr-clear').onclick = (e) => wandBtn('tr', e.currentTarget, () => { syncTraceUi(); runTrace(); });
+  $('tr-view').onclick = (e) => { const b = e.target.closest('[data-view]'); if (!b) return; bgState.tr.view = b.dataset.view; syncTraceUi(); runTrace(); };
   touchUp('tr', $('trace-src'), () => runTrace());
   ['tr-n', 'tr-detail', 'tr-smooth', 'tr-tol'].forEach((id) => { $(id).addEventListener('input', () => { syncTraceUi(); runTrace(); }); $(id).addEventListener('change', () => { syncTraceUi(); runTrace(); }); });
   ['tr-depth'].forEach((id) => $(id).addEventListener('input', syncTraceUi));
@@ -665,8 +669,8 @@
     turn: 'Photos of an object turned on a turntable (or a lazy Susan) in front of a plain background, the camera kept still: 12 to 36, evenly all the way round, chosen in the order taken. The shape is carved from every angle and painted with the photos. Deep hollows cannot be seen from outside.' };
   async function p3Preview() {
     const el = $('p3-prev'); el.hidden = !p3Photos.length; if (!p3Photos.length) return;
-    const cut = await BGREMOVE.remove(p3Photos[0], { ...bgOpts('p3'), max: 600 });
-    el.innerHTML = `<img src="${cut.url}" alt="The first photo with its background taken out">`; el.classList.add('picking');
+    const cut = await BGREMOVE.remove(p3Photos[0], { ...bgOpts('p3'), max: 600, view: bgState.p3.view });
+    el.innerHTML = `<img src="${cut.view || cut.url}" alt="The first photo with its background taken out">`; el.classList.add('picking');
   }
   function p3Sync() {
     syncBg('p3');
@@ -687,7 +691,9 @@
   $('p3-bgmode').onclick = (e) => { const b = e.target.closest('[data-start]'); if (!b) return; const [k, , tol] = BG_STARTS.find((x) => x[0] === b.dataset.start); bgState.p3.mode = k === 'off' ? 'off' : 'auto'; bgState.p3.start = k; if (tol) $('p3-tol').value = tol; p3Sync(); p3Preview(); };
   $('p3-tools').onclick = (e) => { const b = e.target.closest('[data-tool]'); if (!b) return; $('p3-prev').lassoCancel && $('p3-prev').lassoCancel(); bgState.p3.tool = b.dataset.tool; p3Sync(); };
   $('p3-size').oninput = () => syncBg('p3');
-  $('p3-wandbtns').onclick = (e) => { const b = e.target.closest('[data-wand]'); if (!b) return; if (b.dataset.wand === 'undo') bgState.p3.actions.pop(); else bgState.p3.actions = []; p3Sync(); p3Preview(); };
+  $('p3-wandbtns').onclick = (e) => { const b = e.target.closest('[data-wand]'); if (b) wandBtn('p3', b, () => { p3Sync(); p3Preview(); }); };
+  $('p3-clear').onclick = (e) => wandBtn('p3', e.currentTarget, () => { p3Sync(); p3Preview(); });
+  $('p3-view').onclick = (e) => { const b = e.target.closest('[data-view]'); if (!b) return; bgState.p3.view = b.dataset.view; p3Sync(); p3Preview(); };
   touchUp('p3', $('p3-prev'), () => p3Preview());
   $('p3-pick').onclick = () => { const i = $('photos-input'); i.value = ''; i.multiple = p3Mode === 'turn'; i.click(); };
   $('photos-input').onchange = async (e) => {
