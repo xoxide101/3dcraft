@@ -1079,13 +1079,19 @@
     const bouncingBall = ({ L, R, x0, x1, z, up }) => {
       const cv = document.createElement('canvas'); cv.width = 2048; cv.height = 1024; const cx = cv.getContext('2d');
       for (let j = 0; j < 8; j++) for (let i = 0; i < 16; i++) { cx.fillStyle = (i + j) % 2 ? '#ffffff' : '#e8102e'; cx.fillRect(i * 128, j * 128, 128, 128); }
-      const keys = { pos: [], rot: [], scale: [] }, steps = Math.round(L * 15);
-      for (let f = 0; f <= steps; f++) {
-        const t = (f / steps) * L, u = t % 1, x = t < L / 2 ? x0 + ((x1 - x0) * t) / (L / 2) : x1 - ((x1 - x0) * (t - L / 2)) / (L / 2);
-        keys.pos.push({ t: +t.toFixed(4), v: [x, R + up * (1 - (2 * u - 1) ** 2), z], ease: 'linear' });
-      }
-      for (let b = 0; b <= L; b++) keys.scale.push({ t: Math.max(0, b - 0.08), v: [1, 1, 1], ease: 'ease' }, { t: b, v: [1.14, 0.84, 1.14], ease: 'ease' }, { t: Math.min(L, b + 0.1), v: [1, 1, 1], ease: 'ease' });
-      keys.scale = keys.scale.filter((k, i, a) => a.findIndex((q) => Math.abs(q.t - k.t) < 1e-3) === i).sort((a, b) => a.t - b.t);
+      // squash and stretch, as in cartoons: round at the top of each bounce, stretched tall by its speed on the way down
+      // and up, squashed flat (and wider, so it keeps its size) for a moment as it hits, and still touching the ground
+      const keys = { pos: [], rot: [], scale: [] }, steps = Math.round(L * 15), times = new Set();
+      for (let f = 0; f <= steps; f++) times.add(+((f / steps) * L).toFixed(4));
+      for (let b = 0; b <= L; b++) [-0.06, -0.03, 0, 0.03, 0.06].forEach((dt) => { const t = b + dt; if (t >= 0 && t <= L) times.add(+t.toFixed(4)); });
+      [...times].sort((a, b) => a - b).forEach((t) => {
+        const u = t % 1, x = t < L / 2 ? x0 + ((x1 - x0) * t) / (L / 2) : x1 - ((x1 - x0) * (t - L / 2)) / (L / 2);
+        const h = up * (1 - (2 * u - 1) ** 2), speed = Math.abs(2 * u - 1); // 1 at the ground, 0 at the top
+        const near = Math.min(u, 1 - u), q = near < 0.06 ? 1 - near / 0.06 : 0; // how far into the hit (0 – 1)
+        const sy = q > 0 ? 0.62 * q + (1 + 0.22 * speed) * (1 - q) : 1 + 0.22 * speed ** 2, sx = 1 / Math.sqrt(sy);
+        keys.pos.push({ t, v: [x, R * sy + h, z], ease: 'linear' });
+        keys.scale.push({ t, v: [+sx.toFixed(3), +sy.toFixed(3), +sx.toFixed(3)], ease: 'linear' });
+      });
       keys.rot = [{ t: 0, v: [18, 0, 0], ease: 'linear' }, { t: L, v: [18, -180 * L, 0], ease: 'linear' }];
       const ball = obj({ kind: 'shape', name: 'Checkered ball', shape: { type: 'sphere', r: R }, mat: { ...E.defaultMat('#ffffff', 'gloss'), faces: { all: { type: 'picture', src: cv.toDataURL('image/png'), fit: 'stretch', opacity: 1, size: 20 } } }, pos: [x0, R, z] });
       return { ball, keys };

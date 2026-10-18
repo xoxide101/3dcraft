@@ -104,6 +104,10 @@ Headless Chrome over the DevTools protocol, opening `index.html` from the folder
 - **Find online** (`MODEL_SITES` in ui.js): each site's search address with `{q}`; opened with `window.open(…, '_blank', 'noopener')`. Checked in a browser: Thingiverse, Thangs, Sketchfab, Poly Pizza, Poly Haven, NASA and Smithsonian (`/explore?edan_q=`) show results; Printables and Cults show a short bot check first; MyMiniFactory's search lives in the address's # part (free designs included). The sites' own APIs need keys or block pages from reading them, so the models are downloaded by hand and dropped in.
 - Testing used a public sample photo from the Transformers.js docs, only in a scratch folder.
 
+## Bouncing ball: squash and stretch
+
+- `bouncingBall` keys position and scale together, at 15 frames a second plus extra keys round each hit (±0.03, ±0.06 s): stretch 1 + 0.22 × speed² (speed 1 at the ground, 0 at the top), squashed to 0.62 tall at the hit, x and z = 1 ÷ √(y) so the size is kept, and the centre at R × (y scale) + height so it always touches the ground while squashed.
+
 ## Mirror
 
 - Material preset `mirror` (metal 1, roughness 0, `mirror: true`). `setupMirror` in scene.js: a Flat panel gets a three.js **Reflector** child (added to `lib/craft3d-libs.js`) 0.002 in front; its colour is overlay-blended, so 50 % grey of the chosen colour keeps the reflection true (white washes it out); while it draws, the panel's own materials are hidden (otherwise the reflection camera sees the panel just behind the clip plane and nothing else). Other shapes get a 256 px **CubeCamera** env map, updated before each drawing from the object's middle (`updateMirrors`). Ray-traced renders hide the Reflector (`userData.mirrorView`) and use the metal material: a true mirror.
