@@ -416,8 +416,30 @@
       ] });
     } else if (m.kind === 'group') sections.push({ title: 'Group', items: [{ t: 'note', html: `${E.children(m.id).length} pieces. They move, turn and size together. Ungroup to change them one by one.` }, { t: 'btns', buttons: [{ label: 'Ungroup', on: ungroup }] }] });
     if (m.kind !== 'group' && (m.kind !== 'model' || m.model.keepOwn === false || !(m.model.format === 'glb' || m.model.format === 'gltf' || m.model.mtl || (m.model.format === 'ply' && m.model.colours)))) sections.push(materialSection(m));
+    if (m.kind !== 'group') sections.push(modifiersSection(m));
     sections.push(transformSection(m));
     render(m.name || m.kind, sections);
+  }
+  // Modifiers (js/modifiers.js): stacked, worked out top first; each can be switched off, moved or taken away
+  function modifiersSection(m) {
+    const L = window.MODS ? MODS.LIST : {}, mods = m.mods || [], redo = () => { changed(m.id); showProps(); };
+    const items = [{ t: 'note', html: mods.length ? 'Worked out from the top down. They change how it looks, not the object itself: switch one off or take it away and it is back as it was.' : 'Copies (Array, Mirror) and shape changes (Twist, Bend, Taper, bumps, Smooth, fewer triangles) that never change the object itself.' }];
+    mods.forEach((md, i) => {
+      const def = L[md.type]; if (!def) return;
+      items.push({ t: 'note', html: `<b>${i + 1}. ${esc(def[0])}</b>${md.on === false ? ' <span class="hint">(off)</span>' : ''}` });
+      items.push({ t: 'btns', buttons: [
+        { label: md.on === false ? 'Switch on' : 'Switch off', on: () => { md.on = md.on === false; redo(); } },
+        i > 0 ? { label: '↑', on: () => { mods.splice(i - 1, 0, mods.splice(i, 1)[0]); redo(); } } : null,
+        i < mods.length - 1 ? { label: '↓', on: () => { mods.splice(i + 1, 0, mods.splice(i, 1)[0]); redo(); } } : null,
+        { label: 'Remove', on: () => { mods.splice(i, 1); if (!mods.length) delete m.mods; redo(); } }].filter(Boolean) });
+      def[2].forEach(([k, label, a, b, step]) => {
+        if (k === 'radius' && md.spread !== 'circle') return; if (k === 'axis' && md.type === 'array' && md.spread !== 'line') return; if (k === 'gap' && md.type === 'array' && md.spread === 'circle') return;
+        items.push(Array.isArray(a) ? { t: 'select', label, value: md[k] ?? def[1][k], options: a, on: (v) => { md[k] = v; redo(); } }
+          : { t: 'range', label, value: md[k] ?? def[1][k], min: a, max: b, step, on: (v) => { md[k] = v; changed(m.id); } });
+      });
+    });
+    items.push({ t: 'select', label: 'Add a modifier', value: '', options: [['', 'Choose one…'], ...Object.entries(L).map(([k, d]) => [k, d[0]])], on: (v) => { if (!v) return; m.mods = [...mods, { type: v, on: true, ...JSON.parse(JSON.stringify(L[v][1])) }]; redo(); } });
+    return { title: 'Modifiers', items };
   }
   function sceneProps() {
     const s = E.doc.scene, set = (patch) => { Object.assign(s, patch); E.applyScene(); changed(); showProps(); };

@@ -108,6 +108,11 @@ Headless Chrome over the DevTools protocol, opening `index.html` from the folder
 
 - `bouncingBall` keys position and scale together, at 15 frames a second plus extra keys round each hit (±0.03, ±0.06 s): stretch 1 + 0.22 × speed² (speed 1 at the ground, 0 at the top), squashed to 0.75 tall at the hit (stretch 1 + 0.15 × speed²; the user found 0.62 / 0.22 a bit much), one bounce every P = 1.4 s, 5.4 high, 6 bounces in 8.4 s, whole turns of spin so the loop joins, x and z = 1 ÷ √(y) so the size is kept, and the centre at R × (y scale) + height so it always touches the ground while squashed.
 
+## Modifiers (`js/modifiers.js`, `window.MODS`)
+
+- `m.mods = [{ type, on, …settings }]`, applied in `buildOne` after the object is built (not on a Flag, whose cloth is animated). Shape changers work per mesh in the object's space (each mesh's matrix relative to the object, and back): `refine` splits every triangle into four until there are about 6000 (at most 160k), keeping all attributes and the material groups (×4); afterwards `toCreasedNormals` at 35° keeps sharp edges sharp. Twist rotates round the axis by angle × (t − ½); Taper scales across by 1 − amount × t; Bend curls the axis into an arc of radius length ÷ angle (upwards; towards the front when bending along up); Displace pushes each point along the average normal of its shared position (so the surface stays closed) by two octaves of smooth value noise; Smooth = split by level, then Taubin smoothing (λ 0.5, μ −0.53) on shared positions; Decimate = mergeVertices + three's SimplifyModifier (added to the bundle). Copiers wrap the result in a Group: Array line (gap + size along the axis, centred), circle (each copy in a turned group, radius), grid; Mirror flips a copy across the object's far edge (negative scale; three.js flips the faces) and centres the pair.
+- The properties panel's Modifiers section lists them with Switch off/on, ↑, ↓, Remove and their settings; "Add a modifier" appends one with its defaults. Tested: all eight, and twist + array stacked.
+
 ## Crystal
 
 - Preset `crystal`: glass 1, roughness 0, ior 2.4 (diamond), `dispersion` 5 (MeshPhysicalMaterial's dispersion, also passed on for ray tracing).

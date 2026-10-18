@@ -1134,6 +1134,8 @@
     o.traverse((x) => { if (x.isMesh) { x.castShadow = true; x.receiveShadow = true; } });
     // a flag's cloth: remember where its points start, so the wind can move them
     if (m.kind === 'shape' && m.shape.type === 'flag') o.traverse((x) => { if (!x.isMesh || !x.geometry.groups[1]) return; const gr = x.geometry.groups[1], pos = x.geometry.attributes.position; let x0 = Infinity, x1 = -Infinity; for (let i = gr.start; i < gr.start + gr.count; i++) { x0 = Math.min(x0, pos.getX(i)); x1 = Math.max(x1, pos.getX(i)); } x.userData.cloth = { start: gr.start, count: gr.count, orig: Float32Array.from(pos.array), x0, len: Math.max(0.1, x1 - x0), wind: m.shape.wind ?? 1, speed: m.shape.speed ?? 1 }; });
+    // modifiers (js/modifiers.js): worked out on the freshly built object, so they never change the model itself
+    if (m.mods && m.mods.length && window.MODS && !(m.kind === 'shape' && m.shape.type === 'flag')) { try { o = MODS.apply(o, m.mods); } catch (e) { console.warn('modifier', e); } }
     if (m.mat && (m.mat.fur || 0) > 0) addFur(o, m.mat);
     if (m.mat && m.mat.mirror) setupMirror(o, m);
     Object.assign(o.userData, { id: m.id, kind: m.kind }); o.uid = m.id; o.name = m.name || m.kind;
