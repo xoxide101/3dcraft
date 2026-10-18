@@ -131,6 +131,11 @@ Headless Chrome over the DevTools protocol, opening `index.html` from the folder
 
 ## Planned
 
+## Physics (cannon-es 0.20.0, in `lib/craft3d-libs.js` as `window.CANNON`; `js/physics.js`, `window.PHYS`)
+
+- `m.phys = { kind: 'dynamic' | 'static', bounce, slip, weight, push: [x,y,z], spin: [x,y,z] °/s, onHit: 'none' | 'vanish' | 'pop' }` on top-level objects. `PHYS.run` builds a world (gravity −9.82, a floor plane), one body per object: a Sphere for a sphere shape, otherwise a Box the size of its build with its own turn taken away, offset to the build's middle so the object keeps its place. Steps of 1/240 s, sampled at the timeline's fps into linear pos/rot keys (Euler XYZ, kept continuous so no 360° jumps). `collide` events list hits once per pair and moment (not again within 0.25 s); vanish/pop add scale keys at the first hit and take the body out of the world.
+- `PHYS.bake` replaces each moving object's pos/rot (and scale for vanish/pop) keys and marks the track `physics: true`; `PHYS.clear` removes those. UI: properties › Physics section, Animate › Physics group, a report of the hits. Tested: a ball pushed into a solid wall, a capsule 'missile' that vanished when it hit the ball.
+
 - Agreed 2026-10-17 (Blender ideas): modifiers (Array, Mirror, Bend/Twist/Taper, Smooth, Displace, Decimate), Booleans, 3D print toolbox; then physics with collisions (the user's "player-missile graphics" idea: things know when they hit), particles, toon/outline look, glow and depth of field, scatter, follow a path, spin/pipe, posable mannequin. Also asked: squash and stretch on the bouncing ball; running water like a waterfall.
 
 - Talk first: Lighting (and shadow depth, strength and direction), maybe its own tab like the Backdrop and Ground.

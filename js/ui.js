@@ -417,9 +417,39 @@
     } else if (m.kind === 'group') sections.push({ title: 'Group', items: [{ t: 'note', html: `${E.children(m.id).length} pieces. They move, turn and size together. Ungroup to change them one by one.` }, { t: 'btns', buttons: [{ label: 'Ungroup', on: ungroup }] }] });
     if (m.kind !== 'group' && (m.kind !== 'model' || m.model.keepOwn === false || !(m.model.format === 'glb' || m.model.format === 'gltf' || m.model.mtl || (m.model.format === 'ply' && m.model.colours)))) sections.push(materialSection(m));
     if (m.kind !== 'group') sections.push(modifiersSection(m));
+    if (!m.parent) sections.push(physicsSection(m));
     sections.push(transformSection(m));
     render(m.name || m.kind, sections);
   }
+  // Physics (js/physics.js): how this object takes part when Run physics works the motion out
+  function physicsSection(m) {
+    const p = m.phys, D = window.PHYS ? PHYS.DEFAULTS : {}, set = (patch) => { m.phys = { ...D, ...(m.phys || {}), ...patch }; changed(); showProps(); };
+    const items = [{ t: 'seg', label: 'In physics', buttons: [['', 'Not in it'], ['dynamic', 'Falls and bounces'], ['static', 'Solid (things hit it)']].map(([k, l]) => ({ label: l, pressed: (p ? p.kind : '') === k, on: () => { if (k) set({ kind: k }); else { delete m.phys; changed(); showProps(); } } })) }];
+    if (p && p.kind === 'dynamic') {
+      const v = { ...D, ...p };
+      items.push(
+        { t: 'range', label: 'Bounciness', value: Math.round(v.bounce * 100), min: 0, max: 100, show: (x) => x + '%', on: (x) => { m.phys.bounce = x / 100; changed(); } },
+        { t: 'range', label: 'Slipperiness', value: Math.round(v.slip * 100), min: 0, max: 100, show: (x) => x + '%', on: (x) => { m.phys.slip = x / 100; changed(); } },
+        { t: 'range', label: 'Weight', value: v.weight, min: 0.1, max: 20, step: 0.1, on: (x) => { m.phys.weight = x; changed(); } },
+        { t: 'row', items: ['x', 'y', 'z'].map((a, i) => ({ t: 'num', label: `Push ${a.toUpperCase()}`, value: v.push[i] || 0, step: 0.5, on: (x) => { const q = [...(m.phys.push || [0, 0, 0])]; q[i] = +x || 0; m.phys.push = q; changed(); } })) },
+        { t: 'row', items: ['x', 'y', 'z'].map((a, i) => ({ t: 'num', label: `Spin ${a.toUpperCase()}°/s`, value: v.spin[i] || 0, step: 30, on: (x) => { const q = [...(m.phys.spin || [0, 0, 0])]; q[i] = +x || 0; m.phys.spin = q; changed(); } })) },
+        { t: 'seg', label: 'When it hits something', buttons: [['none', 'Bounces'], ['vanish', 'Vanishes'], ['pop', 'Pops']].map(([k, l]) => ({ label: l, pressed: v.onHit === k, on: () => set({ onHit: k }) })) },
+        { t: 'note', html: 'Push sets it moving at the start (units a second; Y is up): a thrown ball, or a missile. Vanishes and Pops happen at its first hit, like the collisions of old arcade games.' });
+    } else if (p && p.kind === 'static') items.push({ t: 'range', label: 'Bounciness', value: Math.round((p.bounce ?? 0.5) * 100), min: 0, max: 100, show: (x) => x + '%', on: (x) => { m.phys.bounce = x / 100; changed(); } });
+    items.push({ t: 'btns', buttons: [{ label: 'Run physics', on: () => runPhysics() }, { label: 'Clear physics moves', on: () => clearPhysics() }] });
+    return { title: 'Physics', items };
+  }
+  function runPhysics() {
+    if (!E.doc || !window.PHYS) return;
+    try {
+      const res = PHYS.bake({ length: E.doc.anim && E.doc.anim.length });
+      changed(); if (window.TL3) { TL3.render(); TL3.seek(0); }
+      const list = res.hits.slice(0, 8).map((h) => `${h.a} hit ${h.b} at ${h.t.toFixed(2)} s`).join('; ');
+      info('Physics', `<p>Worked out ${res.bodies.length} moving object${res.bodies.length === 1 ? '' : 's'} over ${E.doc.anim.length} seconds and put the moves on the timeline. Press Play.</p><p><b>${res.hits.length} hit${res.hits.length === 1 ? '' : 's'}</b>${res.hits.length ? ': ' + esc(list) + (res.hits.length > 8 ? '…' : '') : ''}</p><p class="hint">Change anything and Run physics again; Clear physics moves takes them away.</p>`);
+    } catch (e) { info('Physics', esc(e.message)); }
+  }
+  function clearPhysics() { if (!E.doc || !window.PHYS) return; const n = PHYS.clear(); changed(); E.doc.objects.forEach((o) => E.placeOne(o.id)); if (window.TL3) TL3.render(); toast(n ? `Physics moves taken away from ${n} object${n === 1 ? '' : 's'}.` : 'There were no physics moves.'); }
+
   // Modifiers (js/modifiers.js): stacked, worked out top first; each can be switched off, moved or taken away
   function modifiersSection(m) {
     const L = window.MODS ? MODS.LIST : {}, mods = m.mods || [], redo = () => { changed(m.id); showProps(); };
@@ -1435,6 +1465,7 @@
       { id: 'animate', label: 'Animate', hue: '#d6336c', groups: [
         ['Play', [{ label: 'Play', icon: '<path d="M7 5l12 7-12 7z" class="hue"/>', big: true, title: 'Play / pause (Space)', run: () => TL3.play() }, { col: [{ label: 'To the start', icon: '<path d="M6 5v14M18 5L8 12l10 7z"/>', run: () => TL3.seek(0) }, { label: 'Loop', icon: '<path d="M4 12a6 6 0 0 1 10-4.5L17 10M20 12a6 6 0 0 1-10 4.5L7 14"/><path d="M17 5v5h-5M7 19v-5h5" class="hue"/>', run: () => { const a = E.anim(); a.loop = !a.loop; changed(); TL3.render(); }, pressed: () => !!E.doc && E.anim().loop }] }]],
         ['Moves', [{ col: [['spin', 'Spin'], ['bounce', 'Bounce'], ['flyin', 'Fly in']].map(([k, n]) => ({ label: n, icon: MI.turn, run: () => TL3.preset(k) })) }, { col: [['fadein', 'Fade in'], ['grow', 'Grow in'], ['float', 'Float']].map(([k, n]) => ({ label: n, icon: MI.turn, run: () => TL3.preset(k) })) }]],
+        ['Physics', [{ label: 'Run physics', icon: MI.ball, big: true, title: 'Work out falling, bouncing and collisions for objects set to Falls and bounces, and put them on the timeline', run: () => runPhysics() }, { col: [{ label: 'Clear physics moves', icon: MI.turn, run: () => clearPhysics() }] }]],
         ['Camera', [{ col: [{ label: 'Camera still', icon: I.screen, run: () => TL3.camera('none') }, { label: 'Turntable', icon: MI.turn, run: () => TL3.camera('turntable') }, { label: 'Swing', icon: MI.turn, run: () => TL3.camera('swing') }] }]],
         ['Timeline', [{ label: 'Timeline', icon: '<rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M3 10h18M8 14h6" class="hue"/>', big: true, title: 'Show or hide the timeline', run: () => toggleTimeline(), pressed: () => !$('timeline').classList.contains('closed') }]],
         ['Save', [{ label: 'Export animation', icon: I.exportUp, big: true, title: 'GIF, MP4, WebM, AVI or PNG frames', run: () => ANIM3.open() }, { label: 'Ray-traced animation', icon: MI.render, big: true, title: 'Every frame path-traced: real reflections, glass and soft shadows', run: () => ANIM3.open('draft') }]],

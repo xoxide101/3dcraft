@@ -6,6 +6,7 @@
     "build": "esbuild entry.js --bundle --minify --format=iife --legal-comments=eof --outfile=../craft3d-libs.js"
   },
   "dependencies": {
+    "cannon-es": "^0.20.0",
     "gifenc": "1.0.3",
     "imagetracerjs": "1.2.6",
     "mp4-muxer": "5.2.2",
