@@ -266,12 +266,15 @@
           <div class="ai-row" style="display:flex;gap:10px;align-items:flex-start;padding:6px 0;border-top:1px solid var(--line)">
             <label class="check" style="flex:1"><input type="checkbox" data-use="${k}" ${settings.use[k] ? 'checked' : ''} ${m.gpuOnly && !found.webgpu ? 'disabled' : ''}> <span><b>${m.name}</b><br><span class="hint">${m.what} About ${sizeOf(k)} MB · ${m.licence}</span></span></label>
             <span class="hint" data-state="${k}" style="min-width:110px;text-align:right">${have[k] ? '✓ Downloaded' : 'Not downloaded'}</span></div>`).join('')}</div>
+        <label class="field"><span>Picture search: your own SearXNG server (optional, besides Openverse and Wikimedia Commons)</span><input class="input" id="ai-searxng" placeholder="e.g. http://192.168.1.20:8080" value="${esc((() => { try { return localStorage.getItem('3dcraft-searxng') || ''; } catch (e) { return ''; } })())}"></label>
+        <p class="hint" style="margin-top:-4px">It needs JSON answers (search.formats: json), image_proxy on, and an Access-Control-Allow-Origin header so this page may read it. Pictures found there have no licence information: check their pages.</p>
         <p class="hint" id="ai-note"></p>
         <div class="dialog-actions"><button class="btn" type="button" data-act="forget">Remove downloaded models</button><button class="btn" type="button" data-act="get">Download now</button><button class="btn primary" type="button" data-act="close">Close</button></div></div>`;
     };
     await draw(); back.hidden = false;
     back.onchange = (e) => {
-      const t = e.target; if (t.dataset.ai === 'on') settings.on = t.checked; else if (t.dataset.ai === 'gpu') settings.gpu = t.checked; else if (t.dataset.use) settings.use[t.dataset.use] = t.checked;
+      const t = e.target; if (t.id === 'ai-searxng') { try { localStorage.setItem('3dcraft-searxng', t.value.trim()); } catch (err) { /* ignore */ } return; }
+      if (t.dataset.ai === 'on') settings.on = t.checked; else if (t.dataset.ai === 'gpu') settings.gpu = t.checked; else if (t.dataset.use) settings.use[t.dataset.use] = t.checked;
       save();
     };
     const off = onProgress((k, p) => {

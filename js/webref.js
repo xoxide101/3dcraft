@@ -40,13 +40,25 @@
     if (core.length === 1) qs.push(core[0]);
     return [...new Set(qs.filter(Boolean))].slice(0, 9);
   }
+  // Your own SearXNG (a search engine you run yourself, searching many sites at once), if its address is set in AI
+  // helpers. It must answer in JSON (search.formats: json) and allow this page to read its answers and pictures
+  // (an Access-Control-Allow-Origin header, and image_proxy on so pictures come through it). Licences are not known:
+  // check the picture's own page before sharing what you make from it.
+  const searxngBase = () => { try { return (localStorage.getItem('3dcraft-searxng') || '').trim().replace(/\/+$/, ''); } catch (e) { return ''; } };
+  async function searxng(term, n) {
+    const base = searxngBase(); if (!base) return [];
+    const r = await fetch(`${base}/search?q=${encodeURIComponent(term)}&categories=images&format=json&safesearch=1`);
+    if (!r.ok) throw new Error('Your SearXNG did not answer (' + r.status + ')');
+    const d = await r.json(), abs = (u) => (!u ? '' : /^https?:/i.test(u) ? u : base + (u.startsWith('/') ? '' : '/') + u);
+    return (d.results || []).filter((x) => x.thumbnail_src || x.img_src).slice(0, n).map((x) => ({ thumb: abs(x.thumbnail_src || x.img_src), title: x.title || term, creator: x.engine ? 'via ' + x.engine : '', licence: 'licence unknown', page: x.url || '', from: 'Your SearXNG' }));
+  }
   // both libraries, mixed (one from each in turn), without repeats; broader searches only while there are too few
   async function search(term, n = 12, onTry = () => {}) {
     const out = [], seen = new Set(); let reached = false;
     for (const q of queries(term)) {
       onTry(q);
-      const [a, b] = await Promise.all([openverse(q, n).then((x) => { reached = true; return x; }).catch(() => []), commons(q, n).then((x) => { reached = true; return x; }).catch(() => [])]);
-      for (let i = 0; i < Math.max(a.length, b.length); i++) for (const r of [a[i], b[i]]) if (r && !seen.has(r.thumb)) { seen.add(r.thumb); r.query = q; out.push(r); }
+      const [a, b, c] = await Promise.all([openverse(q, n).then((x) => { reached = true; return x; }).catch(() => []), commons(q, n).then((x) => { reached = true; return x; }).catch(() => []), searxng(q, n).then((x) => { if (x.length) reached = true; return x; }).catch(() => [])]);
+      for (let i = 0; i < Math.max(a.length, b.length, c.length); i++) for (const r of [a[i], b[i], c[i]]) if (r && !seen.has(r.thumb)) { seen.add(r.thumb); r.query = q; out.push(r); }
       if (out.length >= n) break;
     }
     if (!out.length) throw new Error(reached ? `No pictures of “${term}” were found, even with fewer words. Try other words.` : 'The picture libraries could not be reached: is the computer online?');
@@ -98,5 +110,5 @@
     }
     return results.filter((r) => r.score >= 0).sort((a, b) => b.score - a.score);
   }
-  window.WEBREF = { queries, search, load, rank, plainness, solidity };
+  window.WEBREF = { searxngBase, queries, search, load, rank, plainness, solidity };
 })();
