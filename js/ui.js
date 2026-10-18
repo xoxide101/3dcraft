@@ -823,6 +823,33 @@
     if (!$('p3dlg').hidden) $('p3-status').textContent = msg; else if (!$('tracedlg').hidden && msg) $('trace-info').textContent = msg;
     if (p.status === 'ready' && k === 'cutout') ['tr', 'p3'].forEach((pre) => { const src = pre === 'tr' ? traceSrc : p3Photos[0]; if (src && !$(pre === 'tr' ? 'tracedlg' : 'p3dlg').hidden) bgChoices(pre, src); });
   });
+  // ------------------------------------------------------------------ Find 3D models online: each site's search in a new tab
+  // [name, what is there, search address ({q} = the words), address without words]
+  const MODEL_SITES = [
+    ['Thingiverse', 'The biggest library of things to 3D print (STL)', 'https://www.thingiverse.com/search?q={q}&type=things', 'https://www.thingiverse.com/'],
+    ['Printables', 'Prusa’s library of printable models (STL, 3MF)', 'https://www.printables.com/search/models?q={q}', 'https://www.printables.com/'],
+    ['Thangs', 'Searches models from many sites at once', 'https://thangs.com/search/{q}?scope=all', 'https://thangs.com/'],
+    ['MyMiniFactory', 'Miniatures, figures and printable models', 'https://www.myminifactory.com/search#/?%7B%22searchString%22:%22{q}%22,%22withFreeDesigns%22:true%7D', 'https://www.myminifactory.com/'],
+    ['Cults', 'Printable models, many free', 'https://cults3d.com/en/search?q={q}', 'https://cults3d.com/'],
+    ['Sketchfab', 'Huge library; tick “Downloadable”', 'https://sketchfab.com/search?q={q}&type=models&features=downloadable', 'https://sketchfab.com/'],
+    ['Poly Pizza', 'Simple low-poly models (GLB), CC0 and CC BY', 'https://poly.pizza/search/{q}', 'https://poly.pizza/'],
+    ['Poly Haven', 'High-quality props and furniture, all CC0', 'https://polyhaven.com/models?s={q}', 'https://polyhaven.com/models'],
+    ['NASA 3D Resources', 'Spacecraft, rovers and planets, public domain', 'https://science.nasa.gov/3d-resources/?search={q}', 'https://science.nasa.gov/3d-resources/'],
+    ['Smithsonian 3D', 'Museum scans: fossils, artefacts, aircraft (CC0)', 'https://3d.si.edu/explore?edan_q={q}', 'https://3d.si.edu/'],
+  ];
+  function openFindOnline(words) {
+    if (words != null) $('find-text').value = words;
+    $('find-sites').innerHTML = MODEL_SITES.map(([n, what], i) => `<button class="btn" type="button" data-site="${i}" title="Open ${esc(n)} in a new tab"><b>${esc(n)} ↗</b><span>${esc(what)}</span></button>`).join('');
+    $('finddlg').hidden = false; $('find-text').focus();
+  }
+  $('find-sites').onclick = (e) => {
+    const b = e.target.closest('[data-site]'); if (!b) return;
+    const [, , search, home] = MODEL_SITES[+b.dataset.site], q = $('find-text').value.trim();
+    window.open(q ? search.replace('{q}', encodeURIComponent(q)) : home, '_blank', 'noopener');
+  };
+  $('find-text').addEventListener('keydown', (e) => { if (e.key === 'Enter') { const b = $('find-sites').querySelector('[data-site]'); if (b) b.click(); } });
+  $('find-close').onclick = () => { $('finddlg').hidden = true; };
+
   // ------------------------------------------------------------------ Describe it (text to 3D, DESCRIBE)
   let descPlan = null, descT = null;
   const DESC_EX = ['a red mug', 'three palm trees and a gold star', 'the word "HELLO" in chrome', 'two big light blue glass vases', 'a tall green bottle', 'a rocket and a flying saucer'];
@@ -842,7 +869,7 @@
       const s = DESCRIBE.say(plan); descPlan = plan; $('desc-go').disabled = !plan.items.length;
       $('desc-plan').innerHTML = (s.lines.length ? '<b>I will make:</b>' + s.lines.map((l) => `<div>• ${esc(l)}</div>`).join('') : '') +
         (plan.items.some((it) => it.guess) ? `<div class="row">${plan.items.filter((it) => it.guess).map((it) => `<button class="btn sm" type="button" data-lookup="${esc(it.guess)}">🔎 Look for pictures of “${esc(it.guess)}” instead</button>`).join('')}<span class="hint">“The closest I have” is a guess: pictures from the open libraries can be the reference instead.</span></div>` : '') +
-        (s.unknown.length ? `<div class="unknown">I do not know how to make ${s.unknown.map((u) => '“' + esc(u) + '”').join(', ')} yet${!aiOn('recog') ? ' (switch on Recognise objects in AI helpers to find the closest thing by meaning)' : ''}.</div><div class="row">${s.unknown.map((u) => `<button class="btn sm" type="button" data-lookup="${esc(u)}">🔎 Look for pictures of “${esc(u)}”</button>`).join('')}<span class="hint">Searches open picture libraries (Openverse, Wikimedia Commons${WEBREF.searxngBase() ? ' and your SearXNG' : ''}): the words are sent to them. The picture is used as a reference for the shape.</span></div>` : '');
+        (s.unknown.length ? `<div class="unknown">I do not know how to make ${s.unknown.map((u) => '“' + esc(u) + '”').join(', ')} yet${!aiOn('recog') ? ' (switch on Recognise objects in AI helpers to find the closest thing by meaning)' : ''}.</div><div class="row">${s.unknown.map((u) => `<button class="btn sm" type="button" data-lookup="${esc(u)}">🔎 Look for pictures of “${esc(u)}”</button>`).join('')}<button class="btn sm" type="button" data-findonline="${esc(s.unknown[0])}">🌐 Find a 3D model online</button><span class="hint">Searches open picture libraries (Openverse, Wikimedia Commons${WEBREF.searxngBase() ? ' and your SearXNG' : ''}): the words are sent to them. The picture is used as a reference for the shape.</span></div>` : '');
     }, 350);
   }
   $('desc-text').addEventListener('input', descRead);
@@ -852,6 +879,7 @@
   // reference pictures from the web for a word it does not know: looked up, ranked, and one handed to the picture tools
   let descRefs = [], descTerm = '';
   $('desc-plan').addEventListener('click', async (e) => {
+    const fo = e.target.closest('[data-findonline]'); if (fo) { openFindOnline(fo.dataset.findonline); return; }
     const b = e.target.closest('[data-lookup]'); if (!b) return;
     descTerm = b.dataset.lookup; const el = $('desc-refs'); el.hidden = false;
     el.innerHTML = `<span class="hint">Looking for pictures of “${esc(descTerm)}”…</span>`;
@@ -1229,6 +1257,7 @@
       { label: 'Photo cut-out…', run: () => photoCutout(), disabled: () => !E.doc },
       { label: 'Photos to 3D (one photo or a turntable set)…', run: () => openPhotos3D(), disabled: () => !E.doc },
       { label: 'Describe it (type what you want)…', run: () => openDescribe(), disabled: () => !E.doc },
+      { label: 'Find 3D models online (Thingiverse, Printables, Sketchfab…)…', run: () => openFindOnline() },
       { label: 'AI helpers (depth, object picking, cut-out)…', run: () => CRAFTAI.openSettings() },
       { label: 'Symbol or emoji in 3D…', run: () => CraftSymbols.open({ onPick: addSymbol }) },
       { label: '3D model from a file…', run: () => $('model-input').click() },
@@ -1294,7 +1323,7 @@
   const toggleL = document.createElement('button'); toggleL.className = 'crb-small pc-toggle'; toggleL.textContent = 'Side panel'; toggleL.onclick = () => $('app').querySelector('.work').classList.toggle('show-left');
   const toggleR = document.createElement('button'); toggleR.className = 'crb-small pc-toggle'; toggleR.textContent = 'Properties'; toggleR.onclick = () => $('app').querySelector('.work').classList.toggle('show-right');
   const st = document.createElement('style'); st.textContent = '.crb .crb-small.pc-toggle { display: none; } @media (max-width: 980px) { .crb .crb-small.pc-toggle { display: inline-flex; } }'; document.head.append(st);
-  const MI = { ball: '<circle cx="12" cy="10" r="7"/><path d="M8 5l3 0 0 3-3 0zM14 8l3 0 0 3-3 0zM8 11l3 0 0 3-3 0z" class="hue"/><path d="M6 21h12"/>', backdrop: '<path d="M3 18l5-6 4 4 3-3 6 5z" class="hue"/><path d="M2 20h20"/><circle cx="17" cy="7" r="2"/><path d="M5 9c1-2 4-2 5 0" opacity=".6"/>', shuffle: '<path d="M3 7h4l10 10h4M3 17h4l3-3M14 10l3-3h4M18 4l3 3-3 3M18 14l3 3-3 3"/>', test: '<rect x="3" y="4" width="18" height="14" rx="2"/><path d="M7 14l3-4 3 3 2-2 3 3" class="hue"/><path d="M9 21h6M12 18v3"/>', render: '<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M12 3v18M3 7l9 4 9-4" opacity=".5"/><circle cx="17" cy="6" r="3" class="hue"/>', gold: '<circle cx="12" cy="12" r="8" class="hue"/><path d="M8 9a5 5 0 0 1 5-2" opacity=".7"/>', layout4: '<rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8" class="hue"/>', layout1: '<rect x="3" y="4" width="18" height="16" rx="1.5"/>', move: '<path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/>', turn: '<path d="M20 12a8 8 0 1 1-3-6.3"/><path d="M20 4v5h-5" class="hue"/>', size: '<rect x="4" y="4" width="10" height="10"/><path d="M14 14l6 6M20 15v5h-5" class="hue"/>', text3d: '<path d="M5 6V4h12v2M11 4v14M8 18h6"/><path d="M17 6l2 2v12h-6l-2-2" opacity=".5"/>', trace: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6" class="hue"/>', model: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" class="hue"/>', ground: '<path d="M3 18h18"/><ellipse cx="12" cy="18" rx="6" ry="1.5" class="hue"/><rect x="9" y="8" width="6" height="8"/>', light: '<circle cx="12" cy="10" r="5"/><path d="M10 17h4M10 20h4" class="hue"/>', describe: '<path d="M4 5h16v10H9l-5 4z"/><path d="M8 9h8M8 12h5" class="hue"/>', ai: '<rect x="5" y="5" width="14" height="14" rx="3"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/><path d="M9.5 14.5l1.5-5h2l1.5 5M10 13h4" class="hue"/>', star: '<path d="M12 3l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.1-5.4 3.1 1.3-6L3.3 9.2l6.1-.6z"/>' };
+  const MI = { ball: '<circle cx="12" cy="10" r="7"/><path d="M8 5l3 0 0 3-3 0zM14 8l3 0 0 3-3 0zM8 11l3 0 0 3-3 0z" class="hue"/><path d="M6 21h12"/>', backdrop: '<path d="M3 18l5-6 4 4 3-3 6 5z" class="hue"/><path d="M2 20h20"/><circle cx="17" cy="7" r="2"/><path d="M5 9c1-2 4-2 5 0" opacity=".6"/>', shuffle: '<path d="M3 7h4l10 10h4M3 17h4l3-3M14 10l3-3h4M18 4l3 3-3 3M18 14l3 3-3 3"/>', test: '<rect x="3" y="4" width="18" height="14" rx="2"/><path d="M7 14l3-4 3 3 2-2 3 3" class="hue"/><path d="M9 21h6M12 18v3"/>', render: '<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M12 3v18M3 7l9 4 9-4" opacity=".5"/><circle cx="17" cy="6" r="3" class="hue"/>', gold: '<circle cx="12" cy="12" r="8" class="hue"/><path d="M8 9a5 5 0 0 1 5-2" opacity=".7"/>', layout4: '<rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8" class="hue"/>', layout1: '<rect x="3" y="4" width="18" height="16" rx="1.5"/>', move: '<path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/>', turn: '<path d="M20 12a8 8 0 1 1-3-6.3"/><path d="M20 4v5h-5" class="hue"/>', size: '<rect x="4" y="4" width="10" height="10"/><path d="M14 14l6 6M20 15v5h-5" class="hue"/>', text3d: '<path d="M5 6V4h12v2M11 4v14M8 18h6"/><path d="M17 6l2 2v12h-6l-2-2" opacity=".5"/>', trace: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6" class="hue"/>', model: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" class="hue"/>', ground: '<path d="M3 18h18"/><ellipse cx="12" cy="18" rx="6" ry="1.5" class="hue"/><rect x="9" y="8" width="6" height="8"/>', light: '<circle cx="12" cy="10" r="5"/><path d="M10 17h4M10 20h4" class="hue"/>', globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" class="hue"/>', describe: '<path d="M4 5h16v10H9l-5 4z"/><path d="M8 9h8M8 12h5" class="hue"/>', ai: '<rect x="5" y="5" width="14" height="14" rx="3"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/><path d="M9.5 14.5l1.5-5h2l1.5 5M10 13h4" class="hue"/>', star: '<path d="M12 3l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.1-5.4 3.1 1.3-6L3.3 9.2l6.1-.6z"/>' };
   const ribbon = window.CraftRibbon({
     mount: $('app'), storageKey: '3dcraft', extraEls: [toggleL, toggleR],
     tabs: [
@@ -1309,7 +1338,7 @@
         ['Shapes', [{ col: [{ row: ['box', 'roundbox', 'sphere', 'cylinder', 'trafficcone', 'pyramid', 'prism'].map((k) => ({ label: E.SHAPES[k][0], icon: SH_ICON[k], iconOnly: true, run: () => addShape(k) })) }, { row: ['torus', 'washer', 'capsule', 'star', 'heart', 'plane', 'stage'].map((k) => ({ label: E.SHAPES[k][0], icon: SH_ICON[k], iconOnly: true, run: () => addShape(k) })) }] }]],
         ['Words and pictures', [C('3D text', '3D text', MI.text3d, { big: true }), { label: 'Photos to 3D', icon: MI.model, big: true, title: 'Make a 3D shape from one photo (a guess) or from turntable photos (carved from every angle)', run: () => openPhotos3D() }, { label: 'Photo cut-out', icon: MI.trace, big: true, title: 'A photo cut out round its shape and pulled out into 3D, with the photo on it and an emboss', run: () => photoCutout() }, C('Picture to 3D', 'Picture to 3D', MI.trace, { big: true, title: 'Trace a logo or drawing into colours and pull it out into 3D' }), C('Symbol or emoji', 'Symbols & emoji', MI.star, { big: true }), { label: 'Describe it', icon: MI.describe, big: true, title: 'Type what you want (a red mug, three palm trees, the word "HI" in chrome) and it is made', run: () => openDescribe() }, { label: 'AI helpers', icon: MI.ai, big: true, title: 'AI that runs inside this browser: depth from one photo, object picking and background cut-out. Checks this computer and lets you choose.', run: () => CRAFTAI.openSettings() }]],
         ['Objects', [{ col: [{ row: OBJECTS.slice(0, 5).map(([n, t, patch, ic]) => ({ label: n, icon: OBJ_ICON[ic], iconOnly: true, run: () => addShape(t, patch, n) })) }, { row: OBJECTS.slice(5).map(([n, t, patch, ic]) => ({ label: n, icon: OBJ_ICON[ic], iconOnly: true, run: () => addShape(t, patch, n) })) }] }]],
-        ['Models', [C('3D model', '3D model', MI.model, { big: true, title: 'GLB, OBJ (choose its MTL and pictures with it), STL or PLY, including scans from photogrammetry apps' })]],
+        ['Models', [C('3D model', '3D model', MI.model, { big: true, title: 'GLB, OBJ (choose its MTL and pictures with it), STL or PLY, including scans from photogrammetry apps' }), { label: 'Find online', icon: MI.globe, big: true, title: 'Search Thingiverse, Printables, Sketchfab, Poly Haven and other model sites (opens them in a new tab)', run: () => openFindOnline() }]],
       ] },
       { id: 'material', label: 'Material', hue: '#c2255c', groups: [
         ['Material', Object.entries(E.MATERIALS).map(([k, [n, p]]) => ({ label: n, icon: MI.gold.replace('class="hue"', `fill="${p.color || '#3f7fe0'}" stroke="none"`), big: false, run: () => { const m = sel(); if (!m) return toast('Click an object first.'); Object.assign(m.mat, { preset: k, ...p }); changed(m.id); showProps(); }, pressed: () => !!sel() && sel().mat && sel().mat.preset === k })).reduce((a, x, i) => { if (i % 3 === 0) a.push({ col: [] }); a[a.length - 1].col.push(x); return a; }, [])],
@@ -1400,7 +1429,7 @@
     const sb = document.querySelector('.ctb-search');
     if (sb) { const b = document.createElement('button'); b.type = 'button'; b.className = 'ctb-q text ctb-render'; b.id = 'render-now'; b.title = 'Render now: a ray-traced picture of the scene as it is (F9 opens the Render window)'; b.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m3 16 9 5 9-5M3 12l9 5 9-5"/></svg> Render now'; b.onclick = renderNow; sb.before(b); }
   }
-  window.UI3 = { openPhotos3DWith, openDescribe, toast, photoCutout, openPhotos3D, makePhotos3D, showTab, setLetters, renderNow, openRender, addShape, addText, addSymbol, openTrace, startScene, openDoc, changed, showProps, renderLayers };
+  window.UI3 = { openFindOnline, openPhotos3DWith, openDescribe, toast, photoCutout, openPhotos3D, makePhotos3D, showTab, setLetters, renderNow, openRender, addShape, addText, addSymbol, openTrace, startScene, openDoc, changed, showProps, renderLayers };
   (async () => {
     const last = localStorage.getItem(AUTOSAVE);
     if (last) { try { await openDoc(JSON.parse(last)); return; } catch (e) {} }

@@ -191,6 +191,15 @@
     <div class="dialog-actions"><button class="btn" id="desc-close">Close</button><button class="btn primary" id="desc-go" disabled>Make it</button></div>
   </div>
 </div>
+<div class="backdrop" id="finddlg" hidden>
+  <div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="find-title">
+    <h2 id="find-title">Find 3D models online</h2>
+    <p class="hint">Type what you are looking for, then pick a site: its search opens in a new tab. Download the model there (STL, OBJ, GLB or PLY), then drag the file onto the 3D view, or use Insert › 3D model. Check each model's licence before you print, sell or share it.</p>
+    <input class="input" id="find-text" placeholder="e.g. arcade cabinet, dragon, benchy, chess set" autocomplete="off">
+    <div class="find-sites" id="find-sites"></div>
+    <div class="dialog-actions"><button class="btn primary" id="find-close">Close</button></div>
+  </div>
+</div>
 <div class="backdrop" id="info" hidden>
   <div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="info-title">
     <h2 id="info-title"></h2>
