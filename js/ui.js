@@ -41,7 +41,20 @@
   E.on('moving', () => { clearTimeout(movT); movT = setTimeout(showProps, 120); });
   let movT = null;
   E.on('camera', () => { dirty = true; clearTimeout(hTimer); hTimer = setTimeout(() => { try { localStorage.setItem(AUTOSAVE, snapshot()); } catch (e) {} }, 600); });
-  E.on('select', () => { renderLayers(); showProps(); status(); tb && tb.update(); });
+  E.on('select', () => { renderLayers(); showProps(); status(); tb && tb.update(); syncSize(); });
+  // Size, under the corner dial: shown while an object is selected; smaller to larger on all axes together (its own
+  // stretch kept), from a quarter to four times, 100% in the middle
+  const uniScale = (m) => Math.cbrt(Math.abs(m.scale[0] * m.scale[1] * m.scale[2])) || 1;
+  function syncSize() {
+    const m = sel(), box = $('rot-size'); box.hidden = !m || !m.scale; if (box.hidden) return;
+    const u = uniScale(m); $('rot-size-r').value = Math.max(-100, Math.min(100, Math.round(Math.log2(u) * 50))); $('rot-size-v').textContent = Math.round(u * 100) + '%';
+  }
+  $('rot-size-r').addEventListener('input', () => {
+    const m = sel(); if (!m) return; const f = Math.pow(2, +$('rot-size-r').value / 50) / uniScale(m);
+    m.scale = m.scale.map((s) => Math.round(s * f * 1000) / 1000); E.placeOne(m.id); $('rot-size-v').textContent = Math.round(uniScale(m) * 100) + '%';
+  });
+  $('rot-size-r').addEventListener('change', () => { const m = sel(); if (m) { changed(m.id); showProps(); } });
+  $('rot-size-r').addEventListener('dblclick', () => { const m = sel(); if (!m) return; const f = 1 / uniScale(m); m.scale = m.scale.map((s) => Math.round(s * f * 1000) / 1000); E.placeOne(m.id); changed(m.id); showProps(); syncSize(); });
   E.on('view', () => { E.saveCamera(); drawRotator(); });
   E.on('drawn', () => drawRotator());
 
@@ -330,6 +343,7 @@
   }
   function dropToGround() { const m = sel(); if (!m) return; const o = E.object3d(m.id); const b = new T.Box3().setFromObject(o); m.pos[1] = r2(m.pos[1] - b.min.y); E.placeOne(m.id); changed(); showProps(); }
   function showProps() {
+    if (typeof syncSize === 'function') setTimeout(syncSize);
     if (!E.doc) { $('props').innerHTML = ''; return; }
     const m = sel();
     if (!m) return sceneProps();
@@ -657,6 +671,7 @@
     $('tracedlg').hidden = true;
     if (traceEdit) { traceEdit.trace = tr; changed(traceEdit.id); showProps(); return; }
     const w = traceResult.width, h = traceResult.height, m = { kind: 'trace', name: 'Picture in 3D', trace: tr, mat: E.defaultMat('#888888', 'plastic') };
+    if (refNote) { m.notes = refNote; refNote = ''; }
     m.rot = [0, 0, 0]; standOnGround(m, (4 * h) / w);
     addObject(m);
   };
@@ -775,6 +790,7 @@
     p3Kind = k; if (p3Mode === 'views') { $('p3-suggest').hidden = true; p3Sheet(); return; }
     p3Shape = k === 'round' ? 'round' : aiOn('depth') ? 'depth' : 'puff'; $('p3-suggest').hidden = true; p3Sync();
   };
+  function openPhotos3DWith(src, mode) { p3Photos = [src]; bgState.p3.actions = []; p3Own = {}; openPhotos3D(mode); p3Sync(); p3Preview(); bgChoices('p3', src); p3Suggest(); p3Sheet(); }
   const openPhotos3D = (mode) => { if (!E.doc) return; if (mode) p3Mode = mode; $('p3-status').textContent = ''; p3Sync(); p3Preview(); bgChoices('p3', p3Photos[0]); $('p3dlg').hidden = false; };
   $('p3-mode').onclick = (e) => { const b = e.target.closest('[data-p3]'); if (b) { p3Mode = b.dataset.p3; p3Sync(); p3Sheet(); p3Suggest(); } };
   $('p3-dir').onclick = (e) => { const b = e.target.closest('[data-dir]'); if (b) { p3Dir = b.dataset.dir; p3Sync(); } };
@@ -824,13 +840,45 @@
       const plan = await DESCRIBE.read(t); if (t !== $('desc-text').value.trim()) return;
       const s = DESCRIBE.say(plan); descPlan = plan; $('desc-go').disabled = !plan.items.length;
       $('desc-plan').innerHTML = (s.lines.length ? '<b>I will make:</b>' + s.lines.map((l) => `<div>• ${esc(l)}</div>`).join('') : '') +
-        (s.unknown.length ? `<div class="unknown">I do not know how to make ${s.unknown.map((u) => '“' + esc(u) + '”').join(', ')} yet${!aiOn('recog') ? ' (switch on Recognise objects in AI helpers to find the closest thing by meaning)' : ''}.</div>` : '');
+        (s.unknown.length ? `<div class="unknown">I do not know how to make ${s.unknown.map((u) => '“' + esc(u) + '”').join(', ')} yet${!aiOn('recog') ? ' (switch on Recognise objects in AI helpers to find the closest thing by meaning)' : ''}.</div><div class="row">${s.unknown.map((u) => `<button class="btn sm" type="button" data-lookup="${esc(u)}">🔎 Look for pictures of “${esc(u)}”</button>`).join('')}<span class="hint">Searches open picture libraries (Openverse, Wikimedia Commons): the word is sent to them. The picture is used as a reference for the shape.</span></div>` : '');
     }, 350);
   }
   $('desc-text').addEventListener('input', descRead);
   $('desc-text').addEventListener('keydown', (e) => { if (e.key === 'Enter' && descPlan && descPlan.items.length) $('desc-go').click(); });
   $('desc-examples').onclick = (e) => { const b = e.target.closest('[data-ex]'); if (b) { $('desc-text').value = b.dataset.ex; descRead(); } };
   $('desc-close').onclick = () => { $('descdlg').hidden = true; };
+  // reference pictures from the web for a word it does not know: looked up, ranked, and one handed to the picture tools
+  let descRefs = [], descTerm = '';
+  $('desc-plan').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-lookup]'); if (!b) return;
+    descTerm = b.dataset.lookup; const el = $('desc-refs'); el.hidden = false;
+    el.innerHTML = `<span class="hint">Looking for pictures of “${esc(descTerm)}”…</span>`;
+    try {
+      const found = await WEBREF.search(descTerm, 10);
+      el.innerHTML = `<span class="hint">Found ${found.length}. Choosing the clearest${aiOn('recog') ? ' (AI looks at each one)' : ''}…</span><div class="grid"></div>`;
+      const grid = el.querySelector('.grid');
+      descRefs = await WEBREF.rank(found, descTerm, (r) => { if (r.src) grid.insertAdjacentHTML('beforeend', `<figure><img alt="" src="${r.src}"></figure>`); });
+      drawRefs();
+    } catch (err) { el.innerHTML = `<span class="unknown">${esc(err.message)}</span>`; }
+  });
+  function drawRefs() {
+    const el = $('desc-refs');
+    el.innerHTML = `<div><b>Pictures of “${esc(descTerm)}”</b> <span class="hint">best first; pick one to use as the reference for the shape</span></div><div class="grid">${descRefs.map((r, i) => `<figure class="${i === 0 ? 'best' : ''}"><img alt="${esc(r.title)}" src="${r.src}" title="${esc(r.title)}"><div class="cr" title="${esc(r.title)} · ${esc(r.creator)} · ${esc(r.licence)} · ${esc(r.from)}">${esc(r.licence || '?')} · ${esc(r.creator || r.from)}</div><button class="btn sm${i === 0 ? ' primary' : ''}" type="button" data-use="${i}">Use this one</button></figure>`).join('')}</div>`;
+  }
+  $('desc-refs').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-use]'); if (!b) return; const r = descRefs[+b.dataset.use];
+    $('descdlg').hidden = true; useReference(r, descTerm);
+  });
+  // flat clip art (few colours, plain background) is traced (Picture to 3D) in one colour; anything else is filled in
+  // to four views (Photos to 3D); the reference's title, creator and licence are kept in the new object's notes
+  async function useReference(r, term) {
+    const flat = r.solid > 0.3 && await new Promise((res) => { const im = new Image(); im.onload = () => { const N = 96, c = document.createElement('canvas'); c.width = c.height = N; const x = c.getContext('2d'); x.drawImage(im, 0, 0, N, N); const d = x.getImageData(0, 0, N, N).data, bins = new Map(); for (let i = 0; i < d.length; i += 4) { const k = (d[i] >> 5) << 6 | (d[i + 1] >> 5) << 3 | (d[i + 2] >> 5); bins.set(k, (bins.get(k) || 0) + 1); } const big = [...bins.values()].filter((n) => n > N * N * 0.01).length; res(big <= 8 && r.plain > 0.8); }; im.onerror = () => res(false); im.src = r.src; });
+    refNote = `Shape from a reference picture: “${r.title}” by ${r.creator || 'unknown'} (${r.licence || 'licence unknown'}), ${r.from}: ${r.page}`;
+    // clip art and silhouettes: puffed up into a rounded shape; photos and renders: the sides filled in (four views)
+    openPhotos3DWith(r.src, flat ? 'one' : 'views'); if (flat) { p3Shape = 'puff'; p3Sync(); } $('p3-paint').checked = false;
+    toast(flat ? `Using the picture of “${term}” as the outline, puffed up into a rounded shape. Tick “Paint it with the picture” to use its colours.` : `Using the picture of “${term}” as the reference: the sides are filled in. Tick “Paint it with the picture” to use its colours.`);
+  }
+  let refNote = '';
   $('desc-go').onclick = async () => {
     if (!descPlan) return; $('desc-go').disabled = true;
     try { const made = await DESCRIBE.make(descPlan, (m) => { $('desc-plan').innerHTML = `<span class="hint">${esc(m)}</span>`; }); $('descdlg').hidden = true; toast(`Made ${made.length} thing${made.length === 1 ? '' : 's'} from your words.`); }
@@ -882,12 +930,14 @@
     const r = mode === 'views' ? await PHOTO3D.buildViews(await viewsNow(), o, status) : mode === 'one' ? await (o.shape === 'round' ? PHOTO3D.buildRound : PHOTO3D.build1)(photos[0], o, status) : await PHOTO3D.build(photos, o, status);
     const m = { kind: 'model', name: mode === 'one' ? 'Photo in 3D' : mode === 'views' ? 'Model from four views' : 'Turntable scan', model: { format: 'ply', data: E.b64(r.ply), fit: 3, keepOwn: true, colours: true, points: false, from: mode } };
     standOnGround(m, 3); m.mat = E.defaultMat('#bfc5cc', 'plastic');
+    if (o.paint === false) m.model.keepOwn = false; // the picture only gave the shape: the material's colour is used
+    if (refNote) { m.notes = refNote; refNote = ''; }
     const said = verdict(r); status(`Made: ${r.triangles.toLocaleString()} triangles.` + (said ? ' ' + said : '')); if (said.startsWith('⚠')) toast(said);
     return addObject(m);
   }
   $('p3-go').onclick = async () => {
     $('p3-go').disabled = true;
-    try { await makePhotos3D(p3Photos, p3Mode, { detail: +$('p3-detail').value, tolerance: +$('p3-tol').value, bg: bgOpts('p3'), puff: +$('p3-puff').value / 100, edge: p3Edge, shape: p3Shape, hollow: $('p3-hollow-cup').checked, wall: +$('p3-wall').value / 100, reach: +$('p3-reach').value / 100, shading: +$('p3-shade').value / 100, flatBack: $('p3-flat').checked, smooth: +$('p3-smooth').value, dir: p3Dir, depthHollows: aiOn('depth') ? +$('p3-hollow').value / 100 : 0 }); $('p3dlg').hidden = true; toast('Your photo is in 3D: save it as STL or OBJ from Export to print it.'); }
+    try { await makePhotos3D(p3Photos, p3Mode, { detail: +$('p3-detail').value, tolerance: +$('p3-tol').value, bg: bgOpts('p3'), puff: +$('p3-puff').value / 100, edge: p3Edge, shape: p3Shape, paint: $('p3-paint').checked, hollow: $('p3-hollow-cup').checked, wall: +$('p3-wall').value / 100, reach: +$('p3-reach').value / 100, shading: +$('p3-shade').value / 100, flatBack: $('p3-flat').checked, smooth: +$('p3-smooth').value, dir: p3Dir, depthHollows: aiOn('depth') ? +$('p3-hollow').value / 100 : 0 }); $('p3dlg').hidden = true; toast('Your photo is in 3D: save it as STL or OBJ from Export to print it.'); }
     catch (err) { $('p3-status').textContent = err.message; }
     $('p3-go').disabled = false;
   };
@@ -1345,7 +1395,7 @@
     const sb = document.querySelector('.ctb-search');
     if (sb) { const b = document.createElement('button'); b.type = 'button'; b.className = 'ctb-q text ctb-render'; b.id = 'render-now'; b.title = 'Render now: a ray-traced picture of the scene as it is (F9 opens the Render window)'; b.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m3 16 9 5 9-5M3 12l9 5 9-5"/></svg> Render now'; b.onclick = renderNow; sb.before(b); }
   }
-  window.UI3 = { openDescribe, toast, photoCutout, openPhotos3D, makePhotos3D, showTab, setLetters, renderNow, openRender, addShape, addText, addSymbol, openTrace, startScene, openDoc, changed, showProps, renderLayers };
+  window.UI3 = { openPhotos3DWith, openDescribe, toast, photoCutout, openPhotos3D, makePhotos3D, showTab, setLetters, renderNow, openRender, addShape, addText, addSymbol, openTrace, startScene, openDoc, changed, showProps, renderLayers };
   (async () => {
     const last = localStorage.getItem(AUTOSAVE);
     if (last) { try { await openDoc(JSON.parse(last)); return; } catch (e) {} }

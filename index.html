@@ -32,6 +32,7 @@
       <div class="rotator" id="rotator" aria-label="Turn">
         <canvas id="rot-canvas" width="132" height="132" aria-label="Turn dial: drag a ring to turn around X, Y or Z, or drag the ball to turn freely"></canvas>
         <div class="rot-target seg" role="group" aria-label="What the dial turns"><button class="btn" data-rt="all" title="Turn the whole scene (the view goes round it)">All</button><button class="btn" data-rt="selected" title="Turn only the selected object">Selected</button></div>
+        <label class="rot-size" id="rot-size" data-rt-skip hidden title="Make the selected object smaller or larger on all axes (its proportions stay). Double-click: back to 100%"><span>Size</span><input type="range" id="rot-size-r" min="-100" max="100" step="1" value="0" aria-label="Size of the selected object"><b id="rot-size-v">100%</b></label>
       </div>
       </div>
       <div class="timeline" id="timeline" aria-label="Timeline"></div>
@@ -163,6 +164,7 @@
       <label class="field"><span>Edge reaches in: <b id="p3-reach-v">whole shape</b></span><input type="range" id="p3-reach" min="5" max="100" step="5" value="100"></label>
       <label class="field"><span>Thickness: <b id="p3-puff-v">100%</b></span><input type="range" id="p3-puff" min="10" max="250" step="5" value="100"></label>
       <label class="field"><span>Shading as bumps: <b id="p3-shade-v">30%</b></span><input type="range" id="p3-shade" min="0" max="150" step="5" value="30"></label>
+      <label class="check" id="p3-paint-f"><input type="checkbox" id="p3-paint" checked> Paint it with the picture (untick to use the picture only for the shape, in one colour)</label>
       <label class="check"><input type="checkbox" id="p3-flat"> Flat back (to stand on a 3D printer's bed)</label></div>
     <div id="p3-views-opts" hidden>
       <div class="field"><span>The four sides (the ones you have not given are filled in; give more for a closer result)</span><div class="p3-sheet" id="p3-sheet"></div></div>
@@ -183,6 +185,7 @@
     <input class="input" id="desc-text" placeholder='e.g. a red mug and three palm trees, or the word "HELLO" in chrome' autocomplete="off">
     <div class="row" id="desc-examples"></div>
     <div class="desc-plan" id="desc-plan"></div>
+    <div class="desc-refs" id="desc-refs" hidden></div>
     <div class="dialog-actions"><button class="btn" id="desc-close">Close</button><button class="btn primary" id="desc-go" disabled>Make it</button></div>
   </div>
 </div>
@@ -215,6 +218,7 @@
 <script src="js/bgremove.js"></script>
 <script src="js/photo3d.js"></script>
 <script src="js/describe.js"></script>
+<script src="js/webref.js"></script>
 <script src="js/animexport.js"></script>
 <script src="js/range-type.js"></script>
 </body>
