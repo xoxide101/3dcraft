@@ -1175,6 +1175,47 @@
   }
   E.rebuildDependents = rebuildDependents;
 
+  // ------------------------------------------------------------------ 3D print check
+  // The selected object (or everything) as one surface in world space: its size, triangles, whether it is closed
+  // (every edge shared by exactly two triangles: watertight), and how thick its walls are (rays from points on the
+  // surface straight inwards until they come out again; minWall in model units). Helpers, ghosts and fur are left out.
+  E.printCheck = function (onlySelected, minWall = 0.08) {
+    const src = onlySelected && selected ? selected : root; src.updateMatrixWorld(true);
+    const parts = [];
+    src.traverse((x) => {
+      if (!x.isMesh || !x.visible) return; for (let p = x; p; p = p.parent) if (p.userData.helper || p.userData.fur || p.userData.mirrorView) return;
+      const g = (x.geometry.index ? x.geometry.toNonIndexed() : x.geometry.clone()); Object.keys(g.attributes).forEach((k) => { if (k !== 'position') g.deleteAttribute(k); }); g.clearGroups(); g.applyMatrix4(x.matrixWorld); parts.push(g);
+    });
+    if (!parts.length) return null;
+    const geo = T.BufferGeometryUtils.mergeGeometries(parts, false), pos = geo.attributes.position, tris = pos.count / 3;
+    geo.computeBoundingBox(); const size = geo.boundingBox.getSize(new T.Vector3());
+    // closed? edges between points in the same place (rounded to 1/10000)
+    const key = (i) => `${Math.round(pos.getX(i) * 1e4)},${Math.round(pos.getY(i) * 1e4)},${Math.round(pos.getZ(i) * 1e4)}`, ids = new Map(), id = new Int32Array(pos.count);
+    for (let i = 0; i < pos.count; i++) { const k = key(i); if (!ids.has(k)) ids.set(k, ids.size); id[i] = ids.get(k); }
+    const edges = new Map(); let degenerate = 0;
+    for (let t = 0; t < pos.count; t += 3) {
+      const a = id[t], b = id[t + 1], c = id[t + 2]; if (a === b || b === c || a === c) { degenerate++; continue; }
+      for (const [p, q] of [[a, b], [b, c], [c, a]]) { const k = p < q ? p * 4294967296 + q : q * 4294967296 + p; edges.set(k, (edges.get(k) || 0) + 1); }
+    }
+    let open = 0, over = 0; edges.forEach((n) => { if (n === 1) open++; else if (n > 2) over++; });
+    // wall thickness: up to 600 triangles spread over the model, a ray from the middle of each straight inwards
+    const mesh = new T.Mesh(geo, new T.MeshBasicMaterial({ side: T.DoubleSide }));
+    if (window.BVH) { geo.boundsTree = new BVH.MeshBVH(geo); mesh.raycast = BVH.acceleratedRaycast; }
+    const rc = new T.Raycaster(); rc.firstHitOnly = true;
+    const A = new T.Vector3(), B = new T.Vector3(), C = new T.Vector3(), N = new T.Vector3(), M = new T.Vector3();
+    const step = Math.max(1, Math.floor(tris / 600)); let samples = 0, thin = 0, minT = Infinity;
+    for (let t = 0; t < tris; t += step) {
+      A.fromBufferAttribute(pos, t * 3); B.fromBufferAttribute(pos, t * 3 + 1); C.fromBufferAttribute(pos, t * 3 + 2);
+      N.subVectors(B, A).cross(M.subVectors(C, A)); const area = N.length(); if (area < 1e-10) continue; N.divideScalar(area);
+      M.copy(A).add(B).add(C).divideScalar(3);
+      rc.set(M.clone().addScaledVector(N, -1e-4), N.clone().negate()); rc.far = Math.max(size.x, size.y, size.z) * 2;
+      const hit = rc.intersectObject(mesh, false)[0]; if (!hit) continue;
+      samples++; const d = hit.distance; if (d < minT) minT = d; if (d < minWall) thin++;
+    }
+    mesh.geometry.dispose();
+    return { size: [size.x, size.y, size.z], bottom: geo.boundingBox.min.y, tris, open, over, degenerate, closed: open === 0 && over === 0, minWall: isFinite(minT) ? minT : null, thinShare: samples ? thin / samples : 0, samples };
+  };
+
   // ------------------------------------------------------------------ building the scene from the model
   const built = new Map(); // id → Object3D
   async function buildOne(m) {
@@ -1575,9 +1616,9 @@
     return { kind: 'model', name: file.name.replace(/\.[^.]+$/, ''), model };
   };
   // Export the objects (not the ground or helpers) as GLB, OBJ or STL
-  E.exportModel = async function (fmt, onlySelected) {
+  E.exportModel = async function (fmt, onlySelected, scale = 1) {
     const src = onlySelected && selected ? selected : root;
-    const tmp = src.clone(true); tmp.updateMatrixWorld(true);
+    const tmp = src.clone(true); if (scale !== 1) tmp.scale.multiplyScalar(scale); tmp.updateMatrixWorld(true); // scale: e.g. 10 = millimetres when 1 unit is 1 cm
     // fur shells are a look, not a shape: leave them out of 3D files
     const furs = []; tmp.traverse((x) => { if (x.userData && (x.userData.fur || x.userData.helper || x.userData.mirrorView)) furs.push(x); }); furs.forEach((x) => x.removeFromParent());
     if (fmt === 'glb') { const r = await new T.GLTFExporter().parseAsync(tmp, { binary: true }); return new Blob([r], { type: 'model/gltf-binary' }); }

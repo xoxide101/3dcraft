@@ -191,6 +191,18 @@
     <div class="dialog-actions"><button class="btn" id="desc-close">Close</button><button class="btn primary" id="desc-go" disabled>Make it</button></div>
   </div>
 </div>
+<div class="backdrop" id="printdlg" hidden>
+  <div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="print3d-title">
+    <h2 id="print3d-title">3D print check</h2>
+    <p class="hint">Checks a model before you send it to a slicer: its real size, whether it is closed (watertight), and walls too thin to print. Then save it as an STL in millimetres.</p>
+    <div class="row"><label class="check"><input type="checkbox" id="pc-only" checked> Only the selected object</label></div>
+    <div class="row"><label class="field"><span>1 unit in the scene is</span><select class="input" id="pc-unit"><option value="1">1 mm</option><option value="10" selected>1 cm (10 mm)</option><option value="25.4">1 inch (25.4 mm)</option><option value="100">10 cm</option></select></label>
+      <label class="field"><span>Thinnest wall your printer can do</span><select class="input" id="pc-wall"><option value="0.4">0.4 mm (fine nozzle, resin)</option><option value="0.8" selected>0.8 mm (a usual nozzle, two lines)</option><option value="1.2">1.2 mm (sturdy)</option><option value="2">2 mm</option></select></label></div>
+    <div class="pc-report" id="pc-report"></div>
+    <div class="row"><label class="field"><span>Make it this tall</span><input class="input" id="pc-height" type="number" min="1" step="1" style="width:110px"></label><button class="btn" type="button" id="pc-resize">Resize to that height (mm)</button><button class="btn" type="button" id="pc-bed">Stand it on the bed</button></div>
+    <div class="dialog-actions"><button class="btn" id="pc-close">Close</button><button class="btn outline" id="pc-check">Check again</button><button class="btn primary" id="pc-stl">Save STL (millimetres)</button></div>
+  </div>
+</div>
 <div class="backdrop" id="finddlg" hidden>
   <div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="find-title">
     <h2 id="find-title">Find 3D models online</h2>

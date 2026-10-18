@@ -853,6 +853,41 @@
     if (!$('p3dlg').hidden) $('p3-status').textContent = msg; else if (!$('tracedlg').hidden && msg) $('trace-info').textContent = msg;
     if (p.status === 'ready' && k === 'cutout') ['tr', 'p3'].forEach((pre) => { const src = pre === 'tr' ? traceSrc : p3Photos[0]; if (src && !$(pre === 'tr' ? 'tracedlg' : 'p3dlg').hidden) bgChoices(pre, src); });
   });
+  // ------------------------------------------------------------------ 3D print check (E.printCheck)
+  function openPrintCheck() {
+    if (!E.doc) return; $('pc-only').checked = !!sel(); $('pc-only').disabled = !sel();
+    try { const u = localStorage.getItem('3dcraft-print-unit'); if (u) $('pc-unit').value = u; const wl = localStorage.getItem('3dcraft-print-wall'); if (wl) $('pc-wall').value = wl; } catch (e) {}
+    $('printdlg').hidden = false; runPrintCheck();
+  }
+  let pcLast = null;
+  function runPrintCheck() {
+    const mm = +$('pc-unit').value, wallMM = +$('pc-wall').value, el = $('pc-report');
+    try { localStorage.setItem('3dcraft-print-unit', $('pc-unit').value); localStorage.setItem('3dcraft-print-wall', $('pc-wall').value); } catch (e) {}
+    el.innerHTML = '<span class="hint">Checking…</span>';
+    setTimeout(() => {
+      const r = E.printCheck($('pc-only').checked, wallMM / mm); pcLast = r;
+      if (!r) { el.innerHTML = '<span class="hint">Nothing to check: add something to the scene, or select an object.</span>'; return; }
+      const f = (v) => (v * mm >= 100 ? Math.round(v * mm) : (v * mm).toFixed(1));
+      $('pc-height').value = Math.round(r.size[1] * mm);
+      el.innerHTML = [
+        `<div><b>Size:</b> ${f(r.size[0])} × ${f(r.size[2])} mm, ${f(r.size[1])} mm tall <span class="hint">(${r.tris.toLocaleString()} triangles)</span></div>`,
+        r.closed ? '<div class="ok">✓ Closed (watertight): a slicer can fill it.</div>' : `<div class="bad">✗ Not closed: ${r.open.toLocaleString()} open edge${r.open === 1 ? '' : 's'}${r.over ? `, ${r.over.toLocaleString()} edges shared by more than two faces` : ''}. Slicers may fill it wrongly. Joining overlapping parts (Modifiers › Boolean › Join) or a Smooth modifier often helps; a flat panel or flag has no inside, so it is never closed.</div>`,
+        r.minWall == null ? '' : r.thinShare > 0.02 ? `<div class="warn">! Thin walls: the thinnest is about ${f(r.minWall)} mm, and ${Math.round(r.thinShare * 100)}% of the surface is thinner than ${wallMM} mm. Make it bigger or thicker, or those parts may not print.</div>` : `<div class="ok">✓ Walls: the thinnest is about ${f(r.minWall)} mm (fine for ${wallMM} mm).</div>`,
+        Math.abs(r.bottom) > 0.001 ? `<div class="warn">! It is not standing on the bed (its lowest point is ${f(r.bottom)} mm ${r.bottom > 0 ? 'above' : 'below'} the floor): Stand it on the bed.</div>` : '<div class="ok">✓ Standing on the bed.</div>',
+      ].join('');
+    }, 30);
+  }
+  $('pc-check').onclick = runPrintCheck; ['pc-unit', 'pc-wall', 'pc-only'].forEach((id) => { $(id).onchange = runPrintCheck; });
+  $('pc-close').onclick = () => { $('printdlg').hidden = true; };
+  $('pc-resize').onclick = () => {
+    const m = $('pc-only').checked && sel(); const want = +$('pc-height').value, mm = +$('pc-unit').value;
+    if (!m || !pcLast || !(want > 0)) { toast(m ? 'Type the height in millimetres first.' : 'Select the object to resize.'); return; }
+    const k = want / mm / pcLast.size[1]; m.scale = (m.scale || [1, 1, 1]).map((v) => Math.round(v * k * 10000) / 10000); E.placeOne(m.id); changed(m.id); setTimeout(() => { standOnBed(m); runPrintCheck(); }, 150);
+  };
+  function standOnBed(m) { const o = E.object3d(m.id); if (!o) return; const b = new T.Box3().setFromObject(o); m.pos[1] = Math.round((m.pos[1] - b.min.y) * 10000) / 10000; E.placeOne(m.id); changed(m.id); }
+  $('pc-bed').onclick = () => { const m = sel(); if (!m) { toast('Select the object to stand on the bed.'); return; } standOnBed(m); setTimeout(runPrintCheck, 100); };
+  $('pc-stl').onclick = async () => { try { const blob = await E.exportModel('stl', $('pc-only').checked && !!sel(), +$('pc-unit').value); download(blob, `${baseName()}.stl`); toast(`Saved ${baseName()}.stl in millimetres.`); } catch (e) { toast('Sorry, that did not work: ' + e.message); } };
+
   // ------------------------------------------------------------------ Find 3D models online: each site's search in a new tab
   // [name, what is there, search address ({q} = the words), address without words]
   const MODEL_SITES = [
@@ -1294,6 +1329,7 @@
       { label: 'Photos to 3D (one photo or a turntable set)…', run: () => openPhotos3D(), disabled: () => !E.doc },
       { label: 'Describe it (type what you want)…', run: () => openDescribe(), disabled: () => !E.doc },
       { label: 'Find 3D models online (Thingiverse, Printables, Sketchfab…)…', run: () => openFindOnline() },
+      { label: '3D print check (size in mm, watertight, thin walls)…', run: () => openPrintCheck(), disabled: () => !E.doc },
       { label: 'AI helpers (depth, object picking, cut-out)…', run: () => CRAFTAI.openSettings() },
       { label: 'Symbol or emoji in 3D…', run: () => CraftSymbols.open({ onPick: addSymbol }) },
       { label: '3D model from a file…', run: () => $('model-input').click() },
@@ -1359,7 +1395,7 @@
   const toggleL = document.createElement('button'); toggleL.className = 'crb-small pc-toggle'; toggleL.textContent = 'Side panel'; toggleL.onclick = () => $('app').querySelector('.work').classList.toggle('show-left');
   const toggleR = document.createElement('button'); toggleR.className = 'crb-small pc-toggle'; toggleR.textContent = 'Properties'; toggleR.onclick = () => $('app').querySelector('.work').classList.toggle('show-right');
   const st = document.createElement('style'); st.textContent = '.crb .crb-small.pc-toggle { display: none; } @media (max-width: 980px) { .crb .crb-small.pc-toggle { display: inline-flex; } }'; document.head.append(st);
-  const MI = { ball: '<circle cx="12" cy="10" r="7"/><path d="M8 5l3 0 0 3-3 0zM14 8l3 0 0 3-3 0zM8 11l3 0 0 3-3 0z" class="hue"/><path d="M6 21h12"/>', backdrop: '<path d="M3 18l5-6 4 4 3-3 6 5z" class="hue"/><path d="M2 20h20"/><circle cx="17" cy="7" r="2"/><path d="M5 9c1-2 4-2 5 0" opacity=".6"/>', shuffle: '<path d="M3 7h4l10 10h4M3 17h4l3-3M14 10l3-3h4M18 4l3 3-3 3M18 14l3 3-3 3"/>', test: '<rect x="3" y="4" width="18" height="14" rx="2"/><path d="M7 14l3-4 3 3 2-2 3 3" class="hue"/><path d="M9 21h6M12 18v3"/>', render: '<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M12 3v18M3 7l9 4 9-4" opacity=".5"/><circle cx="17" cy="6" r="3" class="hue"/>', gold: '<circle cx="12" cy="12" r="8" class="hue"/><path d="M8 9a5 5 0 0 1 5-2" opacity=".7"/>', layout4: '<rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8" class="hue"/>', layout1: '<rect x="3" y="4" width="18" height="16" rx="1.5"/>', move: '<path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/>', turn: '<path d="M20 12a8 8 0 1 1-3-6.3"/><path d="M20 4v5h-5" class="hue"/>', size: '<rect x="4" y="4" width="10" height="10"/><path d="M14 14l6 6M20 15v5h-5" class="hue"/>', text3d: '<path d="M5 6V4h12v2M11 4v14M8 18h6"/><path d="M17 6l2 2v12h-6l-2-2" opacity=".5"/>', trace: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6" class="hue"/>', model: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" class="hue"/>', ground: '<path d="M3 18h18"/><ellipse cx="12" cy="18" rx="6" ry="1.5" class="hue"/><rect x="9" y="8" width="6" height="8"/>', light: '<circle cx="12" cy="10" r="5"/><path d="M10 17h4M10 20h4" class="hue"/>', globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" class="hue"/>', describe: '<path d="M4 5h16v10H9l-5 4z"/><path d="M8 9h8M8 12h5" class="hue"/>', ai: '<rect x="5" y="5" width="14" height="14" rx="3"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/><path d="M9.5 14.5l1.5-5h2l1.5 5M10 13h4" class="hue"/>', star: '<path d="M12 3l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.1-5.4 3.1 1.3-6L3.3 9.2l6.1-.6z"/>' };
+  const MI = { ball: '<circle cx="12" cy="10" r="7"/><path d="M8 5l3 0 0 3-3 0zM14 8l3 0 0 3-3 0zM8 11l3 0 0 3-3 0z" class="hue"/><path d="M6 21h12"/>', backdrop: '<path d="M3 18l5-6 4 4 3-3 6 5z" class="hue"/><path d="M2 20h20"/><circle cx="17" cy="7" r="2"/><path d="M5 9c1-2 4-2 5 0" opacity=".6"/>', shuffle: '<path d="M3 7h4l10 10h4M3 17h4l3-3M14 10l3-3h4M18 4l3 3-3 3M18 14l3 3-3 3"/>', test: '<rect x="3" y="4" width="18" height="14" rx="2"/><path d="M7 14l3-4 3 3 2-2 3 3" class="hue"/><path d="M9 21h6M12 18v3"/>', render: '<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M12 3v18M3 7l9 4 9-4" opacity=".5"/><circle cx="17" cy="6" r="3" class="hue"/>', gold: '<circle cx="12" cy="12" r="8" class="hue"/><path d="M8 9a5 5 0 0 1 5-2" opacity=".7"/>', layout4: '<rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8" class="hue"/>', layout1: '<rect x="3" y="4" width="18" height="16" rx="1.5"/>', move: '<path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/>', turn: '<path d="M20 12a8 8 0 1 1-3-6.3"/><path d="M20 4v5h-5" class="hue"/>', size: '<rect x="4" y="4" width="10" height="10"/><path d="M14 14l6 6M20 15v5h-5" class="hue"/>', text3d: '<path d="M5 6V4h12v2M11 4v14M8 18h6"/><path d="M17 6l2 2v12h-6l-2-2" opacity=".5"/>', trace: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6" class="hue"/>', model: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" class="hue"/>', ground: '<path d="M3 18h18"/><ellipse cx="12" cy="18" rx="6" ry="1.5" class="hue"/><rect x="9" y="8" width="6" height="8"/>', light: '<circle cx="12" cy="10" r="5"/><path d="M10 17h4M10 20h4" class="hue"/>', printer3d: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 8h18M8 8v4h8V8"/><path d="M9 18h6l-1-4h-4z" class="hue"/>', globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" class="hue"/>', describe: '<path d="M4 5h16v10H9l-5 4z"/><path d="M8 9h8M8 12h5" class="hue"/>', ai: '<rect x="5" y="5" width="14" height="14" rx="3"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/><path d="M9.5 14.5l1.5-5h2l1.5 5M10 13h4" class="hue"/>', star: '<path d="M12 3l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.1-5.4 3.1 1.3-6L3.3 9.2l6.1-.6z"/>' };
   const ribbon = window.CraftRibbon({
     mount: $('app'), storageKey: '3dcraft', extraEls: [toggleL, toggleR],
     tabs: [
@@ -1407,6 +1443,7 @@
         ['Render', [C('Render', 'Render (ray-traced)', MI.render, { big: true, title: 'A photo-real picture: real reflections, soft shadows and glass. Pick a size and quality.' })]],
         ['Animation', [{ label: 'Export animation', icon: I.exportUp, big: true, title: 'GIF, MP4, WebM, AVI or PNG frames', run: () => ANIM3.open() }]],
         ['Export', [C('Export', 'Picture or 3D model…', I.exportUp, { big: true }), C('Bring in', 'Bring in a 3D model', I.import, { big: true })]],
+        ['3D print', [{ label: 'Print check', icon: MI.printer3d, big: true, title: 'Size in millimetres, closed (watertight), thin walls, stand it on the bed, save an STL in millimetres', run: () => openPrintCheck() }]],
         ['File', [C('Save', 'Save', I.save, { big: true }), { col: [C('Save as', 'Save as…', I.save), C('Open', 'Open…', I.folder)] }]],
       ] },
     ],
@@ -1465,7 +1502,7 @@
     const sb = document.querySelector('.ctb-search');
     if (sb) { const b = document.createElement('button'); b.type = 'button'; b.className = 'ctb-q text ctb-render'; b.id = 'render-now'; b.title = 'Render now: a ray-traced picture of the scene as it is (F9 opens the Render window)'; b.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m3 16 9 5 9-5M3 12l9 5 9-5"/></svg> Render now'; b.onclick = renderNow; sb.before(b); }
   }
-  window.UI3 = { openFindOnline, openPhotos3DWith, openDescribe, toast, photoCutout, openPhotos3D, makePhotos3D, showTab, setLetters, renderNow, openRender, addShape, addText, addSymbol, openTrace, startScene, openDoc, changed, showProps, renderLayers };
+  window.UI3 = { openPrintCheck, openFindOnline, openPhotos3DWith, openDescribe, toast, photoCutout, openPhotos3D, makePhotos3D, showTab, setLetters, renderNow, openRender, addShape, addText, addSymbol, openTrace, startScene, openDoc, changed, showProps, renderLayers };
   (async () => {
     const last = localStorage.getItem(AUTOSAVE);
     if (last) { try { await openDoc(JSON.parse(last)); return; } catch (e) {} }

@@ -167,6 +167,8 @@
 .desc-plan .unknown { color: var(--danger, #e03131); }
 #desc-examples, .desc-plan .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 #desc-examples .btn, .desc-plan .row .btn { width: auto; flex: none; }
+.pc-report { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 6px; font-size: 13px; }
+.pc-report .ok { color: #2f9e44; font-weight: 600; } .pc-report .bad { color: #e03131; font-weight: 600; } .pc-report .warn { color: #e8590c; font-weight: 600; }
 .find-sites { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
 .find-sites button { display: grid; gap: 2px; text-align: left; padding: 8px 10px; height: auto; }
 .find-sites button b { font-size: 13px; }

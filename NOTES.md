@@ -117,6 +117,10 @@ Headless Chrome over the DevTools protocol, opening `index.html` from the folder
 
 - A `{ type: 'boolean', op: 'subtract' | 'union' | 'intersect', with: id }` modifier, worked out in scene.js (`applyBooleans`, after the other modifiers) because it builds the other object: `buildOne({ ...other, cutter: false })` at no place of its own, merged into one world-space geometry (`worldOf` = the model's pos/rot/scale through its groups); each mesh of this object goes to world space, `Evaluator` (useGroups, position/normal/uv) with the other as one brush in this object's Sides material, and back. `boolBusy` stops two objects that cut each other from looping. `m.cutter` makes an object a ghost (blue wireframe, `userData.helper`: left out of renderImage, path tracing and exports). `rebuildDependents(id)` (from placeOne and rebuildOne, 120 ms after the last move) works out every object that uses it. Tested: cut, join, overlap, moving the cutter, 3D text cut into a plaque, STL export.
 
+## 3D print check
+
+- `E.printCheck(onlySelected, minWall)`: every visible mesh (not helpers, ghosts, fur or mirror views) merged into one world-space geometry; closed = every edge (between points rounded to 1/10000) shared by exactly two triangles; walls: up to 600 triangles spread over the model, a ray from each middle straight inwards (three-mesh-bvh `MeshBVH` + `acceleratedRaycast`, now in the bundle as `window.BVH`) to where it comes out; thin = shorter than the chosen wall. `exportModel(fmt, onlySelected, scale)` scales the copy for millimetres. Units and wall remembered in localStorage. Tested: box (closed, fine), panel (4 open edges), thin washer (thin walls), 3D text (closed, 0.4 mm above the floor), resize to 80 mm, STL saved.
+
 ## Crystal
 
 - Preset `crystal`: glass 1, roughness 0, ior 2.4 (diamond), `dispersion` 5 (MeshPhysicalMaterial's dispersion, also passed on for ray tracing).
