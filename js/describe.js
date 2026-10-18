@@ -92,8 +92,9 @@
     if (best) { it.what = best[0]; it.label = best[1]; }
     return it;
   }
-  // the noun of a phrase (the last word that is not a size, colour or material), for saying what is not known
-  const nounOf = (phrase) => { const w = norm(phrase).split(' ').filter((x) => !NUM[x] && !SIZE[x] && !MAT_WORDS[x] && !colourOf(x) && !/^\d+$/.test(x) && !['with', 'and', 'of', 'the', 'in', 'made', 'some'].includes(x)); return w.slice(-2).join(' '); };
+  // what a phrase asks for, without the count, size, colour and material words: the whole of it, so "an arcade cabinet of
+  // Tempest by Atari" is searched as "arcade cabinet Tempest by Atari", not just its last words
+  const nounOf = (phrase) => { const w = String(phrase).replace(/[^\w\s'-]+/g, ' ').split(/\s+/).filter(Boolean).filter((x, i) => { const l = x.toLowerCase(); return !(i === 0 && NUM[l]) && !SIZE[l] && !MAT_WORDS[l] && !colourOf(l) && !/^\d+$/.test(l) && !['a', 'an', 'the', 'some', 'tall', 'short', 'wide', 'thin', 'hollow', 'solid', 'light', 'dark', 'pale', 'bright'].includes(l); }); return w.join(' '); };
 
   async function read(text) {
     const parts = String(text || '').split(/\s*(?:,|;|\band\b|\bplus\b|\bthen\b)\s*(?=(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|some|\d+|the|["“]))/i).map((s) => s.trim()).filter(Boolean);

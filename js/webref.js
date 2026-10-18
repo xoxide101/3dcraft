@@ -27,13 +27,30 @@
       return { thumb: i.thumburl, title: strip(m.ObjectName && m.ObjectName.value) || p.title.replace(/^File:/, '').replace(/\.\w+$/, ''), creator: strip(m.Artist && m.Artist.value), licence: strip(m.LicenseShortName && m.LicenseShortName.value), page: i.descriptionurl, from: 'Wikimedia Commons' };
     });
   }
-  // both libraries, mixed (one from each in turn), without repeats
-  async function search(term, n = 12) {
-    const [a, b] = await Promise.all([openverse(term, n).catch(() => []), commons(term, n).catch(() => [])]);
-    if (!a.length && !b.length) throw new Error('No pictures were found (or the picture libraries could not be reached: is the computer online?).');
-    const out = [], seen = new Set();
-    for (let i = 0; i < Math.max(a.length, b.length); i++) for (const r of [a[i], b[i]]) if (r && !seen.has(r.thumb)) { seen.add(r.thumb); out.push(r); }
-    return out;
+  // A long description rarely matches a picture's title word for word ("arcade case tempest by atari" finds nothing), so
+  // it is tried as given, then without the small words, then in shorter runs of its words ("arcade cabinet tempest",
+  // "tempest atari"…), most specific first, until there are enough pictures. A few everyday words are swapped for
+  // the words picture libraries use (an arcade "case" is a "cabinet").
+  const SMALL = new Set(['a', 'an', 'the', 'by', 'of', 'for', 'with', 'from', 'in', 'on', 'and', 'made', 'some', 'my', 'like']);
+  const SWAP = { case: 'cabinet', machine: 'cabinet' };
+  function queries(term) {
+    const words = term.trim().split(/\s+/).filter(Boolean), core = words.filter((w) => !SMALL.has(w.toLowerCase())).map((w, i, all) => (SWAP[w.toLowerCase()] && all.some((x) => /arcade/i.test(x)) ? SWAP[w.toLowerCase()] : w));
+    const qs = [term.trim(), core.join(' ')];
+    for (let len = core.length - 1; len >= 2; len--) for (let i = 0; i + len <= core.length; i++) qs.push(core.slice(i, i + len).join(' '));
+    if (core.length === 1) qs.push(core[0]);
+    return [...new Set(qs.filter(Boolean))].slice(0, 9);
+  }
+  // both libraries, mixed (one from each in turn), without repeats; broader searches only while there are too few
+  async function search(term, n = 12, onTry = () => {}) {
+    const out = [], seen = new Set(); let reached = false;
+    for (const q of queries(term)) {
+      onTry(q);
+      const [a, b] = await Promise.all([openverse(q, n).then((x) => { reached = true; return x; }).catch(() => []), commons(q, n).then((x) => { reached = true; return x; }).catch(() => [])]);
+      for (let i = 0; i < Math.max(a.length, b.length); i++) for (const r of [a[i], b[i]]) if (r && !seen.has(r.thumb)) { seen.add(r.thumb); r.query = q; out.push(r); }
+      if (out.length >= n) break;
+    }
+    if (!out.length) throw new Error(reached ? `No pictures of “${term}” were found, even with fewer words. Try other words.` : 'The picture libraries could not be reached: is the computer online?');
+    return out.slice(0, Math.max(n, 16));
   }
   // a picture as a data URL: both libraries allow pages to read their thumbnails' pixels
   function load(r) {
@@ -81,5 +98,5 @@
     }
     return results.filter((r) => r.score >= 0).sort((a, b) => b.score - a.score);
   }
-  window.WEBREF = { search, load, rank, plainness, solidity };
+  window.WEBREF = { queries, search, load, rank, plainness, solidity };
 })();

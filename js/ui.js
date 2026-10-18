@@ -744,8 +744,8 @@
     document.querySelectorAll('#p3-edge [data-edge]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.edge === p3Edge)));
     if (!aiOn('depth') && (p3Shape === 'depth' || p3Shape === 'both')) p3Shape = 'puff';
     document.querySelectorAll('#p3-shape [data-shape=depth], #p3-shape [data-shape=both]').forEach((b) => { b.hidden = !aiOn('depth'); });
-    const round = p3Shape === 'round'; $('p3-round-opts').hidden = !round; $('p3-wall-f').hidden = !$('p3-hollow-cup').checked; $('p3-wall-v').textContent = $('p3-wall').value + '%';
-    ['p3-edge', 'p3-reach', 'p3-puff', 'p3-shade', 'p3-flat'].forEach((id) => { const f = $(id).closest('.field') || $(id).closest('label'); if (f) f.hidden = round; });
+    const round = p3Shape === 'round', puffy = p3Shape === 'puffy'; $('p3-round-opts').hidden = !round; $('p3-raise-f').hidden = !puffy; $('p3-raise-v').textContent = $('p3-raise').value + '%'; $('p3-wall-f').hidden = !$('p3-hollow-cup').checked; $('p3-wall-v').textContent = $('p3-wall').value + '%';
+    ['p3-edge', 'p3-reach', 'p3-puff', 'p3-shade', 'p3-flat'].forEach((id) => { const f = $(id).closest('.field') || $(id).closest('label'); if (f) f.hidden = round || (puffy && ['p3-edge', 'p3-reach', 'p3-shade'].includes(id)); });
     document.querySelectorAll('#p3-shape [data-shape]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.shape === p3Shape)));
     $('p3-reach-v').textContent = +$('p3-reach').value >= 100 ? 'whole shape' : $('p3-reach').value + '% (from the outside)';
     $('p3-tip').textContent = p3Tips[p3Mode]; $('p3-one-opts').hidden = p3Mode !== 'one'; $('p3-turn-opts').hidden = p3Mode !== 'turn'; $('p3-views-opts').hidden = p3Mode !== 'views';
@@ -797,7 +797,7 @@
   $('p3-shape').onclick = (e) => { const b = e.target.closest('[data-shape]'); if (b) { p3Shape = b.dataset.shape; p3Sync(); } };
   $('p3-edge').onclick = (e) => { const b = e.target.closest('[data-edge]'); if (b) { p3Edge = b.dataset.edge; p3Sync(); } };
   $('p3-reach').oninput = p3Sync;
-  ['p3-tol', 'p3-puff', 'p3-shade', 'p3-smooth', 'p3-hollow', 'p3-wall'].forEach((id) => { $(id).oninput = p3Sync; });
+  ['p3-tol', 'p3-puff', 'p3-shade', 'p3-smooth', 'p3-hollow', 'p3-wall', 'p3-raise'].forEach((id) => { $(id).oninput = p3Sync; });
   $('p3-hollow-cup').onchange = p3Sync;
   $('p3-tol').onchange = p3Preview;
   $('p3-bgmode').onclick = (e) => { const b = e.target.closest('[data-start]'); if (!b) return; const [k, , tol] = BG_STARTS.find((x) => x[0] === b.dataset.start); bgState.p3.mode = modeOf(k); bgState.p3.start = k; if (tol) $('p3-tol').value = tol; p3Sync(); p3Preview(); };
@@ -840,6 +840,7 @@
       const plan = await DESCRIBE.read(t); if (t !== $('desc-text').value.trim()) return;
       const s = DESCRIBE.say(plan); descPlan = plan; $('desc-go').disabled = !plan.items.length;
       $('desc-plan').innerHTML = (s.lines.length ? '<b>I will make:</b>' + s.lines.map((l) => `<div>• ${esc(l)}</div>`).join('') : '') +
+        (plan.items.some((it) => it.guess) ? `<div class="row">${plan.items.filter((it) => it.guess).map((it) => `<button class="btn sm" type="button" data-lookup="${esc(it.guess)}">🔎 Look for pictures of “${esc(it.guess)}” instead</button>`).join('')}<span class="hint">“The closest I have” is a guess: pictures from the open libraries can be the reference instead.</span></div>` : '') +
         (s.unknown.length ? `<div class="unknown">I do not know how to make ${s.unknown.map((u) => '“' + esc(u) + '”').join(', ')} yet${!aiOn('recog') ? ' (switch on Recognise objects in AI helpers to find the closest thing by meaning)' : ''}.</div><div class="row">${s.unknown.map((u) => `<button class="btn sm" type="button" data-lookup="${esc(u)}">🔎 Look for pictures of “${esc(u)}”</button>`).join('')}<span class="hint">Searches open picture libraries (Openverse, Wikimedia Commons): the word is sent to them. The picture is used as a reference for the shape.</span></div>` : '');
     }, 350);
   }
@@ -854,7 +855,7 @@
     descTerm = b.dataset.lookup; const el = $('desc-refs'); el.hidden = false;
     el.innerHTML = `<span class="hint">Looking for pictures of “${esc(descTerm)}”…</span>`;
     try {
-      const found = await WEBREF.search(descTerm, 10);
+      const found = await WEBREF.search(descTerm, 12, (q) => { el.innerHTML = `<span class="hint">Looking for pictures of “${esc(q)}”…</span>`; });
       el.innerHTML = `<span class="hint">Found ${found.length}. Choosing the clearest${aiOn('recog') ? ' (AI looks at each one)' : ''}…</span><div class="grid"></div>`;
       const grid = el.querySelector('.grid');
       descRefs = await WEBREF.rank(found, descTerm, (r) => { if (r.src) grid.insertAdjacentHTML('beforeend', `<figure><img alt="" src="${r.src}"></figure>`); });
@@ -875,7 +876,7 @@
     const flat = r.solid > 0.3 && await new Promise((res) => { const im = new Image(); im.onload = () => { const N = 96, c = document.createElement('canvas'); c.width = c.height = N; const x = c.getContext('2d'); x.drawImage(im, 0, 0, N, N); const d = x.getImageData(0, 0, N, N).data, bins = new Map(); for (let i = 0; i < d.length; i += 4) { const k = (d[i] >> 5) << 6 | (d[i + 1] >> 5) << 3 | (d[i + 2] >> 5); bins.set(k, (bins.get(k) || 0) + 1); } const big = [...bins.values()].filter((n) => n > N * N * 0.01).length; res(big <= 8 && r.plain > 0.8); }; im.onerror = () => res(false); im.src = r.src; });
     refNote = `Shape from a reference picture: “${r.title}” by ${r.creator || 'unknown'} (${r.licence || 'licence unknown'}), ${r.from}: ${r.page}`;
     // clip art and silhouettes: puffed up into a rounded shape; photos and renders: the sides filled in (four views)
-    openPhotos3DWith(r.src, flat ? 'one' : 'views'); if (flat) { p3Shape = 'puff'; p3Sync(); } $('p3-paint').checked = false;
+    openPhotos3DWith(r.src, flat ? 'one' : 'views'); if (flat) { p3Shape = 'puffy'; p3Sync(); } $('p3-paint').checked = false;
     toast(flat ? `Using the picture of “${term}” as the outline, puffed up into a rounded shape. Tick “Paint it with the picture” to use its colours.` : `Using the picture of “${term}” as the reference: the sides are filled in. Tick “Paint it with the picture” to use its colours.`);
   }
   let refNote = '';
@@ -927,7 +928,7 @@
   }
   async function makePhotos3D(photos, mode, o) {
     const status = (m) => { $('p3-status').textContent = m; };
-    const r = mode === 'views' ? await PHOTO3D.buildViews(await viewsNow(), o, status) : mode === 'one' ? await (o.shape === 'round' ? PHOTO3D.buildRound : PHOTO3D.build1)(photos[0], o, status) : await PHOTO3D.build(photos, o, status);
+    const r = mode === 'views' ? await PHOTO3D.buildViews(await viewsNow(), o, status) : mode === 'one' ? await (o.shape === 'round' ? PHOTO3D.buildRound : o.shape === 'puffy' ? PHOTO3D.buildPuffy : PHOTO3D.build1)(photos[0], o, status) : await PHOTO3D.build(photos, o, status);
     const m = { kind: 'model', name: mode === 'one' ? 'Photo in 3D' : mode === 'views' ? 'Model from four views' : 'Turntable scan', model: { format: 'ply', data: E.b64(r.ply), fit: 3, keepOwn: true, colours: true, points: false, from: mode } };
     standOnGround(m, 3); m.mat = E.defaultMat('#bfc5cc', 'plastic');
     if (o.paint === false) m.model.keepOwn = false; // the picture only gave the shape: the material's colour is used
@@ -937,7 +938,7 @@
   }
   $('p3-go').onclick = async () => {
     $('p3-go').disabled = true;
-    try { await makePhotos3D(p3Photos, p3Mode, { detail: +$('p3-detail').value, tolerance: +$('p3-tol').value, bg: bgOpts('p3'), puff: +$('p3-puff').value / 100, edge: p3Edge, shape: p3Shape, paint: $('p3-paint').checked, hollow: $('p3-hollow-cup').checked, wall: +$('p3-wall').value / 100, reach: +$('p3-reach').value / 100, shading: +$('p3-shade').value / 100, flatBack: $('p3-flat').checked, smooth: +$('p3-smooth').value, dir: p3Dir, depthHollows: aiOn('depth') ? +$('p3-hollow').value / 100 : 0 }); $('p3dlg').hidden = true; toast('Your photo is in 3D: save it as STL or OBJ from Export to print it.'); }
+    try { await makePhotos3D(p3Photos, p3Mode, { detail: +$('p3-detail').value, tolerance: +$('p3-tol').value, bg: bgOpts('p3'), puff: +$('p3-puff').value / 100, edge: p3Edge, shape: p3Shape, raise: +$('p3-raise').value / 100, paint: $('p3-paint').checked, hollow: $('p3-hollow-cup').checked, wall: +$('p3-wall').value / 100, reach: +$('p3-reach').value / 100, shading: +$('p3-shade').value / 100, flatBack: $('p3-flat').checked, smooth: +$('p3-smooth').value, dir: p3Dir, depthHollows: aiOn('depth') ? +$('p3-hollow').value / 100 : 0 }); $('p3dlg').hidden = true; toast('Your photo is in 3D: save it as STL or OBJ from Export to print it.'); }
     catch (err) { $('p3-status').textContent = err.message; }
     $('p3-go').disabled = false;
   };

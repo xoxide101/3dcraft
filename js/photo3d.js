@@ -339,6 +339,79 @@
     onStep('Painting it…'); await new Promise((r) => setTimeout(r, 20));
     return { ply: toPLY(pos, cols, tri, { nx: 0, nz: 0, cell: 1 }), triangles: tri.length / 3 };
   }
+  // Puffy, for clip art, icons, emoji and dingbats: the picture's colours are grouped into its few flat colours, each
+  // colour area is found, the whole outline is rounded like a cushion, and every smaller area (eyes, stripes, outlines,
+  // spots) gets a rounded bump of its own on top, sized to that area. The back is a plain rounded mirror of the body
+  // (details only on the front), or flat for a printer's bed. Each area keeps its clean colour.
+  // o = { detail (cells across, default 220), puff (thickness), raise (0–1.5: how far details stand out), colours (most
+  // colours kept, default 8), flatBack, tolerance / bg (background removal) }
+  async function buildPuffy(photo, o = {}, onStep = () => {}) {
+    onStep('Cutting out the picture…'); await new Promise((r) => setTimeout(r, 20));
+    const res = o.detail || 220, v = await silhouetteOf(photo, res, o);
+    if (v.n < 50) throw new Error('Nothing stood out from the background: use a picture on a plain background, or change the tolerance.');
+    const W = v.x1 - v.x0 + 3, H = v.y1 - v.y0 + 3, N = W * H;
+    const src = (u, w) => (((w + v.y0 - 1) * v.W) + (u + v.x0 - 1)) * 4;
+    const inside = new Uint8Array(N);
+    for (let w = 0; w < H; w++) for (let u = 0; u < W; u++) { const x = u + v.x0 - 1, y = w + v.y0 - 1; if (x >= 0 && y >= 0 && x < v.W && y < v.H && v.mask[y * v.W + x]) inside[w * W + u] = 1; }
+    onStep('Finding its colours…'); await new Promise((r) => setTimeout(r, 20));
+    // k-means on the colours inside (started from colours far apart), then colours closer than 38 are merged
+    const px = []; for (let q = 0; q < N; q++) if (inside[q]) { const i = src(q % W, (q / W) | 0); px.push(q, v.rgb[i], v.rgb[i + 1], v.rgb[i + 2]); }
+    const n = px.length / 4, K = Math.max(2, Math.min(12, o.colours || 8)), dist2 = (a, r, g, b) => (a[0] - r) ** 2 + (a[1] - g) ** 2 + (a[2] - b) ** 2;
+    let cent = [[px[1], px[2], px[3]]];
+    while (cent.length < K) { let best = -1, bi = 0; for (let t = 0; t < n; t += 7) { const r = px[t * 4 + 1], g = px[t * 4 + 2], b = px[t * 4 + 3]; const d = Math.min(...cent.map((c) => dist2(c, r, g, b))); if (d > best) { best = d; bi = t; } } if (best < 30 * 30) break; cent.push([px[bi * 4 + 1], px[bi * 4 + 2], px[bi * 4 + 3]]); }
+    const lab = new Int16Array(N).fill(-1);
+    for (let it = 0; it < 8; it++) {
+      const sum = cent.map(() => [0, 0, 0, 0]);
+      for (let t = 0; t < n; t++) { const r = px[t * 4 + 1], g = px[t * 4 + 2], b = px[t * 4 + 3]; let bk = 0, bd = Infinity; cent.forEach((c, k) => { const d = dist2(c, r, g, b); if (d < bd) { bd = d; bk = k; } }); lab[px[t * 4]] = bk; const s = sum[bk]; s[0] += r; s[1] += g; s[2] += b; s[3]++; }
+      cent = cent.map((c, k) => (sum[k][3] ? [sum[k][0] / sum[k][3], sum[k][1] / sum[k][3], sum[k][2] / sum[k][3]] : c));
+    }
+    for (let a = 0; a < cent.length; a++) for (let b = a + 1; b < cent.length; b++) if (dist2(cent[a], ...cent[b]) < 38 * 38) { for (let q = 0; q < N; q++) if (lab[q] === b) lab[q] = a; }
+    // anti-aliased edges between colours leave specks: two passes of "take the colour most of the neighbours have"
+    for (let pass = 0; pass < 2; pass++) {
+      const nl = lab.slice();
+      for (let w = 1; w < H - 1; w++) for (let u = 1; u < W - 1; u++) { const q = w * W + u; if (!inside[q]) continue; const cnt = new Map(); for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) { const l = lab[q + j * W + i]; if (l >= 0) cnt.set(l, (cnt.get(l) || 0) + 1); } let bl = lab[q], bc = 0; cnt.forEach((c, l) => { if (c > bc) { bc = c; bl = l; } }); nl[q] = bl; }
+      lab.set(nl);
+    }
+    onStep('Puffing it up…'); await new Promise((r) => setTimeout(r, 20));
+    // distance to the outline (for the body) and to the edge of each colour area (for its bump)
+    const chamfer = (isEdge) => {
+      const d = new Float32Array(N); for (let q = 0; q < N; q++) d[q] = inside[q] ? 1e9 : 0;
+      for (let w = 0; w < H; w++) for (let u = 0; u < W; u++) { const q = w * W + u; if (!d[q]) continue; if (u === 0 || w === 0 || isEdge(q, q - 1) || isEdge(q, q - W)) { d[q] = 3; continue; } d[q] = Math.min(d[q], d[q - 1] + 3, d[q - W] + 3, d[q - W - 1] + 4, (u < W - 1 ? d[q - W + 1] : 1e9) + 4); }
+      for (let w = H - 1; w >= 0; w--) for (let u = W - 1; u >= 0; u--) { const q = w * W + u; if (!d[q]) continue; if (u === W - 1 || w === H - 1 || isEdge(q, q + 1) || isEdge(q, q + W)) { d[q] = Math.min(d[q], 3); continue; } d[q] = Math.min(d[q], d[q + 1] + 3, d[q + W] + 3, d[q + W + 1] + 4, (u > 0 ? d[q + W - 1] : 1e9) + 4); }
+      for (let q = 0; q < N; q++) d[q] /= 3; return d;
+    };
+    const d0 = chamfer((q, r) => !inside[r]), dR = chamfer((q, r) => !inside[r] || lab[r] !== lab[q]);
+    let maxD0 = 1; for (let q = 0; q < N; q++) if (d0[q] > maxD0) maxD0 = d0[q];
+    // each connected colour area: its own deepest point sets its bump's height; the biggest area is the body (no bump)
+    const reg = new Int32Array(N).fill(-1), regMax = [], regSize = []; let nr = 0;
+    for (let q0 = 0; q0 < N; q0++) {
+      if (!inside[q0] || reg[q0] >= 0) continue; const stack = [q0]; reg[q0] = nr; let mx = 0, sz = 0;
+      while (stack.length) { const q = stack.pop(); sz++; if (dR[q] > mx) mx = dR[q]; const u = q % W; for (const r of [u > 0 ? q - 1 : -1, u < W - 1 ? q + 1 : -1, q - W, q + W]) if (r >= 0 && r < N && inside[r] && reg[r] < 0 && lab[r] === lab[q]) { reg[r] = nr; stack.push(r); } }
+      regMax.push(mx); regSize.push(sz); nr++;
+    }
+    let body = 0; regSize.forEach((s, i) => { if (s > regSize[body]) body = i; });
+    const puff = o.puff ?? 1, raise = o.raise ?? 0.5, top = maxD0 * 0.5 * puff, band = Math.max(1.5, maxD0);
+    const round = (x) => Math.sqrt(Math.max(0, 1 - (1 - x) * (1 - x)));
+    const hf = new Float32Array(N), hb = new Float32Array(N);
+    for (let q = 0; q < N; q++) {
+      if (!inside[q]) continue;
+      const base = top * round(Math.min(1, Math.max(0, d0[q] - 1) / band));
+      const R = reg[q], bump = R === body ? 0 : raise * Math.min(regMax[R], maxD0 * 0.35) * round(Math.min(1, Math.max(0, dR[q] - 0.5) / Math.max(1, regMax[R])));
+      hf[q] = base + bump; hb[q] = o.flatBack ? 0 : base;
+    }
+    onStep('Building it…'); await new Promise((r) => setTimeout(r, 20));
+    const colOf = (q) => { const c = lab[q] >= 0 ? cent[lab[q]] : [200, 200, 200]; return [Math.round(c[0]), Math.round(c[1]), Math.round(c[2])]; };
+    const id = new Int32Array(N).fill(-1), back = new Int32Array(N).fill(-1), pos = [], cols = [], tri = [];
+    for (let w = 0; w < H; w++) for (let u = 0; u < W; u++) { const q = w * W + u; if (!inside[q]) continue; id[q] = pos.length / 3; pos.push(u - W / 2, H - w, hf[q]); cols.push(...colOf(q)); }
+    // the back: its own points, except where both sides are at the outline (height 0): there they share, so it is closed
+    for (let q = 0; q < N; q++) { if (id[q] < 0) continue; if (hf[q] <= 1e-6 && (o.flatBack || hb[q] <= 1e-6)) { back[q] = id[q]; continue; } back[q] = pos.length / 3; const p = id[q]; pos.push(pos[p * 3], pos[p * 3 + 1], -hb[q]); cols.push(...colOf(q)); }
+    for (let w = 0; w < H - 1; w++) for (let u = 0; u < W - 1; u++) {
+      const a = w * W + u, b = a + 1, c2 = a + W, e = a + W + 1;
+      const face = (p1, p2, p3) => { if (id[p1] < 0 || id[p2] < 0 || id[p3] < 0) return; tri.push(id[p1], id[p3], id[p2], back[p1], back[p2], back[p3]); };
+      face(a, b, e); face(a, e, c2);
+    }
+    return { ply: toPLY(pos, cols, tri, { nx: 0, nz: 0, cell: 1 }), triangles: tri.length / 3, colours: new Set(lab).size - (lab.includes(-1) ? 1 : 0), areas: nr };
+  }
   // Four views from one picture: the picture is the front; the back, left and right are worked out from it (filled in),
   // then all four are carved like turntable photos taken a quarter turn apart. Any view can be replaced by a real one:
   // the more you give it, the closer the result.
@@ -443,5 +516,5 @@
     if (round) photos = Array.from({ length: 16 }, (_, q) => (q % 4 === 0 ? photos[q / 4] : photos[1]));
     return build(photos, { ...o, paintFrom: round ? [0, 4, 8, 12] : null, bg: { mode: 'off', actions: [] }, dir: 'ccw', axis: v.axis, detail: o.detail || 128, smooth: o.smooth ?? 2 }, onStep);
   }
-  window.PHOTO3D = { build, build1, buildRound, views4, fitView, buildViews };
+  window.PHOTO3D = { build, build1, buildRound, buildPuffy, views4, fitView, buildViews };
 })();
