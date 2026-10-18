@@ -765,7 +765,7 @@
     ['logo', 'flat'], ['sign', 'flat'], ['emoji', 'flat'], ['icon', 'flat'], ['writing', 'flat'], ['symbol', 'flat'], ['badge', 'flat'], ['coin', 'flat']];
   const EXPECT = {
     round: ['Round (spun, like a cup)', 'It is spun into a real round shape: solid or hollow, with the picture wrapped round the front. Best from the side, roughly level; a handle or spout is kept as a rounded piece.'],
-    box: ['AI depth', 'Boxy things get their own type later; for now AI depth shapes the front from the picture, and the back is a mirror of it. Corners will be softer than the real thing.'],
+    box: ['Four views (boxy)', 'Boxy things: the front picture is given a depth you set with straight, flat sides (Four views, Expect: Boxy). Give a picture of its side too for the true shape. A picture taken from a corner (three sides showing) works less well: a straight-on front is best.'],
     figure: ['AI depth', 'Figures, animals and sculptures become a rounded relief from AI depth, with the back a mirror of the front: good for display and printing, but not a full sculpture. Turntable photos (all the way round) give the most real shape.'],
     flat: ['Picture to 3D', 'Flat things are best traced into clean outlines and colours and given a thickness (Picture to 3D): signs, logos, badges, keyrings, cookie cutters.'],
   };
@@ -787,7 +787,8 @@
     if (k === 'go') return p3Suggest(true);
     if (k === 'no') { $('p3-suggest').hidden = true; return; }
     if (k === 'flat') { $('p3dlg').hidden = true; openTrace(null, p3Photos[0]); return; }
-    p3Kind = k; if (p3Mode === 'views') { $('p3-suggest').hidden = true; p3Sheet(); return; }
+    p3Kind = k; if (k === 'box' && p3Mode !== 'views') { p3Mode = 'views'; p3Sync(); }
+    if (p3Mode === 'views') { $('p3-suggest').hidden = true; p3Sheet(); return; }
     p3Shape = k === 'round' ? 'round' : aiOn('depth') ? 'depth' : 'puff'; $('p3-suggest').hidden = true; p3Sync();
   };
   function openPhotos3DWith(src, mode) { p3Photos = [src]; bgState.p3.actions = []; p3Own = {}; openPhotos3D(mode); p3Sync(); p3Preview(); bgChoices('p3', src); p3Suggest(); p3Sheet(); }
@@ -898,7 +899,7 @@
     }, 250);
   }
   async function viewsNow() {
-    const v = await PHOTO3D.views4(p3Photos[0], { tolerance: +$('p3-tol').value, bg: bgOpts('p3'), kind: p3Kind, back: p3Back, thick: +$('p3-thick').value / 100 });
+    const v = await PHOTO3D.views4(p3Photos[0], { tolerance: +$('p3-tol').value, bg: bgOpts('p3'), kind: $('p3-kind').value || p3Kind, back: p3Back, thick: +$('p3-thick').value / 100 });
     for (const k of ['left', 'back', 'right']) if (p3Own[k]) v[k] = await PHOTO3D.fitView(p3Own[k], v, { tolerance: +$('p3-tol').value });
     return v;
   }
@@ -915,6 +916,7 @@
   };
   $('p3-backstyle').onclick = (e) => { const b = e.target.closest('[data-back]'); if (b) { p3Back = b.dataset.back; p3Sync(); p3Sheet(); } };
   $('p3-thick').onchange = () => p3Sheet();
+  $('p3-kind').onchange = () => p3Sheet();
   // what the check found, in words: a warning when the result does not match the pictures or what was expected
   function verdict(r) {
     if (!r.check) return '';
@@ -922,9 +924,11 @@
     SIDES.forEach(([k, n], q) => { if (m[q] != null && m[q] < 0.8) bad.push(`${n.toLowerCase()} ${Math.round(m[q] * 100)}%`); });
     const say = [];
     if (bad.length) say.push(`The sides do not agree with each other (match: ${bad.join(', ')}). Check that your pictures show the same object, the same way up, from straight on.`);
-    if (p3Kind === 'round' && r.check.roundness > 1.12) say.push('It was expected to be round, but came out square across: use Round (spun, like a cup), or let What is it? set it.');
-    if (p3Kind && p3Kind !== 'round' && r.check.roundness < 0.75) say.push('It came out thin and pointed across: try more thickness.');
-    return say.length ? '⚠ ' + say.join(' ') : `Checked: it matches all four sides (${m.slice(0, 4).map((x) => Math.round(x * 100) + '%').join(', ')})${p3Kind === 'round' ? ' and is round' : ''}.`;
+    const kind = $('p3-kind').value || p3Kind;
+    if (kind === 'box' && r.check.roundness < 1.12) say.push('It was expected to be boxy, but came out rounded across: give a picture of its side (Use my picture… on Left).');
+    if (kind === 'round' && r.check.roundness > 1.12) say.push('It was expected to be round, but came out square across: use Round (spun, like a cup), or let What is it? set it.');
+    if (kind && kind !== 'round' && kind !== 'box' && r.check.roundness < 0.75) say.push('It came out thin and pointed across: try more thickness.');
+    return say.length ? '⚠ ' + say.join(' ') : `Checked: it matches all four sides (${m.slice(0, 4).map((x) => Math.round(x * 100) + '%').join(', ')})${kind === 'round' ? ' and is round' : kind === 'box' ? ' and is boxy' : ''}.`;
   }
   async function makePhotos3D(photos, mode, o) {
     const status = (m) => { $('p3-status').textContent = m; };

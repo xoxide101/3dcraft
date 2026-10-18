@@ -452,15 +452,16 @@
     for (let y = fh - 1; y >= 0; y--) for (let x = fw - 1; x >= 0; x--) { const q = y * fw + x; if (!dist[q]) continue; let m = dist[q]; if (x < fw - 1) m = Math.min(m, dist[q + 1] + 1); if (y < fh - 1) m = Math.min(m, dist[q + fw] + 1); if (x === fw - 1 || y === fh - 1) m = 1; dist[q] = m; }
     let maxD = 1; for (let i = 0; i < dist.length; i++) if (dist[i] > maxD) maxD = dist[i];
     let near = null;
-    if (o.kind !== 'round' && o.depth !== false && window.CRAFTAI && CRAFTAI.enabled('depth')) {
+    if (o.kind !== 'round' && o.kind !== 'box' && o.depth !== false && window.CRAFTAI && CRAFTAI.enabled('depth')) {
       onStep('Working out the depth (AI)…');
       const dm = await CRAFTAI.depth(F.toDataURL('image/png')); near = new Float32Array(fw * fh); let lo = Infinity, hi = -Infinity;
       for (let y = 0; y < fh; y++) for (let x = 0; x < fw; x++) { if (!inside(x, y)) continue; const z = dm.d[Math.min(dm.H - 1, Math.floor(((y + 0.5) * dm.H) / fh)) * dm.W + Math.min(dm.W - 1, Math.floor(((x + 0.5) * dm.W) / fw))]; near[y * fw + x] = z; if (z < lo) lo = z; if (z > hi) hi = z; }
       const kk = 1 / Math.max(1e-6, hi - lo); for (let i = 0; i < near.length; i++) near[i] = (near[i] - lo) * kk;
     }
     onStep('Filling in the other sides…'); await new Promise((r) => setTimeout(r, 20));
+    // (a box: the same depth everywhere, so its sides are straight and flat)
     const T = fw * (o.thick ?? 0.3), t = new Float32Array(fw * fh); let Z = o.kind === 'round' ? fw / 2 : 1;
-    for (let q = 0; q < fw * fh; q++) { if (D[q * 4 + 3] <= 128) continue; t[q] = T * (near ? 0.3 + 0.7 * near[q] : 1) * Math.sqrt(Math.min(1, dist[q] / Math.max(2, maxD * 0.3))); Z = Math.max(Z, t[q]); }
+    for (let q = 0; q < fw * fh; q++) { if (D[q * 4 + 3] <= 128) continue; t[q] = o.kind === 'box' ? T / 2 : T * (near ? 0.3 + 0.7 * near[q] : 1) * Math.sqrt(Math.min(1, dist[q] / Math.max(2, maxD * 0.3))); Z = Math.max(Z, t[q]); }
     const Wc = Math.max(fw, Math.ceil(Z * 2)) + 10, Hc = fh + 10, A = Wc / 2, ox = Math.round(A - fw / 2), oy = 5;
     const back = rowColours(D, fw, fh, inside);
     // the softened picture: colours and texture without the details
@@ -480,7 +481,7 @@
       for (let y = 0; y < fh; y++) for (let s = 0; s < fw; s++) {
         const xx = fromLeft ? s : fw - 1 - s, q = y * fw + xx; if (!t[q]) continue;
         const inw = Math.max(2, Math.round(fw * 0.03)), xi = Math.max(0, Math.min(fw - 1, xx + (fromLeft ? inw : -inw))), qi = inside(xi, y) ? y * fw + xi : q;
-        const zf = Math.round(t[q]), zb = Math.round(t[q] * 0.85), i = qi * 4;
+        const zf = Math.round(t[q]), zb = Math.round(t[q] * (o.kind === 'box' ? 1 : 0.85)), i = qi * 4;
         for (let z = -zb; z <= zf; z++) {
           const px = Math.round(fromLeft ? A + z : A - z), o2 = (y + oy) * Wc + px; if (px < 0 || px >= Wc || done[o2]) continue; done[o2] = 1;
           const shade = 0.8 + 0.2 * (1 - Math.abs(z) / Math.max(1, t[q])), sc = soft(xi, y), col = z >= 0 ? [D[i] * shade, D[i + 1] * shade, D[i + 2] * shade] : [sc[0] * 0.88, sc[1] * 0.88, sc[2] * 0.88];

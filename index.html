@@ -168,6 +168,7 @@
       <label class="check" id="p3-paint-f"><input type="checkbox" id="p3-paint" checked> Paint it with the picture (untick to use the picture only for the shape, in one colour)</label>
       <label class="check"><input type="checkbox" id="p3-flat"> Flat back (to stand on a 3D printer's bed)</label></div>
     <div id="p3-views-opts" hidden>
+      <label class="field"><span>Expect</span><select class="input" id="p3-kind"><option value="">Automatic (What is it? decides)</option><option value="round">Round (cups, vases, bottles)</option><option value="box">Boxy (boxes, bricks, books, cabinets)</option><option value="figure">Figure (characters, animals, sculptures)</option></select></label>
       <div class="field"><span>The four sides (the ones you have not given are filled in; give more for a closer result)</span><div class="p3-sheet" id="p3-sheet"></div></div>
       <div class="row"><div class="seg" id="p3-backstyle" role="group"><button class="btn" type="button" data-back="same" aria-pressed="true" title="The back is the front mirrored">Back: same picture</button><button class="btn" type="button" data-back="soft" aria-pressed="false" title="The back is the front mirrored and softened, so a face or details are not repeated">Back: softened</button></div></div>
       <label class="field"><span>Thickness (front to back): <b id="p3-thick-v">30%</b> of the width</span><input type="range" id="p3-thick" min="5" max="80" step="1" value="30"></label>
