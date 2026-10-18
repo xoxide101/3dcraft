@@ -104,7 +104,13 @@ Headless Chrome over the DevTools protocol, opening `index.html` from the folder
 - **Find online** (`MODEL_SITES` in ui.js): each site's search address with `{q}`; opened with `window.open(…, '_blank', 'noopener')`. Checked in a browser: Thingiverse, Thangs, Sketchfab, Poly Pizza, Poly Haven, NASA and Smithsonian (`/explore?edan_q=`) show results; Printables and Cults show a short bot check first; MyMiniFactory's search lives in the address's # part (free designs included). The sites' own APIs need keys or block pages from reading them, so the models are downloaded by hand and dropped in.
 - Testing used a public sample photo from the Transformers.js docs, only in a scratch folder.
 
+## Mirror
+
+- Material preset `mirror` (metal 1, roughness 0, `mirror: true`). `setupMirror` in scene.js: a Flat panel gets a three.js **Reflector** child (added to `lib/craft3d-libs.js`) 0.002 in front; its colour is overlay-blended, so 50 % grey of the chosen colour keeps the reflection true (white washes it out); while it draws, the panel's own materials are hidden (otherwise the reflection camera sees the panel just behind the clip plane and nothing else). Other shapes get a 256 px **CubeCamera** env map, updated before each drawing from the object's middle (`updateMirrors`). Ray-traced renders hide the Reflector (`userData.mirrorView`) and use the metal material: a true mirror.
+
 ## Planned
+
+- Agreed 2026-10-17 (Blender ideas): modifiers (Array, Mirror, Bend/Twist/Taper, Smooth, Displace, Decimate), Booleans, 3D print toolbox; then physics with collisions (the user's "player-missile graphics" idea: things know when they hit), particles, toon/outline look, glow and depth of field, scatter, follow a path, spin/pipe, posable mannequin. Also asked: squash and stretch on the bouncing ball; running water like a waterfall.
 
 - Talk first: Lighting (and shadow depth, strength and direction), maybe its own tab like the Backdrop and Ground.
 - Animation and video playing on monitor and TV screens.

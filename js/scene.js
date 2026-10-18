@@ -26,6 +26,8 @@
     gold: ['Gold', { color: '#e6b422', metal: 1, rough: 0.22, coat: 0, glass: 0, glow: 0 }],
     silver: ['Silver', { color: '#d8dade', metal: 1, rough: 0.18, coat: 0, glass: 0, glow: 0 }],
     chrome: ['Chrome', { color: '#ffffff', metal: 1, rough: 0.04, coat: 0, glass: 0, glow: 0 }],
+    // a perfect mirror: reflects the scene itself (flat panels exactly, other shapes from their middle)
+    mirror: ['Mirror', { color: '#ffffff', metal: 1, rough: 0, coat: 0, glass: 0, glow: 0, spec: 1, mirror: true }],
     copper: ['Copper', { color: '#c8703f', metal: 1, rough: 0.28, coat: 0, glass: 0, glow: 0 }],
     glass: ['Glass', { color: '#ffffff', metal: 0, rough: 0.03, coat: 0, glass: 1, glow: 0 }],
     glow: ['Glow', { metal: 0, rough: 0.6, coat: 0, glass: 0, glow: 1.6 }],
@@ -196,6 +198,7 @@
     const W = host.clientWidth, H = host.clientHeight; if (!W || !H) return;
     if (renderer.domElement.width !== Math.round(W * renderer.getPixelRatio()) || renderer.domElement.height !== Math.round(H * renderer.getPixelRatio())) renderer.setSize(W, H, false);
     renderer.domElement.style.width = W + 'px'; renderer.domElement.style.height = H + 'px';
+    if (mirrors.size) updateMirrors();
     renderer.setScissorTest(true);
     const box = sceneBox(), c = box.getCenter(new T.Vector3()), rad = Math.max(2, box.getSize(new T.Vector3()).length() * 0.75);
     views.forEach((v) => {
@@ -1073,6 +1076,38 @@
   }
   E.slotsFor = (m) => (m.kind === 'shape' ? (shapeGeo(m.shape)[1] ? [...new Set(shapeGeo(m.shape)[1])] : []) : m.kind === 'text' || m.kind === 'trace' ? ['front', 'back', 'sides'] : []);
 
+  // ------------------------------------------------------------------ mirrors
+  // A Mirror material reflects the scene. A flat panel gets a true mirror (three.js's Reflector, drawn just in front of
+  // it); any other shape reflects the scene as seen from its middle (a cube camera, updated before each drawing). Ray-
+  // traced renders use the material itself (metal 1, roughness 0): a perfect mirror, so the Reflector is hidden there.
+  const mirrors = new Set();
+  function setupMirror(o, m) {
+    if (m.kind === 'shape' && m.shape.type === 'plane' && o.isMesh && T.Reflector) {
+      const r = new T.Reflector(o.geometry.clone(), { clipBias: 0.003, textureWidth: 1024, textureHeight: 1024, color: new T.Color(m.mat.color || '#ffffff').multiplyScalar(0.5) }); // (the Reflector overlays its colour: 50 % grey = the reflection unchanged, a colour tints it)
+      r.position.z = 0.002; r.userData.mirrorView = true; o.add(r);
+      // while the reflection is drawn, the panel's own surface (just behind it) is hidden, or the mirror would see only that
+      const draw = r.onBeforeRender, mats = [].concat(o.material);
+      r.onBeforeRender = function (...args) { const was = mats.map((x) => x.visible); mats.forEach((x) => { x.visible = false; }); try { draw.apply(this, args); } finally { mats.forEach((x, i) => { x.visible = was[i]; }); } };
+      // the back of the panel stays the metal surface; the front is the reflection
+      return;
+    }
+    const rt = new T.WebGLCubeRenderTarget(256, { type: T.HalfFloatType }), cam = new T.CubeCamera(0.05, 500, rt);
+    o.userData.cubeMirror = { rt, cam };
+    o.traverse((x) => { if (x.isMesh) [].concat(x.material).forEach((mt) => { mt.envMap = rt.texture; mt.envMapIntensity = 1; mt.needsUpdate = true; }); });
+    mirrors.add(o);
+  }
+  // each curved mirror sees the scene from its own middle (it hides itself, and other mirrors show what they last saw)
+  function updateMirrors() {
+    mirrors.forEach((o) => {
+      let inScene = false; for (let p = o; p; p = p.parent) if (p === scene) inScene = true;
+      if (!inScene) { mirrors.delete(o); o.userData.cubeMirror.rt.dispose(); return; }
+      if (!o.visible) return;
+      const { cam } = o.userData.cubeMirror; o.getWorldPosition(cam.position);
+      o.visible = false; cam.update(renderer, scene); o.visible = true;
+    });
+  }
+  E.updateMirrors = updateMirrors;
+
   // ------------------------------------------------------------------ building the scene from the model
   const built = new Map(); // id → Object3D
   async function buildOne(m) {
@@ -1098,6 +1133,7 @@
     // a flag's cloth: remember where its points start, so the wind can move them
     if (m.kind === 'shape' && m.shape.type === 'flag') o.traverse((x) => { if (!x.isMesh || !x.geometry.groups[1]) return; const gr = x.geometry.groups[1], pos = x.geometry.attributes.position; let x0 = Infinity, x1 = -Infinity; for (let i = gr.start; i < gr.start + gr.count; i++) { x0 = Math.min(x0, pos.getX(i)); x1 = Math.max(x1, pos.getX(i)); } x.userData.cloth = { start: gr.start, count: gr.count, orig: Float32Array.from(pos.array), x0, len: Math.max(0.1, x1 - x0), wind: m.shape.wind ?? 1, speed: m.shape.speed ?? 1 }; });
     if (m.mat && (m.mat.fur || 0) > 0) addFur(o, m.mat);
+    if (m.mat && m.mat.mirror) setupMirror(o, m);
     Object.assign(o.userData, { id: m.id, kind: m.kind }); o.uid = m.id; o.name = m.name || m.kind;
     place(o, m);
     return o;
@@ -1229,6 +1265,7 @@
     const maxSize = renderer.capabilities.maxTextureSize || 4096, k = Math.min(1, maxSize / Math.max(w, h));
     renderer.setScissorTest(false); renderer.setPixelRatio(1); renderer.setSize(Math.round(w * k), Math.round(h * k), false);
     renderer.setViewport(0, 0, Math.round(w * k), Math.round(h * k)); renderer.setClearColor(0x000000, 0); renderer.clear();
+    if (mirrors.size) updateMirrors();
     renderer.render(scene, cam);
     const out = document.createElement('canvas'); out.width = w; out.height = h; const ox = out.getContext('2d'); ox.imageSmoothingQuality = 'high'; ox.drawImage(renderer.domElement, 0, 0, Math.round(w * k), Math.round(h * k), 0, 0, w, h);
     scene.background = keepBg; grid.visible = keepGrid; floor.visible = keepFloor; helpers.forEach((x) => (x.visible = true));
@@ -1337,7 +1374,7 @@
     const [, samples, bounces] = E.QUALITY[o.quality] || E.QUALITY.good;
     E.busy = true; tc.detach();
     const keep = { bg: scene.background, env: scene.environment, envI: scene.environmentIntensity, grid: grid.visible, ratio: renderer.getPixelRatio(), size: renderer.getSize(new T.Vector2()), helpers: [] };
-    scene.traverse((x) => { if (x.userData.helper && x.visible) { keep.helpers.push(x); x.visible = false; } }); grid.visible = false;
+    scene.traverse((x) => { if ((x.userData.helper || x.userData.mirrorView) && x.visible) { keep.helpers.push(x); x.visible = false; } }); grid.visible = false;
     const floor = ground.getObjectByName('floor'), shadow = ground.getObjectByName('shadow'); keep.floor = floor.visible; keep.shadowMat = shadow.material;
     if (o.transparent) { scene.background = null; floor.visible = false; }
     const matte = new T.MeshStandardMaterial({ color: 0xffffff, roughness: 1 }); matte.matte = true; shadow.material = matte; // shadows only
