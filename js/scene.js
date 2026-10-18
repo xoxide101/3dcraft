@@ -30,6 +30,8 @@
     mirror: ['Mirror', { color: '#ffffff', metal: 1, rough: 0, coat: 0, glass: 0, glow: 0, spec: 1, mirror: true }],
     copper: ['Copper', { color: '#c8703f', metal: 1, rough: 0.28, coat: 0, glass: 0, glow: 0 }],
     glass: ['Glass', { color: '#ffffff', metal: 0, rough: 0.03, coat: 0, glass: 1, glow: 0 }],
+    // crystal: clear like glass but bending light much more (as diamond does), splitting it into rainbow colours
+    crystal: ['Crystal', { color: '#ffffff', metal: 0, rough: 0, coat: 0, glass: 1, glow: 0, spec: 1, ior: 2.4, dispersion: 5 }],
     glow: ['Glow', { metal: 0, rough: 0.6, coat: 0, glass: 0, glow: 1.6 }],
     // fabrics: sheen (the soft glow cloth gets at a slant), how soft it is, and a weave pressed into the surface
     cotton: ['Cotton', { color: '#e9e4da', metal: 0, rough: 0.9, coat: 0, glass: 0, glow: 0, spec: 0.3, sheen: 0.6, sheenSoft: 0.6, weave: 'plain', weaveSize: 40 }],
@@ -1015,7 +1017,7 @@
     const glass = m.glass || 0;
     const mat = new T.MeshPhysicalMaterial({
       color: new T.Color(m.color || '#cccccc'), metalness: m.metal ?? 0, roughness: m.rough ?? 0.4, clearcoat: m.coat || 0, clearcoatRoughness: 0.1,
-      transmission: glass, thickness: glass ? 1 : 0, ior: m.ior ?? 1.5, transparent: (m.opacity ?? 1) < 1, opacity: m.opacity ?? 1,
+      transmission: glass, thickness: glass ? 1 : 0, ior: m.ior ?? 1.5, dispersion: m.dispersion || 0, transparent: (m.opacity ?? 1) < 1, opacity: m.opacity ?? 1,
       emissive: m.glow ? new T.Color(m.color || '#ffffff') : new T.Color(0), emissiveIntensity: m.glow || 0,
       specularIntensity: m.spec ?? 1, sheen: m.sheen || 0, sheenRoughness: m.sheenSoft ?? 0.45, sheenColor: m.weave || m.sheenSoft != null ? new T.Color(m.color || '#cccccc').lerp(new T.Color('#ffffff'), 0.55) : new T.Color(0.35, 0.35, 0.35),
     });

@@ -273,7 +273,7 @@
     // each button shows a little ball rendered in that material (in this object's colour, unless the material has its own)
     const ballFor = (k) => E.materialPreview(k, E.MATERIALS[k][1].color || mat.color);
     return { title: 'Material', items: [
-      { t: 'html', mount: (el) => { el.className = 'mat-presets'; el.innerHTML = Object.entries(E.MATERIALS).map(([k, [n]]) => `<button type="button" data-mp="${k}" title="${n}" aria-pressed="${mat.preset === k}"><img alt="" src="${ballFor(k)}"><span>${n.replace('Glossy paint', 'Gloss')}</span></button>`).join(''); el.onclick = (e) => { const b = e.target.closest('[data-mp]'); if (!b) return; const p = E.MATERIALS[b.dataset.mp][1]; set({ preset: b.dataset.mp, spec: 1, sheen: 0, sheenSoft: null, weave: null, ior: 1.5, waves: 0, mirror: false, ...p }); }; } },
+      { t: 'html', mount: (el) => { el.className = 'mat-presets'; el.innerHTML = Object.entries(E.MATERIALS).map(([k, [n]]) => `<button type="button" data-mp="${k}" title="${n}" aria-pressed="${mat.preset === k}"><img alt="" src="${ballFor(k)}"><span>${n.replace('Glossy paint', 'Gloss')}</span></button>`).join(''); el.onclick = (e) => { const b = e.target.closest('[data-mp]'); if (!b) return; const p = E.MATERIALS[b.dataset.mp][1]; set({ preset: b.dataset.mp, spec: 1, sheen: 0, sheenSoft: null, weave: null, ior: 1.5, waves: 0, mirror: false, dispersion: 0, ...p }); }; } },
       { t: 'row', items: [{ t: 'color', label: 'Colour', value: mat.color, on: (v, l) => (l ? live({ color: v }) : set({ color: v })) }, m.kind === 'trace' ? { t: 'check', label: "Picture's own colours", value: m.trace.ownColours !== false, on: (v) => { m.trace.ownColours = v; changed(m.id); showProps(); } } : null] },
       { t: 'range', label: 'Shine', value: Math.round((1 - (mat.rough ?? 0.4)) * 100), min: 0, max: 100, show: (v) => v + '%', on: (v) => set({ rough: 1 - v / 100 }) },
       { t: 'range', label: 'Metal', value: Math.round((mat.metal ?? 0) * 100), min: 0, max: 100, show: (v) => v + '%', on: (v) => set({ metal: v / 100 }) },
@@ -1076,23 +1076,23 @@
     const obj = (m) => { const o = { id: E.uid(), parent: null, visible: true, locked: false, rot: [0, 0, 0], scale: [1, 1, 1], ...m }; d.objects.push(o); return o; };
     // The retro bouncing ball: a high-resolution checkerboard (16 by 8 squares) on a smooth ball that bounces across and
     // back (a falling curve each bounce), squashes a little as it lands, and spins on a tilted axis.
-    const bouncingBall = ({ L, R, x0, x1, z, up }) => {
+    const bouncingBall = ({ L, R, x0, x1, z, up, P = 1 }) => { // P: seconds per bounce
       const cv = document.createElement('canvas'); cv.width = 2048; cv.height = 1024; const cx = cv.getContext('2d');
       for (let j = 0; j < 8; j++) for (let i = 0; i < 16; i++) { cx.fillStyle = (i + j) % 2 ? '#ffffff' : '#e8102e'; cx.fillRect(i * 128, j * 128, 128, 128); }
       // squash and stretch, as in cartoons: round at the top of each bounce, stretched tall by its speed on the way down
       // and up, squashed flat (and wider, so it keeps its size) for a moment as it hits, and still touching the ground
       const keys = { pos: [], rot: [], scale: [] }, steps = Math.round(L * 15), times = new Set();
       for (let f = 0; f <= steps; f++) times.add(+((f / steps) * L).toFixed(4));
-      for (let b = 0; b <= L; b++) [-0.06, -0.03, 0, 0.03, 0.06].forEach((dt) => { const t = b + dt; if (t >= 0 && t <= L) times.add(+t.toFixed(4)); });
+      for (let b = 0; b <= L + 1e-6; b += P) [-0.06, -0.03, 0, 0.03, 0.06].forEach((dt) => { const t = b + dt * P; if (t >= 0 && t <= L) times.add(+t.toFixed(4)); });
       [...times].sort((a, b) => a - b).forEach((t) => {
-        const u = t % 1, x = t < L / 2 ? x0 + ((x1 - x0) * t) / (L / 2) : x1 - ((x1 - x0) * (t - L / 2)) / (L / 2);
+        const u = (t % P) / P, x = t < L / 2 ? x0 + ((x1 - x0) * t) / (L / 2) : x1 - ((x1 - x0) * (t - L / 2)) / (L / 2);
         const h = up * (1 - (2 * u - 1) ** 2), speed = Math.abs(2 * u - 1); // 1 at the ground, 0 at the top
         const near = Math.min(u, 1 - u), q = near < 0.06 ? 1 - near / 0.06 : 0; // how far into the hit (0 – 1)
-        const sy = q > 0 ? 0.62 * q + (1 + 0.22 * speed) * (1 - q) : 1 + 0.22 * speed ** 2, sx = 1 / Math.sqrt(sy);
+        const sy = q > 0 ? 0.75 * q + (1 + 0.15 * speed) * (1 - q) : 1 + 0.15 * speed ** 2, sx = 1 / Math.sqrt(sy);
         keys.pos.push({ t, v: [x, R * sy + h, z], ease: 'linear' });
         keys.scale.push({ t, v: [+sx.toFixed(3), +sy.toFixed(3), +sx.toFixed(3)], ease: 'linear' });
       });
-      keys.rot = [{ t: 0, v: [18, 0, 0], ease: 'linear' }, { t: L, v: [18, -180 * L, 0], ease: 'linear' }];
+      keys.rot = [{ t: 0, v: [18, 0, 0], ease: 'linear' }, { t: L, v: [18, -360 * Math.max(1, Math.round(L / 2)), 0], ease: 'linear' }]; // whole turns, so the loop joins up
       const ball = obj({ kind: 'shape', name: 'Checkered ball', shape: { type: 'sphere', r: R }, mat: { ...E.defaultMat('#ffffff', 'gloss'), faces: { all: { type: 'picture', src: cv.toDataURL('image/png'), fit: 'stretch', opacity: 1, size: 20 } } }, pos: [x0, R, z] });
       return { ball, keys };
     };
@@ -1197,13 +1197,13 @@
       d.camera = { pos: [1.2, 2.6, 7.2], target: [0.5, 1.7, 0], fov: 38 };
     }
     if (kind === 'ball') {
-      const L = 4, { ball, keys } = bouncingBall({ L, R: 1.6, x0: -5, x1: 5, z: 0, up: 4.2 });
+      const L = 8.4, { ball, keys } = bouncingBall({ L, R: 1.6, x0: -5, x1: 5, z: 0, up: 5.4, P: 1.4 }); // 6 bounces, slowly across and back
       const grid = { type: 'pattern', pattern: 'grid', fg: '#3fe0b8', bg: '#244444', size: 3 };
       obj({ kind: 'shape', name: 'Grid wall', shape: { type: 'plane', w: 18, h: 10 }, mat: { ...E.defaultMat('#244444', 'matte'), faces: { all: grid } }, pos: [0, 5, -3] });
       obj({ kind: 'shape', name: 'Grid floor', shape: { type: 'plane', w: 18, h: 6 }, mat: { ...E.defaultMat('#244444', 'matte'), faces: { all: grid } }, pos: [0, 0.01, 0], rot: [-90, 0, 0] });
       d.anim = { length: L, fps: 30, loop: true, tracks: { [ball.id]: { keys } }, camera: { move: 'none', amount: 360 } };
       Object.assign(d.scene, { bg: { type: 'solid', color: '#1f3a3a' }, ground: false, light: 'studio', lightAngle: -35, lightPower: 1.1 });
-      d.camera = { pos: [0, 4.6, 21], target: [0, 4.2, 0], fov: 38 };
+      d.camera = { pos: [0, 5.2, 21], target: [0, 4.8, 0], fov: 38 };
     }
     await openDoc(d);
     if (kind === 'ball' || kind === 'doll') { resetHistory(); if (window.TL3) { TL3.seek(0); TL3.play(); } }

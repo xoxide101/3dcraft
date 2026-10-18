@@ -106,7 +106,11 @@ Headless Chrome over the DevTools protocol, opening `index.html` from the folder
 
 ## Bouncing ball: squash and stretch
 
-- `bouncingBall` keys position and scale together, at 15 frames a second plus extra keys round each hit (±0.03, ±0.06 s): stretch 1 + 0.22 × speed² (speed 1 at the ground, 0 at the top), squashed to 0.62 tall at the hit, x and z = 1 ÷ √(y) so the size is kept, and the centre at R × (y scale) + height so it always touches the ground while squashed.
+- `bouncingBall` keys position and scale together, at 15 frames a second plus extra keys round each hit (±0.03, ±0.06 s): stretch 1 + 0.22 × speed² (speed 1 at the ground, 0 at the top), squashed to 0.75 tall at the hit (stretch 1 + 0.15 × speed²; the user found 0.62 / 0.22 a bit much), one bounce every P = 1.4 s, 5.4 high, 6 bounces in 8.4 s, whole turns of spin so the loop joins, x and z = 1 ÷ √(y) so the size is kept, and the centre at R × (y scale) + height so it always touches the ground while squashed.
+
+## Crystal
+
+- Preset `crystal`: glass 1, roughness 0, ior 2.4 (diamond), `dispersion` 5 (MeshPhysicalMaterial's dispersion, also passed on for ray tracing).
 
 ## Mirror
 
