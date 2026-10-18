@@ -16,6 +16,7 @@
     taper: ['Taper', { amount: 0.5, axis: 'y' }, [['amount', 'Narrower at the end', -1, 0.95, 0.05], ['axis', 'Along', AXES]]],
     displace: ['Displace (bumpy)', { amount: 0.12, size: 0.6, seed: 1 }, [['amount', 'Height of the bumps', -1, 1, 0.01], ['size', 'Size of the bumps', 0.05, 5, 0.05], ['seed', 'Pattern', 1, 99, 1]]],
     smooth: ['Smooth', { level: 2, keepEdges: false }, [['level', 'How smooth', 1, 4, 1]]],
+    boolean: ['Boolean (cut, join, overlap)', { op: 'subtract', with: '' }, []],
     decimate: ['Decimate (fewer triangles)', { keep: 0.5 }, [['keep', 'Keep (of the triangles)', 0.02, 1, 0.01]]],
   };
   const SHAPERS = new Set(['twist', 'bend', 'taper', 'displace', 'smooth', 'decimate']);
@@ -130,7 +131,7 @@
 
   // ---------------------------------------------------------------- the stack
   function apply(o, mods) {
-    const list = (mods || []).filter((md) => md && md.on !== false && LIST[md.type]);
+    const list = (mods || []).filter((md) => md && md.on !== false && LIST[md.type] && md.type !== 'boolean'); // (booleans are worked out in scene.js, which can build the other object)
     if (!list.length) return o;
     let root = o;
     for (const md of list) {

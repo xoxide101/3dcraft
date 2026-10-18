@@ -6,14 +6,15 @@
     "build": "esbuild entry.js --bundle --minify --format=iife --legal-comments=eof --outfile=../craft3d-libs.js"
   },
   "dependencies": {
-    "three": "0.186.1",
-    "opentype.js": "2.0.0",
+    "gifenc": "1.0.3",
     "imagetracerjs": "1.2.6",
+    "mp4-muxer": "5.2.2",
+    "opentype.js": "2.0.0",
+    "three": "0.186.1",
+    "three-bvh-csg": "^0.0.18",
     "three-gpu-pathtracer": "0.0.27",
     "three-mesh-bvh": "0.9.16",
-    "gifenc": "1.0.3",
-    "webm-muxer": "5.1.4",
-    "mp4-muxer": "5.2.2"
+    "webm-muxer": "5.1.4"
   },
   "devDependencies": {
     "esbuild": "0.28.2"

@@ -432,6 +432,14 @@
         i > 0 ? { label: '↑', on: () => { mods.splice(i - 1, 0, mods.splice(i, 1)[0]); redo(); } } : null,
         i < mods.length - 1 ? { label: '↓', on: () => { mods.splice(i + 1, 0, mods.splice(i, 1)[0]); redo(); } } : null,
         { label: 'Remove', on: () => { mods.splice(i, 1); if (!mods.length) delete m.mods; redo(); } }].filter(Boolean) });
+      if (md.type === 'boolean') {
+        const others = E.doc.objects.filter((x) => x.id !== m.id && x.kind !== 'group');
+        items.push({ t: 'seg', label: 'What it does', buttons: [['subtract', 'Cut away'], ['union', 'Join'], ['intersect', 'Keep the overlap']].map(([k, l]) => ({ label: l, pressed: (md.op || 'subtract') === k, on: () => { md.op = k; redo(); } })) });
+        items.push({ t: 'select', label: 'With', value: md.with || '', options: [['', 'Choose an object…'], ...others.map((x) => [x.id, x.name || x.kind])], on: (v) => { const old = md.with && E.find(md.with); md.with = v; const c = v && E.find(v); if (c) { c.cutter = true; changed(c.id); } if (old && old.id !== v && !E.doc.objects.some((x) => (x.mods || []).some((q) => q.type === 'boolean' && q.with === old.id))) { delete old.cutter; changed(old.id); } redo(); } });
+        const c = md.with && E.find(md.with);
+        if (c) items.push({ t: 'check', label: `Show “${c.name}” as a ghost (off: as itself)`, value: !!c.cutter, on: (v) => { if (v) c.cutter = true; else delete c.cutter; changed(c.id); showProps(); } });
+        items.push({ t: 'note', html: 'Move or resize the other object and this one is worked out again. Ghosts are left out of pictures, renders and 3D files.' });
+      }
       def[2].forEach(([k, label, a, b, step]) => {
         if (k === 'radius' && md.spread !== 'circle') return; if (k === 'axis' && md.type === 'array' && md.spread !== 'line') return; if (k === 'gap' && md.type === 'array' && md.spread === 'circle') return;
         items.push(Array.isArray(a) ? { t: 'select', label, value: md[k] ?? def[1][k], options: a, on: (v) => { md[k] = v; redo(); } }

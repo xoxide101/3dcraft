@@ -1110,6 +1110,71 @@
   }
   E.updateMirrors = updateMirrors;
 
+  // ------------------------------------------------------------------ booleans (three-bvh-csg)
+  // Where an object sits in the world, from the model (its own place, turn and size, inside its groups)
+  function worldOf(m) {
+    const M = new T.Matrix4().compose(new T.Vector3(...(m.pos || [0, 0, 0])), new T.Quaternion().setFromEuler(new T.Euler(...(m.rot || [0, 0, 0]).map(d2r))), new T.Vector3(...(m.scale || [1, 1, 1])));
+    const p = m.parent && E.find(m.parent); return p ? worldOf(p).multiply(M) : M;
+  }
+  // all the meshes of a built object as one geometry, in world space (only positions, normals and uv; no groups)
+  function worldGeometry(o, W) {
+    o.updateMatrixWorld(true); const parts = [];
+    o.traverse((x) => { if (!x.isMesh || x.userData.fur || x.userData.mirrorView) return; let g = x.geometry.index ? x.geometry.toNonIndexed() : x.geometry.clone(); ['position', 'normal', 'uv'].forEach(() => {}); Object.keys(g.attributes).forEach((k) => { if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k); }); if (!g.attributes.uv) g.setAttribute('uv', new T.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2)); if (!g.attributes.normal) g.computeVertexNormals(); g.clearGroups(); g.applyMatrix4(new T.Matrix4().multiplyMatrices(W, x.matrixWorld)); parts.push(g); });
+    return parts.length ? T.BufferGeometryUtils.mergeGeometries(parts, false) : null;
+  }
+  // Each Boolean modifier: the object's meshes cut by (or joined with, or kept where they overlap) the other object, in
+  // world space, then brought back. The cut faces take the object's Sides colour (or its first material).
+  const boolBusy = new Set(); // objects whose booleans are being worked out (so two objects cutting each other cannot loop)
+  async function applyBooleans(o, m) {
+    if (!window.CSG || boolBusy.has(m.id)) return o;
+    boolBusy.add(m.id);
+    try { return await booleans(o, m); } finally { boolBusy.delete(m.id); }
+  }
+  async function booleans(o, m) {
+    const W = worldOf(m), Winv = W.clone().invert(), ev = new CSG.Evaluator(); ev.useGroups = true; ev.attributes = ['position', 'normal', 'uv'];
+    for (const md of m.mods) {
+      if (md.type !== 'boolean' || md.on === false || !md.with) continue;
+      const cm = E.find(md.with); if (!cm || cm.id === m.id) continue;
+      // the other object built afresh, at no place of its own (its place in the world comes from the model)
+      const cut = await buildOne({ ...cm, cutter: false }); cut.position.set(0, 0, 0); cut.rotation.set(0, 0, 0); cut.scale.set(1, 1, 1);
+      const cg = worldGeometry(cut, worldOf(cm));
+      cut.traverse((x) => { if (x.isMesh) x.geometry.dispose(); }); if (!cg) continue;
+      const op = md.op === 'union' ? CSG.ADDITION : md.op === 'intersect' ? CSG.INTERSECTION : CSG.SUBTRACTION;
+      o.updateMatrixWorld(true);
+      const meshes = []; o.traverse((x) => { if (x.isMesh && !x.userData.fur && !x.userData.mirrorView) meshes.push(x); });
+      for (const x of meshes) {
+        const mats = [].concat(x.material), local = new T.Matrix4().multiplyMatrices(W, x.matrixWorld);
+        let g = x.geometry.index ? x.geometry.toNonIndexed() : x.geometry.clone();
+        Object.keys(g.attributes).forEach((k) => { if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k); });
+        if (!g.attributes.uv) g.setAttribute('uv', new T.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+        if (!g.groups.length) g.addGroup(0, g.attributes.position.count, 0);
+        g.applyMatrix4(local);
+        const a = new CSG.Brush(g, mats.length > 1 ? mats : mats[0]), sideMat = mats[Math.min(mats.length - 1, 2)] || mats[0];
+        const b = new CSG.Brush(cg.clone(), sideMat); a.updateMatrixWorld(); b.updateMatrixWorld();
+        const r = ev.evaluate(a, b, op);
+        const back = new T.Matrix4().copy(local).invert();
+        r.geometry.applyMatrix4(back); x.geometry.dispose(); x.geometry = r.geometry; x.material = r.material;
+      }
+      cg.dispose();
+    }
+    void Winv;
+    return o;
+  }
+  // a cutter shows as a faint ghost while working, and is left out of pictures, renders and 3D files
+  function ghost(o) {
+    o.traverse((x) => { if (x.isMesh) { x.material = new T.MeshBasicMaterial({ color: 0x4dabf7, wireframe: true, transparent: true, opacity: 0.35, depthWrite: false }); x.castShadow = false; x.receiveShadow = false; } });
+    o.userData.helper = true;
+  }
+  // when a cutter moves or changes, the objects it cuts are worked out again (a moment after it stops)
+  const boolTimers = new Map();
+  function rebuildDependents(id) {
+    if (!E.doc) return;
+    E.doc.objects.filter((x) => (x.mods || []).some((md) => md.type === 'boolean' && md.with === id && md.on !== false)).forEach((x) => {
+      clearTimeout(boolTimers.get(x.id)); boolTimers.set(x.id, setTimeout(() => E.rebuildOne(x.id), 120));
+    });
+  }
+  E.rebuildDependents = rebuildDependents;
+
   // ------------------------------------------------------------------ building the scene from the model
   const built = new Map(); // id → Object3D
   async function buildOne(m) {
@@ -1136,6 +1201,8 @@
     if (m.kind === 'shape' && m.shape.type === 'flag') o.traverse((x) => { if (!x.isMesh || !x.geometry.groups[1]) return; const gr = x.geometry.groups[1], pos = x.geometry.attributes.position; let x0 = Infinity, x1 = -Infinity; for (let i = gr.start; i < gr.start + gr.count; i++) { x0 = Math.min(x0, pos.getX(i)); x1 = Math.max(x1, pos.getX(i)); } x.userData.cloth = { start: gr.start, count: gr.count, orig: Float32Array.from(pos.array), x0, len: Math.max(0.1, x1 - x0), wind: m.shape.wind ?? 1, speed: m.shape.speed ?? 1 }; });
     // modifiers (js/modifiers.js): worked out on the freshly built object, so they never change the model itself
     if (m.mods && m.mods.length && window.MODS && !(m.kind === 'shape' && m.shape.type === 'flag')) { try { o = MODS.apply(o, m.mods); } catch (e) { console.warn('modifier', e); } }
+    if (m.mods && m.mods.some((md) => md.type === 'boolean' && md.on !== false && md.with)) { try { o = await applyBooleans(o, m); } catch (e) { console.warn('boolean', e); E.onWarn?.('A boolean could not be worked out: ' + e.message); } }
+    if (m.cutter) ghost(o);
     if (m.mat && (m.mat.fur || 0) > 0) addFur(o, m.mat);
     if (m.mat && m.mat.mirror) setupMirror(o, m);
     Object.assign(o.userData, { id: m.id, kind: m.kind }); o.uid = m.id; o.name = m.name || m.kind;
@@ -1175,11 +1242,11 @@
       old.traverse((x) => { if (x.isMesh) x.geometry.dispose(); });
       if (E.selectedId() === id || selected === old) { selected = o; tc.attach(o); }
       if (E.doc.anim) E.evalAt(E.time);
-      needs = true; emit('built');
+      needs = true; emit('built'); rebuildDependents(id);
     });
     return building;
   };
-  E.placeOne = (id) => { const m = E.find(id), o = built.get(id); if (m && o) { place(o, m); if (E.doc.anim) E.evalAt(E.time); needs = true; } };
+  E.placeOne = (id) => { const m = E.find(id), o = built.get(id); if (m && o) { place(o, m); if (E.doc.anim) E.evalAt(E.time); needs = true; rebuildDependents(id); } };
   E.object3d = (id) => built.get(id);
 
   // ------------------------------------------------------------------ lights, background, ground
@@ -1512,7 +1579,7 @@
     const src = onlySelected && selected ? selected : root;
     const tmp = src.clone(true); tmp.updateMatrixWorld(true);
     // fur shells are a look, not a shape: leave them out of 3D files
-    const furs = []; tmp.traverse((x) => { if (x.userData && x.userData.fur) furs.push(x); }); furs.forEach((x) => x.removeFromParent());
+    const furs = []; tmp.traverse((x) => { if (x.userData && (x.userData.fur || x.userData.helper || x.userData.mirrorView)) furs.push(x); }); furs.forEach((x) => x.removeFromParent());
     if (fmt === 'glb') { const r = await new T.GLTFExporter().parseAsync(tmp, { binary: true }); return new Blob([r], { type: 'model/gltf-binary' }); }
     if (fmt === 'obj') return new Blob([new T.OBJExporter().parse(tmp)], { type: 'text/plain' });
     if (fmt === 'stl') return new Blob([new T.STLExporter().parse(tmp, { binary: true })], { type: 'model/stl' });
