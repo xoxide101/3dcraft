@@ -1430,6 +1430,7 @@
     mount: $('app'), storageKey: '3dcraft', extraEls: [toggleL, toggleR],
     tabs: [
       { id: 'home', label: 'Home', hue: '#e8590c', groups: [
+        ['Start', [{ label: 'Start', icon: I.wand, run: () => showStart(), big: true, title: 'The start page: what do you want to make? (every kind of project, step by step)' }]],
         ['Scene', [C('New scene', 'New scene', I.newPage, { big: true }), { col: [C('Open', 'Open…', I.folder), C('Save', 'Save', I.save), C('Export', 'Export…', I.exportUp)] }]],
         ['Edit', [{ col: [C('Undo', 'Undo', I.undo), C('Redo', 'Redo', I.redo), C('Delete', 'Delete', I.trash)] }, { col: [C('Copy', 'Copy', I.copy), C('Paste', 'Paste', I.paste), C('Duplicate', 'Duplicate', I.duplicate)] }]],
         ['Handles', [C('Move', 'Move', MI.move, { big: true }), C('Turn', 'Turn', MI.turn, { big: true }), C('Size', 'Size', MI.size, { big: true })]],
@@ -1482,6 +1483,7 @@
   const tb = window.CraftTitlebar({
     appName: '3DCraft', storageKey: '3dcraft', colors: ['#ff922b', '#7048e8'], mount: $('app'), toast, logo: LOGO, menus: () => MENUS, ribbon,
     quick: [
+      { icon: 'wand', title: 'Start (wizard)', run: () => showStart() },
       { icon: 'save', title: 'Save', key: 'Ctrl+S', run: () => save(false) },
       { icon: 'undo', title: 'Undo', key: 'Ctrl+Z', run: undo, disabled: () => hIndex <= 0 },
       { icon: 'redo', title: 'Redo', key: 'Ctrl+Y', run: redo, disabled: () => hIndex >= history.length - 1 },
