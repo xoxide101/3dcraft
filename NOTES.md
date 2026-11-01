@@ -145,3 +145,7 @@ Headless Chrome over the DevTools protocol, opening `index.html` from the folder
 - Distance haze in ray-traced renders; weather layers (rain, snow, fog).
 - More colour-cycling presets as they are described (one remembered from an old games console is still to come).
 - AI helpers next: a small chat model in the browser (WebLLM) that drives the same commands as the buttons; relief and emboss from AI depth; upscaling; image to SVG conversions; the same kit in the other Craft apps when asked.
+
+## Start (wizard)
+
+The wand in the title bar's quick buttons and the Start button, first on the Home tab, bring back the starter scenes at any time.
