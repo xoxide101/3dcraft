@@ -57,7 +57,7 @@
       html += `<div class="bd-edit"><h3>${esc(BD.KINDS[L.kind][0])}</h3>
         <div class="row"><label class="field"><span>Kind</span><select class="input" id="bdl-kind">${opts(BD.KINDS, L.kind)}</select></label><label class="field"><span>Style</span><select class="input" id="bdl-style">${opts({ '': 'Same as the backdrop', classic: 'Classic (flat)', modern: 'Modern (3D)', cardboard: 'Cardboard' }, L.style || '')}</select></label></div>
         <button class="btn outline" type="button" data-bd="reseed" title="A new shape for this layer">🎲 New shape</button>
-        ${L.kind === 'picture' ? `<button class="btn primary" type="button" data-bd="pic">${L.src ? 'Change the picture…' : 'Choose a picture…'}</button>
+        ${L.kind === 'picture' ? `<button class="btn primary" type="button" data-bd="pic">${L.src ? 'Change the picture…' : 'Choose a picture…'}</button><button class="btn outline" type="button" data-bd="clip">Clip art…</button>
           ${range('bdl-size', 'Size', L.size ?? 1, 0.1, 4, 0.05, (v) => Math.round(v * 100) + '%')}
           <label class="field"><span>Repeat along the layer (0 = once)</span><input class="input" type="number" id="bdl-repeat" min="0" max="12" step="1" value="${L.repeat ?? 1}"></label>
           <label class="check"><input type="checkbox" id="bdl-rbg" ${L.removeBg !== false ? 'checked' : ''}> Remove a plain background</label>
@@ -117,6 +117,7 @@
     if (t.dataset.addobj) { const k = t.dataset.addobj, m = window.UI3 && UI3.addShape(k); if (m) { const n = E.doc.objects.length; m.pos[0] = ((n % 5) - 2) * 3; m.pos[2] = 2 + Math.floor(n / 5) * 2; E.placeOne(m.id); } return; }
     if (t.dataset.theme) { BD.useTheme(t.dataset.theme); cur = null; changed(); return; }
     if (t.dataset.bd === 'pic') { const l = b && b.layers.find((x) => x.id === cur); if (l) choosePicture(l); return; }
+    if (t.dataset.bd === 'clip') { const l = b && b.layers.find((x) => x.id === cur); if (l) clipartFor(l); return; }
     if (!b) return;
     if (t.dataset.bd === 'shuffle') { BD.shuffle(); changed(); return; }
     if (t.dataset.bd === 'del') { b.layers = b.layers.filter((l) => l.id !== cur); cur = null; changed(); return; }
@@ -136,12 +137,14 @@
   const picInput = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*', hidden: true }); document.body.append(picInput);
   let picFor = null;
   function choosePicture(l) { picFor = l; picInput.value = ''; picInput.click(); }
-  picInput.onchange = () => {
-    const f = picInput.files[0], l = picFor; if (!f || !l) return;
+  picInput.onchange = () => { const f = picInput.files[0]; if (f && picFor) pictureFile(f, picFor); };
+  // a picture file on a backdrop layer (from this computer, or clip art from the library)
+  function pictureFile(f, l) {
     const rd = new FileReader();
     rd.onload = () => { const img = new Image(); img.onload = () => { const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); l.src = c.toDataURL('image/png'); l.aspect = c.width / c.height; l.name = f.name; changed(); }; img.src = rd.result; };
     rd.readAsDataURL(f);
-  };
+  }
+  const clipartFor = (l) => window.CraftClipartPicker && CraftClipartPicker.open({ app: '3DCraft', svg: false, onPick: (p) => pictureFile(p.file, l) });
   BD.setPicture = (l, src, aspect) => { l.src = src; l.aspect = aspect; changed(); };
   E.on('built', () => { BD.sync(); render(); });
 
