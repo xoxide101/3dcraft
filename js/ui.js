@@ -1339,6 +1339,7 @@
       { label: 'Render now (ray-traced picture)', run: () => renderNow(), disabled: () => !E.doc },
       { label: 'Render (ray-traced)…', key: 'F9', run: () => openRender(), disabled: () => !E.doc },
       { label: 'Export picture or 3D model…', key: 'Ctrl+E', run: openExport, disabled: () => !E.doc },
+      { label: 'Keep in My pictures (every Craft app)', run: () => { const png = () => new Promise((ok, no) => { try { E.renderImage(1200, 900, { transparent: true }).toBlob(ok, 'image/png'); } catch (e) { no(e); } }); CraftClipartPicker.keepAsk({ name: baseName(), from: '3DCraft', pick: 'source', png, source: async () => { E.saveCamera(); return { name: baseName() + '.3dcraft.json', type: 'application/json', text: JSON.stringify(E.doc) }; } }).then((p) => { if (p && p.id) toast('Kept in My pictures: any Craft app has it under Clip art › My pictures.'); }); }, disabled: () => !E.doc || !window.CraftClipartPicker || !CraftClipartPicker.keep },
       { label: 'Bring in a 3D model or scan (GLB, OBJ + MTL, STL, PLY)…', run: () => $('model-input').click(), disabled: () => !E.doc },
     ]],
     ['Edit', [
@@ -1356,7 +1357,7 @@
       { label: '3D text', run: () => addText() },
       { label: 'Picture to 3D…', run: () => openTrace() },
       { label: 'Barcode or QR code to 3D…', run: () => window.CraftBarcode && CraftBarcode.open({ app: '3DCraft', title: 'Barcode from BarcodeCraft', insertLabel: 'Make 3D', onInsert: async (m) => openTrace(null, await CraftBarcode.dataUrl(m, 600)) }), disabled: () => !E.doc },
-      { label: 'Clip art to 3D…', run: () => window.CraftClipartPicker && CraftClipartPicker.open({ app: '3DCraft', svg: false, onPick: (p) => { const r = new FileReader(); r.onload = () => openTrace(null, r.result); r.readAsDataURL(p.file); } }) },
+      { label: 'Clip art to 3D…', run: () => window.CraftClipartPicker && CraftClipartPicker.open({ app: '3DCraft', svg: false, onSource: async (s) => { try { await openDoc(JSON.parse(s.text)); fileName = ''; toast('Opened ' + (s.name || 'the scene') + ' from My pictures'); } catch (err) { toast('Could not open it: ' + err.message); } }, onPick: (p) => { const r = new FileReader(); r.onload = () => openTrace(null, r.result); r.readAsDataURL(p.file); } }) },
       { label: 'Photo cut-out…', run: () => photoCutout(), disabled: () => !E.doc },
       { label: 'Photos to 3D (one photo or a turntable set)…', run: () => openPhotos3D(), disabled: () => !E.doc },
       { label: 'Describe it (type what you want)…', run: () => openDescribe(), disabled: () => !E.doc },
