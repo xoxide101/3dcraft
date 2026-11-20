@@ -18,7 +18,7 @@
   ['info', 'tracedlg', 'exportdlg'].forEach((id) => $(id).addEventListener('keydown', (e) => { if (e.key === 'Escape') $(id).hidden = true; }));
 
   // ------------------------------------------------------------------ history, autosave, changes
-  let history = [], hIndex = -1, hTimer = null, dirty = false, fileName = null, autosaveFailed = false;
+  let history = [], hIndex = -1, hTimer = null, dirty = false, fileName = null, myFile = null, autosaveFailed = false;
   const snapshot = () => JSON.stringify(E.doc);
   function resetHistory() { history = [snapshot()]; hIndex = 0; dirty = false; try { localStorage.setItem(AUTOSAVE, history[0]); } catch (e) {} }
   function changed(rebuildId) {
@@ -1137,12 +1137,28 @@
   // ------------------------------------------------------------------ files
   async function openDoc(d) {
     if (!d || d.app !== '3DCraft' || !Array.isArray(d.objects)) throw new Error('This is not a 3DCraft scene.');
-    E.doc = d; E.time = 0; E.applyCamera(); await E.rebuild(); resetHistory(); fileName = null; if (window.TL3) TL3.render();
+    E.doc = d; E.time = 0; E.applyCamera(); await E.rebuild(); resetHistory(); fileName = null; myFile = null; if (window.TL3) TL3.render();
     $('start').hidden = true; renderLayers(); showProps(); status(); tb && tb.update();
   }
   $('open-input').onchange = async (e) => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { await openDoc(JSON.parse(await f.text())); fileName = f.name; } catch (err) { info('Could not open that file', esc(err.message)); } };
+  // ---- My files (FileCraft's file manager: your account, or this browser when logged out), in the folder 3DCraft
+  async function saveToMyFiles(as) {
+    if (!E.doc) return; if (!window.CraftFiles) return toast('My files is not in this copy of 3DCraft.');
+    let name = myFile && !as ? myFile : prompt('Save to My files (3DCraft folder) as:', (E.doc.name || 'My scene') + '.3dcraft.json'); if (!name) return;
+    name = name.replace(/\.3dcraft\.json$|\.json$/i, '') + '.3dcraft.json';
+    E.saveCamera(); E.doc.name = name.replace(/\.3dcraft\.json$/, '');
+    try { await CraftFiles.saveFile({ folder: '3DCraft', name, blob: new Blob([JSON.stringify(E.doc)], { type: 'application/json' }) }); myFile = name; fileName = null; dirty = false; status(); tb && tb.update(); toast(`Saved to My files › 3DCraft › ${name}${window.CraftAccount && CraftAccount.user() ? ' (your account)' : ' (this browser: log in for your account)'}`); }
+    catch (e) { toast('Could not save to My files: ' + e.message); }
+  }
+  async function openFromMyFiles() {
+    if (!window.CraftFiles) return toast('My files is not in this copy of 3DCraft.');
+    if (E.doc && dirty && !confirm('Open another scene? The changes to this one that are not saved are lost.')) return;
+    const f = await CraftFiles.pick({ app: '3DCraft', folder: '3DCraft', accept: /\.json$/i, title: 'Open a scene' }); if (!f) return;
+    try { await openDoc(JSON.parse(await f.blob.text())); myFile = f.path === 'files/3DCraft' || f.path === 'files/3DCraft/' + f.name ? f.name : null; toast('Opened ' + f.name); } catch (err) { info('Could not open', esc(err.message)); }
+  }
   async function save(as) {
     if (!E.doc) return;
+    if (myFile && !as) return saveToMyFiles(false);
     E.saveCamera();
     const text = JSON.stringify(E.doc), blob = new Blob([text], { type: 'application/json' });
     let name = !as && fileName ? fileName : (E.doc.name || 'My scene') + '.3dcraft.json';
@@ -1335,6 +1351,9 @@
       { label: 'Open…', key: 'Ctrl+O', run: () => $('open-input').click() },
       { label: 'Save', key: 'Ctrl+S', run: () => save(false), disabled: () => !E.doc },
       { label: 'Save as…', run: () => save(true), disabled: () => !E.doc },
+      { label: 'Save to My files', run: () => saveToMyFiles(true), disabled: () => !E.doc },
+      { label: 'Open from My files…', run: openFromMyFiles },
+      { label: 'My files…', run: () => window.CraftFiles && CraftFiles.open({ app: '3DCraft' }) },
       '-',
       { label: 'Render now (ray-traced picture)', run: () => renderNow(), disabled: () => !E.doc },
       { label: 'Render (ray-traced)…', key: 'F9', run: () => openRender(), disabled: () => !E.doc },
@@ -1482,7 +1501,7 @@
         ['Animation', [{ label: 'Export animation', icon: I.exportUp, big: true, title: 'GIF, MP4, WebM, AVI or PNG frames', run: () => ANIM3.open() }]],
         ['Export', [C('Export', 'Picture or 3D model…', I.exportUp, { big: true }), C('Bring in', 'Bring in a 3D model', I.import, { big: true })]],
         ['3D print', [{ label: 'Print check', icon: MI.printer3d, big: true, title: 'Size in millimetres, closed (watertight), thin walls, stand it on the bed, save an STL in millimetres', run: () => openPrintCheck() }]],
-        ['File', [C('Save', 'Save', I.save, { big: true }), { col: [C('Save as', 'Save as…', I.save), C('Open', 'Open…', I.folder)] }]],
+        ['File', [C('Save', 'Save', I.save, { big: true }), { col: [C('Save as', 'Save as…', I.save), C('Open', 'Open…', I.folder)] }, { col: [C('Save to My files', 'To My files', I.save, { title: 'Save to My files (your account, in the 3DCraft folder)' }), C('Open from My files', 'From My files', I.folder, { title: 'Open a scene from My files' }), C('My files', 'My files…', I.folder)] }]],
       ] },
     ],
   });
@@ -1499,7 +1518,7 @@
     getTitle: () => (E.doc ? E.doc.name : '3DCraft'),
     getStatus: () => (E.doc ? (dirty ? { text: 'Not saved to a file yet', dirty: true } : { text: 'Autosaves in this browser' }) : { text: '' }),
     getInfo: () => (E.doc ? [{ text: E.layout() === 'four' ? 'Four views' : 'One view', title: 'Switch views', run: () => E.setLayout(E.layout() === 'four' ? 'one' : 'four') }] : []),
-    rightEls: [THEME_BTN],
+    rightEls: [window.CraftAccount && CraftAccount.button ? CraftAccount.button() : null, THEME_BTN].filter(Boolean),
     onHelp: help,
   });
   const app = $('app'); app.prepend(ribbon.el); app.prepend(tb.el);

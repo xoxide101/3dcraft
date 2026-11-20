@@ -162,3 +162,9 @@ Insert › Barcode to 3D (ribbon) and Insert › Barcode or QR code to 3D… ope
 - 2026-11-19 Phones and tablets: the title bar never makes the page wider than the screen: under 900 px the search box is left out (every command is in the logo menu), the quick buttons give way, under 620 px the AI switch is only in the status bar. The barcode window (craft-barcode.js, now the same in every app, with the QR picture) stacks in one column and scrolls with a finger.
 - 2026-11-19 Keep in My pictures asks how (CraftClipartPicker.keepAsk): SVG (vector, every detail), a picture (PNG), or the working file (the app's own file, like a PSD, kept with a picture of it). A kept working file shows Open it here in the app that made it (open({ onSource })) and Save the working file… anywhere. LogoCraft (File: SVG / PNG / .logocraft.json), 3DCraft (PNG / .3dcraft.json), BarcodeCraft (each library barcode: SVG / PNG), ImageCraft (the picture as a lossless PNG). Pictures kept in apps without the account stay in this browser and go up to the account the next time My pictures opens in an app that is logged in.
 - 2026-11-19 craft-keys.js brought up to the shared version (the same in every Craft app; copying works on plain http).
+
+## One account, My files and the apps bar (shared)
+
+- `js/craft-crypto.js`, `js/craft-account.js`, `js/craft-rail.js` and `js/craft-files.js` are copies of the AccountCraft masters (same as LogoCraft, LabelCraft, PressCraft): **Log in** in the title bar, the apps bar at the left (3DCraft is in "One account").
+- File › Save to My files / Open from My files / My files… and the ribbon's File group: scenes go to My files › 3DCraft (your account when logged in, this browser when not). After opening one from there, Save (Ctrl+S) saves back to it without asking.
+- `CraftFiles.pick()` gives the folder as `path` (`files/3DCraft`), not the folder plus the name.
