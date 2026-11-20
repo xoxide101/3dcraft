@@ -188,3 +188,6 @@ input[type="range"] { width: 100%; }
 /* Symbols tab: the dingbat and emoji picker fills the panel */
 #tab-dingbats:not([hidden]) { display: flex; flex-direction: column; min-height: 0; height: 100%; }
 .sym-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 8px; }
+
+/* phones: the side panels start under the ribbon and end above the status bar */
+@media (max-width: 980px) { .work.show-left .side.left, .work.show-right .side.right { top: var(--cst-top, 140px); padding-bottom: 52px; box-sizing: border-box; } }
