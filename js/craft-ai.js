@@ -94,11 +94,14 @@
   const inTurn = (fn) => { const p = queue.then(fn, fn); queue = p.catch(() => {}); return p; };
   function run(k, fn) { return inTurn(() => run1(k, fn)); }
   async function run1(k, fn) {
-    try { return await fn(await ready(k)); }
+    const K = window.CraftKeys, t0 = Date.now(), dev = () => (deviceFor(k) === 'webgpu' ? 'graphics card' : 'processor');   // (the page's own AI: the amber light)
+    if (K && K.working) K.working('browser', true, `${MODELS[k].name} (${dev()})`);
+    const done = (ok, err) => { if (K && K.working) { K.working('browser', false); K.activity('browser', { what: MODELS[k].name, engine: 'Transformers.js', model: MODELS[k].id || MODELS[k].name, device: dev(), ms: Date.now() - t0, ok, came: err ? String(err.message || err) : 'ran' }); } };
+    try { const r = await fn(await ready(k)); done(true); return r; }
     catch (e) {
-      if (deviceFor(k) !== 'webgpu' || !/OrtRun|webgpu|shader|GPU/i.test(e.message)) throw e;
+      if (deviceFor(k) !== 'webgpu' || !/OrtRun|webgpu|shader|GPU/i.test(e.message)) { done(false, e); throw e; }
       cpuOnly.add(k); progress(k, { status: 'cpu' });
-      return fn(await ready(k));
+      try { const r = await fn(await ready(k)); done(true); return r; } catch (e2) { done(false, e2); throw e2; }
     }
   }
   function ready(k) {
