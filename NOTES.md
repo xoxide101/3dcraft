@@ -168,3 +168,8 @@ Insert › Barcode to 3D (ribbon) and Insert › Barcode or QR code to 3D… ope
 - `js/craft-crypto.js`, `js/craft-account.js`, `js/craft-rail.js` and `js/craft-files.js` are copies of the AccountCraft masters (same as LogoCraft, LabelCraft, PressCraft): **Log in** in the title bar, the apps bar at the left (3DCraft is in "One account").
 - File › Save to My files / Open from My files / My files… and the ribbon's File group: scenes go to My files › 3DCraft (your account when logged in, this browser when not). After opening one from there, Save (Ctrl+S) saves back to it without asking.
 - `CraftFiles.pick()` gives the folder as `path` (`files/3DCraft`), not the folder plus the name.
+
+## 2026-11-27: the Craft Hub
+- launcher.json: this app's card in the Craft Hub (the launcher at /craft/: an expanding pie of every app, read from each folder's launcher.json); launcher.png: its picture there
+- The Craft rail (the bar down the left) has the Craft Hub at the top, back to /craft/ from any page
+- See every app: https://github.com/xoxide101
