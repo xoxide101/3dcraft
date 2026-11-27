@@ -1,0 +1,9 @@
+{
+ "name": "3DCraft",
+ "icon": "🧊",
+ "about": "3D titles and logos",
+ "group": "Make and design",
+ "order": 80,
+ "entry": "index.html",
+ "status": "beta"
+}
